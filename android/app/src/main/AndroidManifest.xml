@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.fbla_2026">
     <application
         android:label="fbla_2026"
         android:name="${applicationName}"
