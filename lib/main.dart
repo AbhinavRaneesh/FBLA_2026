@@ -8,6 +8,7 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
+import 'screens/chatbot_screen.dart';
 
 // FBLA Colors
 const fblaNavy = Color(0xFF00274D);
@@ -351,23 +352,34 @@ class _RootScreenState extends State<RootScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
-      floatingActionButton: _index == 3
+      floatingActionButton: _index == 0
           ? FloatingActionButton(
               backgroundColor: fblaGold,
-              child: Icon(Icons.add, color: Colors.black),
+              child: Icon(Icons.smart_toy, color: fblaNavy),
               onPressed: () {
-                // quick new thread (demo)
-                final app = Provider.of<AppState>(context, listen: false);
-                final t = ChatThread(
-                    id: 't${app.threads.length + 1}',
-                    title: 'New thread ${app.threads.length + 1}',
-                    messages: []);
-                app.addThread(t);
-                ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Created new thread')));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => ChatbotScreen()),
+                );
               },
             )
-          : null,
+          : _index == 3
+              ? FloatingActionButton(
+                  backgroundColor: fblaGold,
+                  child: Icon(Icons.add, color: Colors.black),
+                  onPressed: () {
+                    // quick new thread (demo)
+                    final app = Provider.of<AppState>(context, listen: false);
+                    final t = ChatThread(
+                        id: 't${app.threads.length + 1}',
+                        title: 'New thread ${app.threads.length + 1}',
+                        messages: []);
+                    app.addThread(t);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Created new thread')));
+                  },
+                )
+              : null,
     );
   }
 }
