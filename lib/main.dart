@@ -6,9 +6,21 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
+import 'screens/onboarding_screen.dart';
+import 'screens/resources_screen.dart';
+import 'screens/firebase_auth_screen.dart';
+import 'screens/edit_profile_screen.dart';
 import 'screens/chatbot_screen.dart';
+import 'ai/bloc/chat_bloc.dart';
+import 'ai/repos/chat_repo.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'services/firebase_service.dart';
+import 'models/fbla_models.dart';
+import 'screens/firebase_test_screen.dart';
 
 // FBLA Colors
 const fblaNavy = Color(0xFF00274D);
@@ -16,15 +28,28 @@ const fblaGold = Color(0xFFFDB913);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase with fallback
+  bool firebaseEnabled = false;
+  try {
+    await Firebase.initializeApp();
+    print('🔥 Firebase initialized successfully');
+    firebaseEnabled = true;
+  } catch (e) {
+    print('🔥 Firebase initialization failed: $e');
+    print('🔥 App will run with local authentication only');
+    firebaseEnabled = false;
+  }
+
   tz.initializeTimeZones();
-  tz.setLocalLocation(
-      tz.getLocation('America/Denver')); // <-- set to your local tz
+  tz.setLocalLocation(tz.getLocation('America/Denver'));
   final prefs = await SharedPreferences.getInstance();
-  runApp(MyApp(prefs: prefs));
+  runApp(MyApp(prefs: prefs, firebaseEnabled: firebaseEnabled));
 }
 
 class AppState extends ChangeNotifier {
   final SharedPreferences prefs;
+  final bool firebaseEnabled;
   String userEmail;
   String displayName;
   List<Event> events;
@@ -32,17 +57,39 @@ class AppState extends ChangeNotifier {
   List<Competition> competitions;
   List<ChatThread> threads;
   Set<String> savedEventIds = {};
-  AppState({required this.prefs})
+  bool hasSeenOnboarding;
+
+  // Firebase integration
+  User? firebaseUser;
+  FBLAUser? userProfile;
+  Chapter? userChapter;
+
+  AppState({required this.prefs, required this.firebaseEnabled})
       : userEmail = prefs.getString('userEmail') ?? '',
         displayName = prefs.getString('displayName') ?? '',
         events = sampleEvents,
         news = sampleNews,
         competitions = sampleCompetitions,
-        threads = sampleThreads {
+        threads = sampleThreads,
+        hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false {
     savedEventIds = prefs.getStringList('savedEvents')?.toSet() ?? {};
+
+    // Firebase auth state listener (only if Firebase is enabled)
+    if (firebaseEnabled) {
+      FirebaseService.authStateChanges.listen((User? user) {
+        firebaseUser = user;
+        if (user != null) {
+          _loadUserProfile(user.uid);
+        } else {
+          userProfile = null;
+          userChapter = null;
+        }
+        notifyListeners();
+      });
+    }
   }
 
-  bool get loggedIn => userEmail.isNotEmpty;
+  bool get loggedIn => firebaseUser != null || userEmail.isNotEmpty;
 
   Future<void> login(String email, String name) async {
     userEmail = email;
@@ -53,11 +100,58 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    if (firebaseEnabled && firebaseUser != null) {
+      await FirebaseService.signOut();
+    }
     userEmail = '';
     displayName = '';
+    firebaseUser = null;
+    userProfile = null;
+    userChapter = null;
     await prefs.remove('userEmail');
     await prefs.remove('displayName');
     notifyListeners();
+  }
+
+  Future<void> skipOnboarding() async {
+    hasSeenOnboarding = true;
+    await prefs.setBool('hasSeenOnboarding', true);
+    notifyListeners();
+  }
+
+  Future<void> setFirebaseUser(User user) async {
+    if (!firebaseEnabled) return;
+    firebaseUser = user;
+    userEmail = user.email ?? '';
+    displayName = user.displayName ?? '';
+    await _loadUserProfile(user.uid);
+    notifyListeners();
+  }
+
+  Future<void> _loadUserProfile(String userId) async {
+    if (!firebaseEnabled) return;
+    try {
+      final profileData = await FirebaseService.getUserProfile(userId);
+      if (profileData != null) {
+        userProfile = FBLAUser.fromFirestore(profileData);
+        if (userProfile?.chapter != null) {
+          final chapterData =
+              await FirebaseService.getChapter(userProfile!.chapter!);
+          if (chapterData != null) {
+            userChapter = Chapter.fromFirestore(chapterData);
+          }
+        }
+      }
+    } catch (e) {
+      print('Error loading user profile: $e');
+    }
+  }
+
+  Future<void> refreshUserProfile() async {
+    if (firebaseEnabled && firebaseUser != null) {
+      await _loadUserProfile(firebaseUser!.uid);
+      notifyListeners();
+    }
   }
 
   void toggleSaveEvent(String eventId) {
@@ -190,6 +284,27 @@ final sampleNews = [
     body: 'A set of study guides for competitions has been posted.',
     date: DateTime.now().subtract(Duration(days: 2)),
   ),
+  NewsItem(
+    id: 'n3',
+    title: 'Chapter Meeting This Friday',
+    body:
+        'Join us for our weekly chapter meeting to discuss upcoming events and competitions.',
+    date: DateTime.now().subtract(Duration(days: 3)),
+  ),
+  NewsItem(
+    id: 'n4',
+    title: 'State Leadership Conference Registration Open',
+    body:
+        'Registration for the State Leadership Conference is now open. Early bird pricing available.',
+    date: DateTime.now().subtract(Duration(days: 4)),
+  ),
+  NewsItem(
+    id: 'n5',
+    title: 'National FBLA Competition Results',
+    body:
+        'Congratulations to all participants! Check out the results from this year\'s national competitions.',
+    date: DateTime.now().subtract(Duration(days: 5)),
+  ),
 ];
 
 final sampleCompetitions = [
@@ -266,12 +381,13 @@ String _shortDateTime(DateTime d) {
 
 class MyApp extends StatelessWidget {
   final SharedPreferences prefs;
-  const MyApp({super.key, required this.prefs});
+  final bool firebaseEnabled;
+  const MyApp({super.key, required this.prefs, required this.firebaseEnabled});
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => AppState(prefs: prefs),
+      create: (_) => AppState(prefs: prefs, firebaseEnabled: firebaseEnabled),
       child: MaterialApp(
         title: 'FBLA Member App',
         theme: ThemeData(
@@ -299,12 +415,47 @@ class MyApp extends StatelessWidget {
             margin: EdgeInsets.symmetric(vertical: 8),
           ),
         ),
+        darkTheme: ThemeData(
+          brightness: Brightness.dark,
+          primaryColor: fblaNavy,
+          colorScheme: ColorScheme.dark(
+            primary: fblaNavy,
+            secondary: fblaGold,
+            surface: Colors.grey.shade900,
+            background: Colors.grey.shade900,
+          ),
+          appBarTheme: AppBarTheme(
+            backgroundColor: fblaNavy,
+            titleTextStyle: TextStyle(
+                fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: fblaNavy,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+          ),
+          cardTheme: CardThemeData(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 3,
+            margin: EdgeInsets.symmetric(vertical: 8),
+            color: Colors.grey.shade800,
+          ),
+        ),
+        themeMode: ThemeMode.system,
         debugShowCheckedModeBanner: false,
         routes: {
           '/login': (_) => const LoginScreen(),
           '/signup': (_) => const SignupScreen(),
+          '/onboarding': (_) => const OnboardingScreen(),
+          '/firebase_auth': (_) => const FirebaseAuthScreen(),
+          '/firebase_test': (_) => FirebaseTestScreen(),
         },
-        home: AuthGate(),
+        home: AuthGate(firebaseEnabled: firebaseEnabled),
       ),
     );
   }
@@ -321,8 +472,11 @@ class _RootScreenState extends State<RootScreen> {
   final _pages = [
     HomeScreen(),
     EventsScreen(),
-    CompetitionsScreen(),
-    CommunityScreen(),
+    BlocProvider(
+      create: (context) => ChatBloc(chatRepository: ChatRepository()),
+      child: ChatbotScreen(),
+    ),
+    ResourcesScreen(),
     ProfileScreen(),
   ];
 
@@ -347,51 +501,45 @@ class _RootScreenState extends State<RootScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.event), label: 'Events'),
           BottomNavigationBarItem(
-              icon: Icon(Icons.emoji_events), label: 'Competitions'),
-          BottomNavigationBarItem(icon: Icon(Icons.forum), label: 'Community'),
+              icon: Icon(Icons.smart_toy), label: 'AI Assistant'),
+          BottomNavigationBarItem(icon: Icon(Icons.school), label: 'Resources'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
-      floatingActionButton: _index == 0
+      floatingActionButton: _index == 2
           ? FloatingActionButton(
               backgroundColor: fblaGold,
-              child: Icon(Icons.smart_toy, color: fblaNavy),
+              child: Icon(Icons.refresh, color: Colors.black),
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => ChatbotScreen()),
-                );
+                // Refresh chatbot conversation
+                ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Chatbot conversation refreshed')));
               },
             )
-          : _index == 3
-              ? FloatingActionButton(
-                  backgroundColor: fblaGold,
-                  child: Icon(Icons.add, color: Colors.black),
-                  onPressed: () {
-                    // quick new thread (demo)
-                    final app = Provider.of<AppState>(context, listen: false);
-                    final t = ChatThread(
-                        id: 't${app.threads.length + 1}',
-                        title: 'New thread ${app.threads.length + 1}',
-                        messages: []);
-                    app.addThread(t);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Created new thread')));
-                  },
-                )
-              : null,
+          : null,
     );
   }
 }
 
 class AuthGate extends StatelessWidget {
+  final bool firebaseEnabled;
+  const AuthGate({super.key, required this.firebaseEnabled});
+
   @override
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context);
     if (app.loggedIn) {
       return RootScreen();
     }
-    return const LoginScreen();
+    if (!app.hasSeenOnboarding) {
+      return const OnboardingScreen();
+    }
+    // Use Firebase authentication if available, otherwise fall back to local auth
+    if (firebaseEnabled) {
+      return const FirebaseAuthScreen();
+    } else {
+      return const LoginScreen();
+    }
   }
 }
 
@@ -423,44 +571,267 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context);
+    final Color fblaBlue = const Color(0xFF1D4E89);
+    final Color fblaGold = const Color(0xFFF6C500);
+
     return SafeArea(
       child: ListView(
         padding: EdgeInsets.all(16),
         children: [
+          // Header with greeting
           Container(
-            padding: EdgeInsets.all(16),
+            padding: EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                  colors: [fblaNavy, fblaNavy.withOpacity(0.85)]),
-              borderRadius: BorderRadius.circular(16),
+                  colors: [fblaBlue, fblaBlue.withOpacity(0.85)]),
+              borderRadius: BorderRadius.circular(20),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('FBLA Member App',
-                    style: TextStyle(
-                        fontSize: 20,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Welcome back,',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                    ),
+                    Text(
+                      app.displayName.isNotEmpty
+                          ? app.displayName
+                          : 'FBLA Member',
+                      style: TextStyle(
+                        fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white)),
-                if (!app.loggedIn)
-                  TextButton(
-                      onPressed: () => Navigator.pushNamed(context, '/login'),
-                      child: Text('Log in', style: TextStyle(color: fblaGold)))
-                else
-                  TextButton(
-                      onPressed: () {
-                        app.logout();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Logged out')));
-                      },
-                      child: Text('Log out', style: TextStyle(color: fblaGold)))
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                CircleAvatar(
+                  radius: 30,
+                  backgroundColor: fblaGold,
+                  child: Text(
+                    app.displayName.isNotEmpty
+                        ? app.displayName[0].toUpperCase()
+                        : 'F',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: fblaBlue,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
+          SizedBox(height: 24),
+
+          // Quick Links Section
+          SectionHeader(title: 'Quick Access'),
           SizedBox(height: 16),
-          SectionHeader(title: 'Announcements'),
-          ...app.news.map((n) => Card(
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _QuickButton(
+                  icon: Icons.calendar_today,
+                  label: 'Calendar',
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => EventsScreen())),
+                ),
+                SizedBox(width: 12),
+                _AIAssistantCard(
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => BlocProvider(
+                                create: (context) =>
+                                    ChatBloc(chatRepository: ChatRepository()),
+                                child: ChatbotScreen(),
+                              ))),
+                ),
+                SizedBox(width: 12),
+                _QuickButton(
+                  icon: Icons.school,
+                  label: 'Resources',
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => ResourcesScreen())),
+                ),
+                SizedBox(width: 12),
+                _QuickButton(
+                  icon: Icons.group,
+                  label: 'Chapter',
+                  onTap: () async {
+                    final url = Uri.parse('https://connect.fbla.org/');
+                    if (await canLaunchUrl(url)) launchUrl(url);
+                  },
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 24),
+
+          // Upcoming Events Carousel
+          SectionHeader(title: 'Upcoming Events'),
+          SizedBox(height: 16),
+          SizedBox(
+            height: 220,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: app.events.length,
+              itemBuilder: (context, index) {
+                final event = app.events[index];
+                return Container(
+                  width: 300,
+                  margin: EdgeInsets.only(right: 16),
+                  child: Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: fblaGold.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  _formatEventDate(event.start),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: fblaBlue,
+                                  ),
+                                ),
+                              ),
+                              Spacer(),
+                              IconButton(
+                                icon: Icon(
+                                  app.savedEventIds.contains(event.id)
+                                      ? Icons.bookmark
+                                      : Icons.bookmark_border,
+                                  color: fblaGold,
+                                ),
+                                onPressed: () {
+                                  app.toggleSaveEvent(event.id);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        app.savedEventIds.contains(event.id)
+                                            ? 'Event saved'
+                                            : 'Event removed',
+                                      ),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            event.title,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            event.location,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.access_time,
+                                size: 16,
+                                color: Colors.grey.shade600,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                _formatTime(event.start),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                              Expanded(child: SizedBox()),
+                              TextButton(
+                                onPressed: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (_) => AlertDialog(
+                                      title: Text(event.title),
+                                      content: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(event.description),
+                                          SizedBox(height: 8),
+                                          Text(
+                                              'Date: ${_formatEventDate(event.start)}'),
+                                          Text(
+                                              'Time: ${_formatTime(event.start)}'),
+                                          Text('Location: ${event.location}'),
+                                        ],
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context),
+                                          child: Text('Close'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                                child: Text(
+                                  'Details',
+                                  style: TextStyle(color: fblaBlue),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          SizedBox(height: 24),
+
+          // Recent Announcements
+          SectionHeader(title: 'Recent Announcements'),
+          SizedBox(height: 16),
+          ...app.news.take(3).map((n) => Card(
                 child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: fblaBlue,
+                    child: Icon(Icons.campaign, color: Colors.white, size: 20),
+                  ),
                   title: Text(n.title,
                       style: TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text(n.body,
@@ -479,56 +850,33 @@ class HomeScreen extends StatelessWidget {
                           )),
                 ),
               )),
-          SizedBox(height: 16),
-          SectionHeader(title: 'Quick Links'),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _QuickButton(
-                icon: Icons.schedule,
-                label: 'Full Schedule',
-                onTap: () => Navigator.push(
-                    context, MaterialPageRoute(builder: (_) => EventsScreen())),
-              ),
-              _QuickButton(
-                icon: Icons.school,
-                label: 'Resources',
-                onTap: () async {
-                  final url = Uri.parse('https://connect.fbla.org/');
-                  if (await canLaunchUrl(url)) launchUrl(url);
-                },
-              ),
-              _QuickButton(
-                icon: Icons.map,
-                label: 'Venue Map',
-                onTap: () =>
-                    launchUrl(Uri.parse('https://www.google.com/maps')),
-              ),
-            ],
-          ),
-          SizedBox(height: 16),
-          SectionHeader(title: 'Your Saved Events'),
-          ...app.events
-              .where((e) => app.savedEventIds.contains(e.id))
-              .map((e) => Card(
-                    child: ListTile(
-                      title: Text(e.title),
-                      subtitle:
-                          Text('${_shortDateTime(e.start)} • ${e.location}'),
-                      trailing: IconButton(
-                        icon: Icon(Icons.notifications_active, color: fblaGold),
-                        onPressed: () async {
-                          await scheduleEventReminder(e);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Reminder scheduled')));
-                        },
-                      ),
-                    ),
-                  )),
         ],
       ),
     );
+  }
+
+  String _formatEventDate(DateTime date) {
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    return '${months[date.month - 1]} ${date.day}';
+  }
+
+  String _formatTime(DateTime date) {
+    final hour = date.hour > 12 ? date.hour - 12 : date.hour;
+    final ampm = date.hour >= 12 ? 'PM' : 'AM';
+    return '${hour == 0 ? 12 : hour}:${date.minute.toString().padLeft(2, '0')} $ampm';
   }
 }
 
@@ -554,93 +902,454 @@ class _QuickButton extends StatelessWidget {
   }
 }
 
+class _AIAssistantCard extends StatelessWidget {
+  final VoidCallback onTap;
+  const _AIAssistantCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 160,
+        height: 120,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              fblaNavy,
+              fblaNavy.withOpacity(0.8),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: fblaNavy.withOpacity(0.3),
+              blurRadius: 8,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: fblaGold,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: fblaGold.withOpacity(0.3),
+                      blurRadius: 6,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.smart_toy,
+                  color: fblaNavy,
+                  size: 24,
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'AI Assistant',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Ask me anything!',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.8),
+                  fontSize: 11,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // Login screen moved to lib/screens/login_screen.dart
 
 /* ------------------------
    Events Screen
    ------------------------ */
 
-class EventsScreen extends StatelessWidget {
+class EventsScreen extends StatefulWidget {
+  @override
+  State<EventsScreen> createState() => _EventsScreenState();
+}
+
+class _EventsScreenState extends State<EventsScreen>
+    with TickerProviderStateMixin {
+  String _selectedFilter = 'All';
+  final List<String> _filters = [
+    'All',
+    'Meetings',
+    'Competitions',
+    'Social',
+    'Workshops'
+  ];
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context);
     final upcoming = app.events..sort((a, b) => a.start.compareTo(b.start));
+    final Color fblaBlue = const Color(0xFF1D4E89);
+    final Color fblaGold = const Color(0xFFF6C500);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      appBar: AppBar(title: Text('Events & Schedule')),
-      body: ListView.builder(
-          padding: EdgeInsets.all(16),
-          itemCount: upcoming.length,
-          itemBuilder: (context, idx) {
-            final e = upcoming[idx];
-            final saved = app.savedEventIds.contains(e.id);
-            return Card(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8),
-                child: ListTile(
-                  title: Text(e.title,
-                      style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text('${_shortDateTime(e.start)} • ${e.location}'),
-                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                    IconButton(
-                      icon: Icon(saved ? Icons.bookmark : Icons.bookmark_border,
-                          color: fblaGold),
-                      onPressed: () {
-                        app.toggleSaveEvent(e.id);
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(saved ? 'Removed' : 'Saved')));
-                      },
-                    ),
-                    PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'rsvp') {
-                          showModalBottomSheet(
-                              context: context,
-                              builder: (_) => _RsvpSheet(event: e));
-                        } else if (value == 'map') {
-                          final url = Uri.parse(
-                              'https://www.google.com/maps/search/${Uri.encodeComponent(e.location)}');
-                          launchUrl(url);
-                        } else if (value == 'reminder') {
-                          scheduleEventReminder(e);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Reminder scheduled')));
-                        }
-                      },
-                      itemBuilder: (_) => [
-                        PopupMenuItem(value: 'rsvp', child: Text('RSVP')),
-                        PopupMenuItem(
-                            value: 'reminder',
-                            child: Text('Schedule reminder')),
-                        PopupMenuItem(value: 'map', child: Text('Open map')),
-                      ],
-                    )
-                  ]),
-                  onTap: () {
-                    showDialog(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                              title: Text(e.title),
-                              content: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(e.description),
-                                    SizedBox(height: 8),
-                                    Text(
-                                        '${_shortDateTime(e.start)} — ${_shortDateTime(e.end)}'),
-                                    Text(e.location),
-                                  ]),
-                              actions: [
-                                TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: Text('Close'))
-                              ],
-                            ));
-                  },
+      appBar: AppBar(
+        title: Text('Events & Schedule'),
+        backgroundColor: fblaBlue,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: fblaGold,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          tabs: [
+            Tab(text: 'Calendar'),
+            Tab(text: 'List'),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          // Filter chips
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.grey.shade800 : Colors.grey.shade50,
+              border: Border(
+                bottom: BorderSide(
+                  color: Colors.grey.shade300,
+                  width: 1,
                 ),
               ),
-            );
-          }),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _filters.map((filter) {
+                  final isSelected = _selectedFilter == filter;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: Text(filter),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setState(() => _selectedFilter = filter);
+                      },
+                      backgroundColor:
+                          isDark ? Colors.grey.shade700 : Colors.white,
+                      selectedColor: fblaBlue,
+                      checkmarkColor: Colors.white,
+                      labelStyle: TextStyle(
+                        color: isSelected ? Colors.white : fblaBlue,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                      side: BorderSide(
+                        color: isSelected ? fblaBlue : Colors.grey.shade400,
+                        width: 1,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+
+          // Tab content
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildCalendarView(context, upcoming),
+                _buildListView(context, upcoming),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  Widget _buildCalendarView(BuildContext context, List<Event> events) {
+    final Color fblaBlue = const Color(0xFF1D4E89);
+
+    return Padding(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Calendar header
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: fblaBlue.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${DateTime.now().month}/${DateTime.now().year}',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: fblaBlue,
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.today, color: fblaBlue),
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Calendar navigation coming soon'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 16),
+
+          // Calendar grid placeholder
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.calendar_month,
+                      size: 64,
+                      color: Colors.grey.shade400,
+                    ),
+                    SizedBox(height: 16),
+                    Text(
+                      'Calendar View',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Interactive calendar coming soon',
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListView(BuildContext context, List<Event> events) {
+    final Color fblaBlue = const Color(0xFF1D4E89);
+    final Color fblaGold = const Color(0xFFF6C500);
+
+    return ListView.builder(
+      padding: EdgeInsets.all(16),
+      itemCount: events.length,
+      itemBuilder: (context, idx) {
+        final e = events[idx];
+        final saved = Provider.of<AppState>(context, listen: false)
+            .savedEventIds
+            .contains(e.id);
+        return Card(
+          margin: EdgeInsets.only(bottom: 16),
+          elevation: 4,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: fblaGold.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        _getEventType(e.title),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: fblaBlue,
+                        ),
+                      ),
+                    ),
+                    Spacer(),
+                    IconButton(
+                      icon: Icon(
+                        saved ? Icons.bookmark : Icons.bookmark_border,
+                        color: fblaGold,
+                      ),
+                      onPressed: () {
+                        final app =
+                            Provider.of<AppState>(context, listen: false);
+                        app.toggleSaveEvent(e.id);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                saved ? 'Removed from saved' : 'Event saved'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                SizedBox(height: 8),
+                Text(
+                  e.title,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(Icons.access_time,
+                        size: 16, color: Colors.grey.shade600),
+                    SizedBox(width: 4),
+                    Text(
+                      '${_shortDateTime(e.start)} — ${_shortDateTime(e.end)}',
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(Icons.location_on,
+                        size: 16, color: Colors.grey.shade600),
+                    SizedBox(width: 4),
+                    Text(
+                      e.location,
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+                Text(
+                  e.description,
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    height: 1.4,
+                  ),
+                ),
+                SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          showModalBottomSheet(
+                            context: context,
+                            builder: (_) => _RsvpSheet(event: e),
+                          );
+                        },
+                        icon: Icon(Icons.rsvp, size: 16),
+                        label: Text('RSVP'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: fblaBlue,
+                          side: BorderSide(color: fblaBlue),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          await scheduleEventReminder(e);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Reminder scheduled'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                        icon: Icon(Icons.notifications, size: 16),
+                        label: Text('Remind'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: fblaBlue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String _getEventType(String title) {
+    if (title.toLowerCase().contains('meeting')) return 'Meeting';
+    if (title.toLowerCase().contains('competition')) return 'Competition';
+    if (title.toLowerCase().contains('workshop')) return 'Workshop';
+    if (title.toLowerCase().contains('social')) return 'Social';
+    return 'Event';
   }
 }
 
@@ -836,54 +1545,324 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context);
+    final Color fblaBlue = const Color(0xFF1D4E89);
+    final Color fblaGold = const Color(0xFFF6C500);
+
     return Scaffold(
-      appBar: AppBar(title: Text('Profile & Resources')),
-      body: Padding(
+      appBar: AppBar(
+        title: Text('Profile'),
+        backgroundColor: fblaBlue,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.settings),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Settings coming soon'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      body: ListView(
         padding: EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            CircleAvatar(
-                radius: 28,
-                child: Text(
-                    app.displayName.isNotEmpty ? app.displayName[0] : 'U')),
-            SizedBox(width: 12),
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(app.displayName.isNotEmpty ? app.displayName : 'Guest',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              Text(app.userEmail.isNotEmpty ? app.userEmail : 'Not signed in'),
-            ])
-          ]),
-          SizedBox(height: 12),
-          ElevatedButton.icon(
-              onPressed: () {
-                // In production link to membership / renew page
-                final url = Uri.parse('https://www.fbla-pbl.org/');
-                launchUrl(url);
+        children: [
+          // Profile Header Card
+          Card(
+            elevation: 6,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [fblaBlue, fblaBlue.withOpacity(0.8)],
+                ),
+              ),
+              padding: EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 50,
+                    backgroundColor: fblaGold,
+                    child: Text(
+                      app.displayName.isNotEmpty
+                          ? app.displayName[0].toUpperCase()
+                          : 'F',
+                      style: TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.bold,
+                        color: fblaBlue,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    app.displayName.isNotEmpty
+                        ? app.displayName
+                        : 'FBLA Member',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    app.userEmail.isNotEmpty ? app.userEmail : 'Not signed in',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.white.withOpacity(0.8),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildStatItem(
+                          'Events', '${app.savedEventIds.length}', Icons.event),
+                      _buildStatItem('Posts', '12', Icons.post_add),
+                      _buildStatItem('Badges', '5', Icons.emoji_events),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(height: 24),
+
+          // Badges Section
+          SectionHeader(title: 'Achievements & Badges'),
+          SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _buildBadgeCard('First Event', 'Attended your first FBLA event',
+                  Icons.star, fblaGold),
+              _buildBadgeCard('Active Member', 'Participated in 5+ events',
+                  Icons.group, Colors.blue),
+              _buildBadgeCard('Competitor', 'Joined a competition',
+                  Icons.emoji_events, Colors.green),
+              _buildBadgeCard('Leader', 'Led a chapter activity',
+                  Icons.leaderboard, Colors.purple),
+              _buildBadgeCard('Scholar', 'Completed study materials',
+                  Icons.school, Colors.orange),
+            ],
+          ),
+          SizedBox(height: 24),
+
+          // Quick Actions
+          SectionHeader(title: 'Quick Actions'),
+          SizedBox(height: 16),
+          _buildActionCard(
+            context,
+            'Edit Profile',
+            'Update your information',
+            Icons.edit,
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+            ),
+          ),
+          _buildActionCard(
+            context,
+            'Membership Status',
+            'View and renew membership',
+            Icons.card_membership,
+            () {
+              final url = Uri.parse('https://www.fbla-pbl.org/');
+              launchUrl(url);
+            },
+          ),
+          _buildActionCard(
+            context,
+            'Notification Settings',
+            'Manage your preferences',
+            Icons.notifications,
+            () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Notification settings coming soon'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            ),
+          ),
+          _buildActionCard(
+            context,
+            'Help & Support',
+            'Get help or contact support',
+            Icons.help,
+            () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Help center coming soon'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            ),
+          ),
+          SizedBox(height: 24),
+
+          // Firebase Test Button (for debugging)
+          Card(
+            child: ListTile(
+              leading: Icon(Icons.bug_report, color: fblaBlue),
+              title: Text('Firebase Test'),
+              subtitle: Text('Test Firebase connectivity'),
+              trailing: Icon(Icons.arrow_forward_ios),
+              onTap: () {
+                Navigator.pushNamed(context, '/firebase_test');
               },
-              icon: Icon(Icons.payment, color: Colors.white),
-              label: Text('Membership / Renew')),
-          SizedBox(height: 12),
-          SectionHeader(title: 'Resources'),
-          ListTile(
-            leading: Icon(Icons.book, color: fblaGold),
-            title: Text('Competition Study Guides'),
-            onTap: () {
-              launchUrl(Uri.parse('https://connect.fbla.org/'));
-            },
+            ),
           ),
-          ListTile(
-            leading: Icon(Icons.work, color: fblaGold),
-            title: Text('Career Center'),
-            onTap: () {
-              launchUrl(Uri.parse('https://connect.fbla.org/'));
-            },
+          SizedBox(height: 16),
+
+          // Logout Button
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                app.logout();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Logged out successfully'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+              icon: Icon(Icons.logout),
+              label: Text('Log Out'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: BorderSide(color: Colors.red),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                padding: EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
           ),
-          Spacer(),
-          Text('App Demo Notes (for judges):',
-              style: TextStyle(fontWeight: FontWeight.bold)),
-          Text(
-              'This starter app demonstrates core flows: news, events, competitions, community, notifications, and local persistence.'),
-        ]),
+          SizedBox(height: 16),
+
+          // App Info
+          Center(
+            child: Text(
+              'FBLA Member App v1.0.0',
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, IconData icon) {
+    return Column(
+      children: [
+        Icon(icon, color: Colors.white, size: 24),
+        SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.white.withOpacity(0.8),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBadgeCard(
+      String title, String description, IconData icon, Color color) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Container(
+        width: 150,
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            SizedBox(height: 8),
+            Text(
+              title,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 4),
+            Text(
+              description,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionCard(BuildContext context, String title, String subtitle,
+      IconData icon, VoidCallback onTap) {
+    final Color fblaBlue = const Color(0xFF1D4E89);
+
+    return Card(
+      margin: EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: ListTile(
+        contentPadding: EdgeInsets.all(16),
+        leading: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: fblaBlue.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: fblaBlue, size: 24),
+        ),
+        title: Text(
+          title,
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(subtitle),
+        trailing: Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
+        onTap: onTap,
       ),
     );
   }

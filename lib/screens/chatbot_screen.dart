@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../ai/bloc/chat_bloc.dart';
+import '../ai/bloc/chat_event.dart';
+import '../ai/bloc/chat_state.dart';
 import '../ai/models/chat_message_model.dart';
-import '../ai/repos/chat_repo.dart';
 
 // FBLA Colors
 const fblaNavy = Color(0xFF00274D);
@@ -16,12 +17,40 @@ class ChatbotScreen extends StatefulWidget {
 class _ChatbotScreenState extends State<ChatbotScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  
+  final String _currentThreadId = 'main_thread';
+
+  @override
+  void initState() {
+    super.initState();
+    // Load chat history when screen initializes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context
+            .read<ChatBloc>()
+            .add(LoadChatHistoryEvent(threadId: _currentThreadId));
+      }
+    });
+  }
+
   @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _sendMessage(BuildContext context) {
+    final message = _messageController.text.trim();
+    if (message.isNotEmpty) {
+      context.read<ChatBloc>().add(
+            SendMessageEvent(
+              message: message,
+              threadId: _currentThreadId,
+            ),
+          );
+      _messageController.clear();
+      _scrollToBottom();
+    }
   }
 
   void _scrollToBottom() {
@@ -36,266 +65,122 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     });
   }
 
-  void _sendMessage(ChatBloc chatBloc) {
-    final message = _messageController.text.trim();
-    if (message.isNotEmpty) {
-      chatBloc.add(ChatGenerationNewTextMessageEvent(inputMessage: message));
-      _messageController.clear();
-      _scrollToBottom();
-    }
-  }
-
-  List<ChatMessageModel> _getMessages(ChatState state) {
-    if (state is ChatGeneratingState) {
-      return state.messages;
-    } else if (state is ChatSuccessState) {
-      return state.messages;
-    }
-    return [];
-  }
-
-  bool _isLoading(ChatState state) {
-    return state is ChatGeneratingState;
+  void _clearChat(BuildContext context) {
+    context.read<ChatBloc>().add(ClearChatEvent());
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => ChatBloc(),
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            'FBLA AI Assistant',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        title: Text(
+          'FBLA AI Assistant',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
           ),
-          backgroundColor: fblaNavy,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          actions: [
-            IconButton(
-              icon: Icon(Icons.science),
-              onPressed: () async {
-                final result = await ChatRepo.debugApiConnection();
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text('🔍 API Debug Results'),
-                    content: SelectableText(result),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text('Close'),
-                      ),
-                    ],
-                  ),
-                );
-              },
-              tooltip: 'Debug API Connection',
-            ),
-            IconButton(
-              icon: Icon(Icons.healing),
-              onPressed: () async {
-                final result = await ChatRepo.troubleshootApi();
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text('🔧 API Troubleshooting'),
-                    content: SingleChildScrollView(
-                      child: Text(result, style: TextStyle(fontFamily: 'monospace')),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text('Close'),
-                      ),
-                    ],
-                  ),
-                );
-              },
-              tooltip: 'Troubleshoot API',
-            ),
-            IconButton(
-              icon: Icon(Icons.key),
-              onPressed: () async {
-                final result = await ChatRepo.validateApiKey();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('$result'),
-                    duration: Duration(seconds: 5),
-                  ),
-                );
-              },
-              tooltip: 'Validate API Key',
-            ),
-            IconButton(
-              icon: Icon(Icons.clear_all),
-              onPressed: () {
-                final chatBloc = BlocProvider.of<ChatBloc>(context);
-                chatBloc.add(ChatClearHistoryEvent());
-              },
-            ),
-          ],
         ),
-        body: Column(
-          children: [
-            // Chat messages area
-            Expanded(
-              child: BlocConsumer<ChatBloc, ChatState>(
-                listener: (context, state) {
-                  if (state is ChatErrorState) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(state.message),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                  _scrollToBottom();
-                },
-                builder: (context, state) {
-                  final messages = _getMessages(state);
-                  final isLoading = _isLoading(state);
-                  
-                  return Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          fblaNavy.withOpacity(0.05),
-                          Colors.white,
-                        ],
-                      ),
-                    ),
-                    child: messages.isEmpty && !isLoading
-                        ? _buildEmptyState()
-                        : ListView.builder(
-                            controller: _scrollController,
-                            padding: EdgeInsets.all(16),
-                            itemCount: messages.length + (isLoading ? 1 : 0),
-                            itemBuilder: (context, index) {
-                              // Show loading indicator
-                              if (index == messages.length && isLoading) {
-                                return _buildLoadingMessage();
-                              }
-                              
-                              final message = messages[index];
-                              return _buildMessageBubble(message);
-                            },
-                          ),
-                  );
-                },
-              ),
+        backgroundColor: fblaNavy,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh, color: Colors.white),
+            onPressed: () => _clearChat(context),
+            tooltip: 'Clear Chat',
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Chat messages
+          Expanded(
+            child: BlocBuilder<ChatBloc, ChatState>(
+              builder: (context, state) {
+                if (state is ChatInitial) {
+                  return _buildWelcomeMessage();
+                }
+
+                if (state is ChatLoading) {
+                  return _buildLoadingState();
+                }
+
+                if (state is ChatLoaded) {
+                  return _buildChatMessages(state.messages, state.isLoading);
+                }
+
+                if (state is ChatError) {
+                  return _buildErrorState(state.message);
+                }
+
+                return _buildWelcomeMessage();
+              },
             ),
-            // Input area
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: Offset(0, -5),
-                  ),
-                ],
-              ),
-              child: BlocBuilder<ChatBloc, ChatState>(
-                builder: (context, state) {
-                  final chatBloc = BlocProvider.of<ChatBloc>(context);
-                  final isLoading = _isLoading(state);
-                  
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _messageController,
-                          enabled: !isLoading,
-                          decoration: InputDecoration(
-                            hintText: 'Ask me anything about FBLA...',
-                            hintStyle: TextStyle(color: Colors.grey[600]),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(25),
-                              borderSide: BorderSide(color: fblaNavy.withOpacity(0.3)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(25),
-                              borderSide: BorderSide(color: fblaNavy, width: 2),
-                            ),
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 12,
-                            ),
-                          ),
-                          onSubmitted: (_) => _sendMessage(chatBloc),
-                          maxLines: null,
-                        ),
-                      ),
-                      SizedBox(width: 12),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: isLoading ? Colors.grey : fblaNavy,
-                          shape: BoxShape.circle,
-                        ),
-                        child: IconButton(
-                          onPressed: isLoading ? null : () => _sendMessage(chatBloc),
-                          icon: Icon(
-                            isLoading ? Icons.hourglass_empty : Icons.send,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
+          ),
+
+          // Message input
+          _buildMessageInput(),
+        ],
       ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildWelcomeMessage() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.smart_toy_outlined,
-            size: 80,
-            color: fblaNavy.withOpacity(0.5),
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: fblaGold,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: fblaGold.withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.smart_toy,
+              color: fblaNavy,
+              size: 40,
+            ),
           ),
-          SizedBox(height: 16),
+          SizedBox(height: 24),
           Text(
-            'FBLA AI Assistant',
+            'Welcome to FBLA AI Assistant!',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: fblaNavy,
             ),
           ),
-          SizedBox(height: 8),
+          SizedBox(height: 12),
           Text(
-            'Ask me anything about FBLA!',
+            'I can help you with FBLA information,\ncompetitions, events, and more!',
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 16,
-              color: Colors.grey[600],
+              color: Colors.grey.shade600,
             ),
           ),
           SizedBox(height: 32),
           Container(
-            padding: EdgeInsets.all(16),
-            margin: EdgeInsets.symmetric(horizontal: 32),
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(
               color: fblaNavy.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              'Try asking:\n• "What is FBLA?"\n• "Tell me about FBLA competitions"\n• "How can I join FBLA?"',
+              'Try asking: "What is FBLA?" or "Tell me about competitions"',
               style: TextStyle(
-                color: fblaNavy,
                 fontSize: 14,
+                color: fblaNavy,
+                fontStyle: FontStyle.italic,
               ),
             ),
           ),
@@ -304,52 +189,124 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     );
   }
 
+  Widget _buildLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(fblaGold),
+          ),
+          SizedBox(height: 16),
+          Text(
+            'AI is thinking...',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey.shade600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 64,
+            color: Colors.red.shade400,
+          ),
+          SizedBox(height: 16),
+          Text(
+            'Oops! Something went wrong',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.red.shade600,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            error,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () {
+              context.read<ChatBloc>().add(ClearChatEvent());
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: fblaNavy,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Try Again'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChatMessages(List<ChatMessageModel> messages, bool isLoading) {
+    if (messages.isEmpty) {
+      return _buildWelcomeMessage();
+    }
+
+    return ListView.builder(
+      controller: _scrollController,
+      padding: EdgeInsets.all(16),
+      itemCount: messages.length + (isLoading ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index < messages.length) {
+          return _buildMessageBubble(messages[index]);
+        } else {
+          return _buildTypingIndicator();
+        }
+      },
+    );
+  }
+
   Widget _buildMessageBubble(ChatMessageModel message) {
-    final isUser = message.role == "user";
-    final messageText = message.content;
-    final isError = messageText.startsWith('Error:') || messageText.startsWith('API Error:');
-    
-    return Padding(
-      padding: EdgeInsets.only(bottom: 16),
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
       child: Row(
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment:
+            message.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!isUser) ...[
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: isError ? Colors.red : fblaNavy,
+          if (!message.isUser) ...[
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: fblaGold,
+                shape: BoxShape.circle,
+              ),
               child: Icon(
-                isError ? Icons.error : Icons.smart_toy,
-                color: Colors.white,
-                size: 20,
+                Icons.smart_toy,
+                color: fblaNavy,
+                size: 18,
               ),
             ),
             SizedBox(width: 8),
           ],
           Flexible(
             child: Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.75,
-              ),
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: isUser 
-                    ? fblaNavy 
-                    : isError 
-                        ? Colors.red[50] 
-                        : Colors.white,
-                border: isError 
-                    ? Border.all(color: Colors.red[300]!, width: 1) 
-                    : null,
-                borderRadius: BorderRadius.circular(20).copyWith(
-                  bottomLeft: Radius.circular(isUser ? 20 : 4),
-                  bottomRight: Radius.circular(isUser ? 4 : 20),
-                ),
+                color: message.isUser ? fblaNavy : Colors.white,
+                borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.1),
-                    blurRadius: 5,
+                    blurRadius: 4,
                     offset: Offset(0, 2),
                   ),
                 ],
@@ -357,51 +314,40 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (isError) ...[
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.warning,
-                          color: Colors.red,
-                          size: 16,
-                        ),
-                        SizedBox(width: 4),
-                        Text(
-                          'Error',
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 4),
-                  ],
                   Text(
-                    messageText,
+                    message.text,
                     style: TextStyle(
-                      color: isUser 
-                          ? Colors.white 
-                          : isError 
-                              ? Colors.red[800] 
-                              : Colors.black87,
+                      color: message.isUser ? Colors.white : Colors.black87,
                       fontSize: 16,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    _formatTime(message.timestamp),
+                    style: TextStyle(
+                      color: message.isUser
+                          ? Colors.white.withOpacity(0.7)
+                          : Colors.grey.shade500,
+                      fontSize: 12,
                     ),
                   ),
                 ],
               ),
             ),
           ),
-          if (isUser) ...[
+          if (message.isUser) ...[
             SizedBox(width: 8),
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: fblaGold,
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: fblaGold,
+                shape: BoxShape.circle,
+              ),
               child: Icon(
                 Icons.person,
                 color: fblaNavy,
-                size: 20,
+                size: 18,
               ),
             ),
           ],
@@ -410,20 +356,22 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     );
   }
 
-  Widget _buildLoadingMessage() {
-    return Padding(
-      padding: EdgeInsets.only(bottom: 16),
+  Widget _buildTypingIndicator() {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: fblaNavy,
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: fblaGold,
+              shape: BoxShape.circle,
+            ),
             child: Icon(
               Icons.smart_toy,
-              color: Colors.white,
-              size: 20,
+              color: fblaNavy,
+              size: 18,
             ),
           ),
           SizedBox(width: 8),
@@ -431,13 +379,11 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(20).copyWith(
-                bottomLeft: Radius.circular(4),
-              ),
+              borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.1),
-                  blurRadius: 5,
+                  blurRadius: 4,
                   offset: Offset(0, 2),
                 ),
               ],
@@ -445,20 +391,20 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                Text(
+                  'Thinking',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 16,
+                  ),
+                ),
+                SizedBox(width: 8),
                 SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(fblaNavy),
-                  ),
-                ),
-                SizedBox(width: 8),
-                Text(
-                  'AI is thinking...',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontStyle: FontStyle.italic,
+                    valueColor: AlwaysStoppedAnimation<Color>(fblaGold),
                   ),
                 ),
               ],
@@ -467,5 +413,73 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildMessageInput() {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(25),
+              ),
+              child: TextField(
+                controller: _messageController,
+                decoration: InputDecoration(
+                  hintText: 'Ask me anything about FBLA...',
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                ),
+                maxLines: null,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _sendMessage(context),
+              ),
+            ),
+          ),
+          SizedBox(width: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: fblaNavy,
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: Icon(Icons.send, color: Colors.white),
+              onPressed: () => _sendMessage(context),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else {
+      return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+    }
   }
 }

@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "148418731665",
+    "project_id": "fbla-2026-83bb4",
+    "storage_bucket": "fbla-2026-83bb4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:148418731665:android:f7259b8f13d2768eb92930",
+        "android_client_info": {
+          "package_name": "com.example.fbla_2026"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "148418731665-v8nerc9fcfe1es4r2eiucsn9b8iagodj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.fbla_2026",
+            "certificate_hash": "59c9ed8af0479c92f4352ccf5402e36924333872"
+          }
+        },
+        {
+          "client_id": "148418731665-54c9bbujgdd0n8sbfe5o0l3ng81o7r1q.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAA1kEsanNgSH-3nOBbDPr5VAObFBfpw6E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "148418731665-54c9bbujgdd0n8sbfe5o0l3ng81o7r1q.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

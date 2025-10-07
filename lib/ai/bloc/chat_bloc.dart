@@ -1,105 +1,89 @@
 import 'dart:async';
-
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:fbla_member_app/ai/models/chat_message_model.dart';
-import 'package:fbla_member_app/ai/repos/chat_repo.dart';
-import 'package:meta/meta.dart';
+import 'package:uuid/uuid.dart';
+import '../models/chat_message_model.dart';
+import '../repos/chat_repo.dart';
+import 'chat_event.dart';
+import 'chat_state.dart';
 
-part 'chat_event.dart';
-part 'chat_state.dart';
-
-/**
- * A BLoC (Business Logic Component) that manages chat interactions with AI.
- * 
- * This class handles the state management for AI-powered chat functionality
- * in the EduQuest application. It manages message history, AI response generation,
- * and error handling for chat interactions.
- * 
- * The ChatBloc uses the BLoC pattern to separate business logic from UI,
- * providing a clean architecture for managing chat state and AI interactions.
- * 
- * Features:
- * - Message history management
- * - AI response generation
- * - Error handling and state management
- * - Chat history clearing
- * - Real-time state updates
- */
 class ChatBloc extends Bloc<ChatEvent, ChatState> {
-  /**
-   * Creates a new ChatBloc instance.
-   * 
-   * This constructor initializes the ChatBloc with the initial state and
-   * registers event handlers for chat generation and history clearing.
-   */
-  ChatBloc() : super(ChatInitial()) {
-    on<ChatGenerationNewTextMessageEvent>(_handleChatGeneration);
-    on<ChatClearHistoryEvent>(_handleChatClearHistory);
+  final ChatRepository _chatRepository;
+  final Uuid _uuid = Uuid();
+
+  ChatBloc({required ChatRepository chatRepository})
+      : _chatRepository = chatRepository,
+        super(ChatInitial()) {
+    on<SendMessageEvent>(_onSendMessage);
+    on<ClearChatEvent>(_onClearChat);
+    on<LoadChatHistoryEvent>(_onLoadChatHistory);
   }
 
-  /** List of chat messages in the current conversation */
-  List<ChatMessageModel> messages = [];
-  /** Flag indicating whether an AI response is currently being generated */
-  bool generating = false;
-
-  /**
-   * Handles chat message generation events.
-   * 
-   * This method processes user input messages and generates AI responses.
-   * It manages the conversation flow by adding user messages, triggering
-   * AI generation, and handling the response or any errors that occur.
-   * 
-   * The method follows this flow:
-   * 1. Adds the user message to the conversation history
-   * 2. Sets the generating flag to true and emits generating state
-   * 3. Calls the AI repository to generate a response
-   * 4. Adds the AI response to the conversation history
-   * 5. Emits success state with updated messages
-   * 6. Handles any errors by emitting error state
-   * 
-   * @param event The chat generation event containing the user's input message
-   * @param emit The emitter for state updates
-   */
-  Future<void> _handleChatGeneration(
-    ChatGenerationNewTextMessageEvent event,
+  Future<void> _onSendMessage(
+    SendMessageEvent event,
     Emitter<ChatState> emit,
   ) async {
-    messages.add(ChatMessageModel.user(event.inputMessage));
-    generating = true;
-    emit(ChatGeneratingState(messages: messages));
     try {
-      // Get AI response
-      final generatedText = await ChatRepo.chatTextGenerationRepo(messages);
+      // Add user message
+      final userMessage = ChatMessageModel(
+        id: _uuid.v4(),
+        text: event.message,
+        isUser: true,
+        timestamp: DateTime.now(),
+        threadId: event.threadId,
+      );
 
-      if (generatedText.isEmpty) {
-        throw Exception("Empty response from AI");
+      List<ChatMessageModel> currentMessages = [];
+      if (state is ChatLoaded) {
+        currentMessages = (state as ChatLoaded).messages;
       }
 
+      emit(ChatLoaded(
+        messages: [...currentMessages, userMessage],
+        isLoading: true,
+      ));
+
+      // Get AI response
+      final aiResponse = await _chatRepository.sendMessage(
+        event.message,
+        threadId: event.threadId,
+      );
+
       // Add AI response
-      messages.add(ChatMessageModel.assistant(generatedText));
-      generating = false;
-      emit(ChatSuccessState(messages: messages));
+      final aiMessage = ChatMessageModel(
+        id: _uuid.v4(),
+        text: aiResponse,
+        isUser: false,
+        timestamp: DateTime.now(),
+        threadId: event.threadId,
+      );
+
+      emit(ChatLoaded(
+        messages: [...currentMessages, userMessage, aiMessage],
+        isLoading: false,
+      ));
     } catch (e) {
-      generating = false;
-      emit(ChatErrorState(message: "Error: ${e.toString()}"));
+      emit(ChatError(message: 'Failed to send message: $e'));
     }
   }
 
-  /**
-   * Handles chat history clearing events.
-   * 
-   * This method clears all messages from the conversation history and
-   * resets the chat state to an empty conversation. It's useful for
-   * starting fresh conversations or clearing sensitive information.
-   * 
-   * @param event The chat clear history event
-   * @param emit The emitter for state updates
-   */
-  void _handleChatClearHistory(
-    ChatClearHistoryEvent event,
+  Future<void> _onClearChat(
+    ClearChatEvent event,
     Emitter<ChatState> emit,
-  ) {
-    messages.clear(); // Clear all messages
-    emit(ChatSuccessState(messages: []));
+  ) async {
+    emit(ChatInitial());
+  }
+
+  Future<void> _onLoadChatHistory(
+    LoadChatHistoryEvent event,
+    Emitter<ChatState> emit,
+  ) async {
+    try {
+      emit(ChatLoading());
+      // In a real implementation, you would load chat history from storage
+      // For now, we'll just emit an empty loaded state
+      emit(ChatLoaded(messages: []));
+    } catch (e) {
+      emit(ChatError(message: 'Failed to load chat history: $e'));
+    }
   }
 }
