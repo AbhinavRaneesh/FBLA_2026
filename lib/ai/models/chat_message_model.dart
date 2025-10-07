@@ -1,51 +1,57 @@
+/**
+ * ChatMessageModel for OpenAI/OpenRouter API compatibility
+ */
 class ChatMessageModel {
-  final String id;
-  final String text;
-  final bool isUser;
-  final DateTime timestamp;
-  final String? threadId;
+  final String role;
+  final String content;
 
   ChatMessageModel({
-    required this.id,
-    required this.text,
-    required this.isUser,
-    required this.timestamp,
-    this.threadId,
+    required this.role,
+    required this.content,
   });
 
+  /**
+   * Convert to OpenAI API format
+   */
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'text': text,
-      'isUser': isUser,
-      'timestamp': timestamp.toIso8601String(),
-      'threadId': threadId,
+      'role': role == "model" ? "assistant" : role,
+      'content': content,
     };
   }
 
   factory ChatMessageModel.fromJson(Map<String, dynamic> json) {
     return ChatMessageModel(
-      id: json['id'],
-      text: json['text'],
-      isUser: json['isUser'],
-      timestamp: DateTime.parse(json['timestamp']),
-      threadId: json['threadId'],
+      role: json['role'] as String,
+      content: json['content'] as String,
     );
   }
 
+  /**
+   * Convenience constructors
+   */
+  factory ChatMessageModel.user(String content) {
+    return ChatMessageModel(role: "user", content: content);
+  }
+
+  factory ChatMessageModel.assistant(String content) {
+    return ChatMessageModel(role: "assistant", content: content);
+  }
+
+  factory ChatMessageModel.system(String content) {
+    return ChatMessageModel(role: "system", content: content);
+  }
+
+  /**
+   * Copy with new content
+   */
   ChatMessageModel copyWith({
-    String? id,
-    String? text,
-    bool? isUser,
-    DateTime? timestamp,
-    String? threadId,
+    String? role,
+    String? content,
   }) {
     return ChatMessageModel(
-      id: id ?? this.id,
-      text: text ?? this.text,
-      isUser: isUser ?? this.isUser,
-      timestamp: timestamp ?? this.timestamp,
-      threadId: threadId ?? this.threadId,
+      role: role ?? this.role,
+      content: content ?? this.content,
     );
   }
 }

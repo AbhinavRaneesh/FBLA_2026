@@ -473,7 +473,7 @@ class _RootScreenState extends State<RootScreen> {
     HomeScreen(),
     EventsScreen(),
     BlocProvider(
-      create: (context) => ChatBloc(chatRepository: ChatRepository()),
+      create: (context) => ChatBloc(),
       child: ChatbotScreen(),
     ),
     ResourcesScreen(),
@@ -650,7 +650,7 @@ class HomeScreen extends StatelessWidget {
                       MaterialPageRoute(
                           builder: (_) => BlocProvider(
                                 create: (context) =>
-                                    ChatBloc(chatRepository: ChatRepository()),
+                                    ChatBloc(),
                                 child: ChatbotScreen(),
                               ))),
                 ),

@@ -1,18 +1,12 @@
-import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:uuid/uuid.dart';
 import '../models/chat_message_model.dart';
 import '../repos/chat_repo.dart';
 import 'chat_event.dart';
 import 'chat_state.dart';
 
 class ChatBloc extends Bloc<ChatEvent, ChatState> {
-  final ChatRepository _chatRepository;
-  final Uuid _uuid = Uuid();
-
-  ChatBloc({required ChatRepository chatRepository})
-      : _chatRepository = chatRepository,
-        super(ChatInitial()) {
+  
+  ChatBloc() : super(ChatInitial()) {
     on<SendMessageEvent>(_onSendMessage);
     on<ClearChatEvent>(_onClearChat);
     on<LoadChatHistoryEvent>(_onLoadChatHistory);
@@ -23,42 +17,30 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     Emitter<ChatState> emit,
   ) async {
     try {
-      // Add user message
-      final userMessage = ChatMessageModel(
-        id: _uuid.v4(),
-        text: event.message,
-        isUser: true,
-        timestamp: DateTime.now(),
-        threadId: event.threadId,
-      );
-
+      // Get current messages
       List<ChatMessageModel> currentMessages = [];
       if (state is ChatLoaded) {
         currentMessages = (state as ChatLoaded).messages;
       }
 
+      // Add user message using our new model format
+      final userMessage = ChatMessageModel.user(event.message);
+      final messagesWithUser = [...currentMessages, userMessage];
+
+      // Show loading state
       emit(ChatLoaded(
-        messages: [...currentMessages, userMessage],
+        messages: messagesWithUser,
         isLoading: true,
       ));
 
-      // Get AI response
-      final aiResponse = await _chatRepository.sendMessage(
-        event.message,
-        threadId: event.threadId,
-      );
+      // Get AI response using our ChatRepo static method
+      final aiResponse = await ChatRepo.chatTextGenerationRepo(messagesWithUser);
 
       // Add AI response
-      final aiMessage = ChatMessageModel(
-        id: _uuid.v4(),
-        text: aiResponse,
-        isUser: false,
-        timestamp: DateTime.now(),
-        threadId: event.threadId,
-      );
+      final aiMessage = ChatMessageModel.assistant(aiResponse);
 
       emit(ChatLoaded(
-        messages: [...currentMessages, userMessage, aiMessage],
+        messages: [...messagesWithUser, aiMessage],
         isLoading: false,
       ));
     } catch (e) {

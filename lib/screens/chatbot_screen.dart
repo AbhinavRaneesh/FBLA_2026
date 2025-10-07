@@ -274,14 +274,15 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
   }
 
   Widget _buildMessageBubble(ChatMessageModel message) {
+    final isUser = message.role == "user";
     return Container(
       margin: EdgeInsets.only(bottom: 16),
       child: Row(
         mainAxisAlignment:
-            message.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!message.isUser) ...[
+          if (!isUser) ...[
             Container(
               width: 32,
               height: 32,
@@ -301,7 +302,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
             child: Container(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: message.isUser ? fblaNavy : Colors.white,
+                color: isUser ? fblaNavy : Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
@@ -315,17 +316,17 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    message.text,
+                    message.content,
                     style: TextStyle(
-                      color: message.isUser ? Colors.white : Colors.black87,
+                      color: isUser ? Colors.white : Colors.black87,
                       fontSize: 16,
                     ),
                   ),
                   SizedBox(height: 4),
                   Text(
-                    _formatTime(message.timestamp),
+                    "Just now", // Remove timestamp for now
                     style: TextStyle(
-                      color: message.isUser
+                      color: isUser
                           ? Colors.white.withOpacity(0.7)
                           : Colors.grey.shade500,
                       fontSize: 12,
@@ -335,7 +336,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
               ),
             ),
           ),
-          if (message.isUser) ...[
+          if (isUser) ...[
             SizedBox(width: 8),
             Container(
               width: 32,
