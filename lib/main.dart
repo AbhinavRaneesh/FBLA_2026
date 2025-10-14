@@ -16,11 +16,9 @@ import 'screens/firebase_auth_screen.dart';
 import 'screens/edit_profile_screen.dart';
 import 'screens/chatbot_screen.dart';
 import 'ai/bloc/chat_bloc.dart';
-import 'ai/repos/chat_repo.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'services/firebase_service.dart';
 import 'models/fbla_models.dart';
-import 'screens/firebase_test_screen.dart';
 
 // FBLA Colors
 const fblaNavy = Color(0xFF00274D);
@@ -29,27 +27,16 @@ const fblaGold = Color(0xFFFDB913);
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase with fallback
-  bool firebaseEnabled = false;
-  try {
-    await Firebase.initializeApp();
-    print('🔥 Firebase initialized successfully');
-    firebaseEnabled = true;
-  } catch (e) {
-    print('🔥 Firebase initialization failed: $e');
-    print('🔥 App will run with local authentication only');
-    firebaseEnabled = false;
-  }
-
+  // Initialize timezone
   tz.initializeTimeZones();
   tz.setLocalLocation(tz.getLocation('America/Denver'));
+  
   final prefs = await SharedPreferences.getInstance();
-  runApp(MyApp(prefs: prefs, firebaseEnabled: firebaseEnabled));
+  runApp(MyApp(prefs: prefs));
 }
 
 class AppState extends ChangeNotifier {
   final SharedPreferences prefs;
-  final bool firebaseEnabled;
   String userEmail;
   String displayName;
   List<Event> events;
@@ -63,8 +50,9 @@ class AppState extends ChangeNotifier {
   User? firebaseUser;
   FBLAUser? userProfile;
   Chapter? userChapter;
+  bool _firebaseInitialized = false;
 
-  AppState({required this.prefs, required this.firebaseEnabled})
+  AppState({required this.prefs})
       : userEmail = prefs.getString('userEmail') ?? '',
         displayName = prefs.getString('displayName') ?? '',
         events = sampleEvents,
@@ -73,9 +61,18 @@ class AppState extends ChangeNotifier {
         threads = sampleThreads,
         hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false {
     savedEventIds = prefs.getStringList('savedEvents')?.toSet() ?? {};
+    _initializeFirebase();
+  }
 
-    // Firebase auth state listener (only if Firebase is enabled)
-    if (firebaseEnabled) {
+  Future<void> _initializeFirebase() async {
+    if (_firebaseInitialized) return;
+    
+    try {
+      await Firebase.initializeApp();
+      print('🔥 Firebase initialized successfully');
+      _firebaseInitialized = true;
+      
+      // Firebase auth state listener
       FirebaseService.authStateChanges.listen((User? user) {
         firebaseUser = user;
         if (user != null) {
@@ -86,6 +83,8 @@ class AppState extends ChangeNotifier {
         }
         notifyListeners();
       });
+    } catch (e) {
+      print('🔥 Firebase initialization failed: $e');
     }
   }
 
@@ -100,7 +99,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    if (firebaseEnabled && firebaseUser != null) {
+    if (firebaseUser != null) {
       await FirebaseService.signOut();
     }
     userEmail = '';
@@ -120,7 +119,6 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> setFirebaseUser(User user) async {
-    if (!firebaseEnabled) return;
     firebaseUser = user;
     userEmail = user.email ?? '';
     displayName = user.displayName ?? '';
@@ -129,7 +127,6 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _loadUserProfile(String userId) async {
-    if (!firebaseEnabled) return;
     try {
       final profileData = await FirebaseService.getUserProfile(userId);
       if (profileData != null) {
@@ -148,7 +145,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> refreshUserProfile() async {
-    if (firebaseEnabled && firebaseUser != null) {
+    if (firebaseUser != null) {
       await _loadUserProfile(firebaseUser!.uid);
       notifyListeners();
     }
@@ -381,13 +378,12 @@ String _shortDateTime(DateTime d) {
 
 class MyApp extends StatelessWidget {
   final SharedPreferences prefs;
-  final bool firebaseEnabled;
-  const MyApp({super.key, required this.prefs, required this.firebaseEnabled});
+  const MyApp({super.key, required this.prefs});
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => AppState(prefs: prefs, firebaseEnabled: firebaseEnabled),
+      create: (_) => AppState(prefs: prefs),
       child: MaterialApp(
         title: 'FBLA Member App',
         theme: ThemeData(
@@ -422,7 +418,6 @@ class MyApp extends StatelessWidget {
             primary: fblaNavy,
             secondary: fblaGold,
             surface: Colors.grey.shade900,
-            background: Colors.grey.shade900,
           ),
           appBarTheme: AppBarTheme(
             backgroundColor: fblaNavy,
@@ -453,9 +448,8 @@ class MyApp extends StatelessWidget {
           '/signup': (_) => const SignupScreen(),
           '/onboarding': (_) => const OnboardingScreen(),
           '/firebase_auth': (_) => const FirebaseAuthScreen(),
-          '/firebase_test': (_) => FirebaseTestScreen(),
         },
-        home: AuthGate(firebaseEnabled: firebaseEnabled),
+        home: AuthGate(),
       ),
     );
   }
@@ -472,11 +466,7 @@ class _RootScreenState extends State<RootScreen> {
   final _pages = [
     HomeScreen(),
     EventsScreen(),
-    BlocProvider(
-      create: (context) => ChatBloc(),
-      child: ChatbotScreen(),
-    ),
-    ResourcesScreen(),
+    const ResourcesScreen(),
     ProfileScreen(),
   ];
 
@@ -500,30 +490,38 @@ class _RootScreenState extends State<RootScreen> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.event), label: 'Events'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.smart_toy), label: 'AI Assistant'),
           BottomNavigationBarItem(icon: Icon(Icons.school), label: 'Resources'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
-      floatingActionButton: _index == 2
-          ? FloatingActionButton(
-              backgroundColor: fblaGold,
-              child: Icon(Icons.refresh, color: Colors.black),
-              onPressed: () {
-                // Refresh chatbot conversation
-                ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Chatbot conversation refreshed')));
-              },
-            )
-          : null,
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => BlocProvider(
+                create: (context) => ChatBloc(),
+                child: ChatbotScreen(),
+              ),
+            ),
+          );
+        },
+        backgroundColor: fblaGold,
+        child: Icon(
+          Icons.smart_toy,
+          color: fblaNavy,
+          size: 28,
+        ),
+        elevation: 8,
+        tooltip: 'AI Assistant',
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }
 
 class AuthGate extends StatelessWidget {
-  final bool firebaseEnabled;
-  const AuthGate({super.key, required this.firebaseEnabled});
+  const AuthGate({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -534,12 +532,8 @@ class AuthGate extends StatelessWidget {
     if (!app.hasSeenOnboarding) {
       return const OnboardingScreen();
     }
-    // Use Firebase authentication if available, otherwise fall back to local auth
-    if (firebaseEnabled) {
-      return const FirebaseAuthScreen();
-    } else {
-      return const LoginScreen();
-    }
+    // Use Firebase authentication
+    return const FirebaseAuthScreen();
   }
 }
 
@@ -573,122 +567,307 @@ class HomeScreen extends StatelessWidget {
     final app = Provider.of<AppState>(context);
     final Color fblaBlue = const Color(0xFF1D4E89);
     final Color fblaGold = const Color(0xFFF6C500);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return SafeArea(
-      child: ListView(
-        padding: EdgeInsets.all(16),
-        children: [
-          // Header with greeting
-          Container(
-            padding: EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                  colors: [fblaBlue, fblaBlue.withOpacity(0.85)]),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Welcome back,',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.white.withOpacity(0.9),
-                      ),
-                    ),
-                    Text(
-                      app.displayName.isNotEmpty
-                          ? app.displayName
-                          : 'FBLA Member',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
+    return Scaffold(
+      body: CustomScrollView(
+        slivers: [
+          // Modern App Bar with gradient
+          SliverAppBar(
+            expandedHeight: 180,
+            floating: false,
+            pinned: true,
+            backgroundColor: fblaBlue,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      fblaBlue,
+                      fblaBlue.withOpacity(0.8),
+                      fblaNavy,
+                    ],
+                  ),
                 ),
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: fblaGold,
-                  child: Text(
-                    app.displayName.isNotEmpty
-                        ? app.displayName[0].toUpperCase()
-                        : 'F',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: fblaBlue,
+                child: SafeArea(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _getGreeting(),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.white.withOpacity(0.9),
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    app.displayName.isNotEmpty
+                                        ? app.displayName
+                                        : 'FBLA Member',
+                                    style: TextStyle(
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                      letterSpacing: -0.5,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Container(
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: fblaGold.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: fblaGold.withOpacity(0.5),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.star,
+                                          size: 14,
+                                          color: fblaGold,
+                                        ),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'Active Member',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: fblaGold,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Hero(
+                              tag: 'profile_avatar',
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: fblaGold.withOpacity(0.4),
+                                      blurRadius: 12,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                                child: CircleAvatar(
+                                  radius: 35,
+                                  backgroundColor: fblaGold,
+                                  child: Text(
+                                    app.displayName.isNotEmpty
+                                        ? app.displayName[0].toUpperCase()
+                                        : 'F',
+                                    style: TextStyle(
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.bold,
+                                      color: fblaBlue,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
           ),
-          SizedBox(height: 24),
 
-          // Quick Links Section
-          SectionHeader(title: 'Quick Access'),
-          SizedBox(height: 16),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _QuickButton(
-                  icon: Icons.calendar_today,
-                  label: 'Calendar',
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => EventsScreen())),
-                ),
-                SizedBox(width: 12),
-                _AIAssistantCard(
-                  onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => BlocProvider(
-                                create: (context) =>
-                                    ChatBloc(),
-                                child: ChatbotScreen(),
-                              ))),
-                ),
-                SizedBox(width: 12),
-                _QuickButton(
-                  icon: Icons.school,
-                  label: 'Resources',
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => ResourcesScreen())),
-                ),
-                SizedBox(width: 12),
-                _QuickButton(
-                  icon: Icons.group,
-                  label: 'Chapter',
-                  onTap: () async {
-                    final url = Uri.parse('https://connect.fbla.org/');
-                    if (await canLaunchUrl(url)) launchUrl(url);
-                  },
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 24),
+          // Content
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Stats Cards Row
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: _StatCard(
+                              icon: Icons.event,
+                              label: 'Events',
+                              value: '${app.events.length}',
+                              color: fblaBlue,
+                              gradient: LinearGradient(
+                                colors: [fblaBlue, fblaBlue.withOpacity(0.7)],
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: _StatCard(
+                              icon: Icons.bookmark,
+                              label: 'Saved',
+                              value: '${app.savedEventIds.length}',
+                              color: fblaGold,
+                              gradient: LinearGradient(
+                                colors: [fblaGold, fblaGold.withOpacity(0.7)],
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: _StatCard(
+                              icon: Icons.campaign,
+                              label: 'News',
+                              value: '${app.news.length}',
+                              color: Color(0xFF6C63FF),
+                              gradient: LinearGradient(
+                                colors: [
+                                  Color(0xFF6C63FF),
+                                  Color(0xFF6C63FF).withOpacity(0.7)
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                  SizedBox(height: 28),
 
-          // Upcoming Events Carousel
-          SectionHeader(title: 'Upcoming Events'),
-          SizedBox(height: 16),
-          SizedBox(
-            height: 220,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: app.events.length,
-              itemBuilder: (context, index) {
-                final event = app.events[index];
-                return Container(
-                  width: 300,
-                  margin: EdgeInsets.only(right: 16),
-                  child: Card(
+                  // Quick Access Section
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Quick Access',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : fblaNavy,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () {},
+                        icon: Icon(Icons.more_horiz, size: 20),
+                        label: Text('More'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: fblaBlue,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 16),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      return GridView.count(
+                        crossAxisCount: 2,
+                        shrinkWrap: true,
+                        physics: NeverScrollableScrollPhysics(),
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: 1.4,
+                        children: [
+                          _ModernQuickButton(
+                            icon: Icons.calendar_month,
+                            label: 'Events',
+                            subtitle: '${app.events.length} upcoming',
+                            color: fblaBlue,
+                            onTap: () => Navigator.push(context,
+                                MaterialPageRoute(builder: (_) => EventsScreen())),
+                          ),
+                          _ModernQuickButton(
+                            icon: Icons.school,
+                            label: 'Resources',
+                            subtitle: 'Study materials',
+                            color: Color(0xFFFF6B6B),
+                            onTap: () => Navigator.push(context,
+                                MaterialPageRoute(builder: (_) => ResourcesScreen())),
+                          ),
+                          _ModernQuickButton(
+                            icon: Icons.group,
+                            label: 'Chapter',
+                            subtitle: 'Connect',
+                            color: fblaGold,
+                            onTap: () async {
+                              final url = Uri.parse('https://connect.fbla.org/');
+                              if (await canLaunchUrl(url)) launchUrl(url);
+                            },
+                          ),
+                          _ModernQuickButton(
+                            icon: Icons.notifications,
+                            label: 'Notifications',
+                            subtitle: 'Stay updated',
+                            color: Color(0xFF4CAF50),
+                            onTap: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Notifications coming soon!')),
+                              );
+                            },
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                  SizedBox(height: 28),
+
+                  // Upcoming Events Section
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Upcoming Events',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : fblaNavy,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => Navigator.push(context,
+                            MaterialPageRoute(builder: (_) => EventsScreen())),
+                        icon: Icon(Icons.arrow_forward, size: 18),
+                        label: Text('View All'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: fblaBlue,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 16),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SizedBox(
+                        height: 240,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: app.events.length,
+                          itemBuilder: (context, index) {
+                            final event = app.events[index];
+                            return Container(
+                              width: constraints.maxWidth > 400 ? 320 : 280,
+                              margin: EdgeInsets.only(right: 16),
+                              child: Card(
                     elevation: 4,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -820,39 +999,139 @@ class HomeScreen extends StatelessWidget {
                 );
               },
             ),
-          ),
-          SizedBox(height: 24),
+          );
+        },
+      ),
+      SizedBox(height: 24),
 
-          // Recent Announcements
-          SectionHeader(title: 'Recent Announcements'),
-          SizedBox(height: 16),
-          ...app.news.take(3).map((n) => Card(
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: fblaBlue,
-                    child: Icon(Icons.campaign, color: Colors.white, size: 20),
+                  // Recent Announcements Section
+                  SizedBox(height: 28),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Recent Announcements',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : fblaNavy,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () {},
+                        icon: Icon(Icons.arrow_forward, size: 18),
+                        label: Text('View All'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: fblaBlue,
+                        ),
+                      ),
+                    ],
                   ),
-                  title: Text(n.title,
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(n.body,
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
-                  trailing: Text('${n.date.month}/${n.date.day}'),
-                  onTap: () => showDialog(
-                      context: context,
-                      builder: (_) => AlertDialog(
-                            title: Text(n.title),
-                            content: Text(n.body),
-                            actions: [
-                              TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: Text('Close'))
-                            ],
-                          )),
-                ),
-              )),
+                  SizedBox(height: 16),
+                  ...app.news.take(3).map((n) => Container(
+                        margin: EdgeInsets.only(bottom: 12),
+                        child: Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: InkWell(
+                            onTap: () => showDialog(
+                                context: context,
+                                builder: (_) => AlertDialog(
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      title: Text(n.title),
+                                      content: Text(n.body),
+                                      actions: [
+                                        TextButton(
+                                            onPressed: () => Navigator.pop(context),
+                                            child: Text('Close'))
+                                      ],
+                                    )),
+                            borderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: fblaBlue.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(
+                                      Icons.campaign,
+                                      color: fblaBlue,
+                                      size: 24,
+                                    ),
+                                  ),
+                                  SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          n.title,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                        SizedBox(height: 4),
+                                        Text(
+                                          n.body,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Column(
+                                    children: [
+                                      Text(
+                                        '${n.date.month}/${n.date.day}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: fblaBlue,
+                                        ),
+                                      ),
+                                      Icon(
+                                        Icons.arrow_forward_ios,
+                                        size: 14,
+                                        color: Colors.grey.shade400,
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      )),
+                  SizedBox(height: 24),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
   }
 
   String _formatEventDate(DateTime date) {
@@ -880,100 +1159,143 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _QuickButton extends StatelessWidget {
+class _StatCard extends StatelessWidget {
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
-  const _QuickButton(
-      {required this.icon, required this.label, required this.onTap});
+  final String value;
+  final Color color;
+  final Gradient gradient;
+
+  const _StatCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.gradient,
+  });
+
   @override
   Widget build(BuildContext context) {
-    return ElevatedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, color: Colors.white),
-      label: Text(label),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: fblaNavy,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    return Container(
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.3),
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 24),
+          SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.white.withOpacity(0.9),
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
 }
 
-class _AIAssistantCard extends StatelessWidget {
+class _ModernQuickButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final Color color;
   final VoidCallback onTap;
-  const _AIAssistantCard({required this.onTap});
+
+  const _ModernQuickButton({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 160,
-        height: 120,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              fblaNavy,
-              fblaNavy.withOpacity(0.8),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: fblaNavy.withOpacity(0.3),
-              blurRadius: 8,
-              offset: Offset(0, 4),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: color.withOpacity(0.3),
+              width: 1.5,
             ),
-          ],
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(16),
+          ),
+          padding: EdgeInsets.all(12),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 40,
-                height: 40,
+                padding: EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: fblaGold,
-                  shape: BoxShape.circle,
+                  color: color,
+                  borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: fblaGold.withOpacity(0.3),
-                      blurRadius: 6,
+                      color: color.withOpacity(0.3),
+                      blurRadius: 8,
                       offset: Offset(0, 2),
                     ),
                   ],
                 ),
                 child: Icon(
-                  Icons.smart_toy,
-                  color: fblaNavy,
-                  size: 24,
+                  icon,
+                  color: Colors.white,
+                  size: 20,
                 ),
               ),
               SizedBox(height: 8),
               Text(
-                'AI Assistant',
+                label,
                 style: TextStyle(
-                  color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
+                  color: color,
                 ),
-                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              SizedBox(height: 4),
+              SizedBox(height: 2),
               Text(
-                'Ask me anything!',
+                subtitle,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.8),
                   fontSize: 11,
+                  color: Colors.grey.shade600,
                 ),
-                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -1547,215 +1869,342 @@ class ProfileScreen extends StatelessWidget {
     final app = Provider.of<AppState>(context);
     final Color fblaBlue = const Color(0xFF1D4E89);
     final Color fblaGold = const Color(0xFFF6C500);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Profile'),
-        backgroundColor: fblaBlue,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.settings),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Settings coming soon'),
-                  behavior: SnackBarBehavior.floating,
+      body: CustomScrollView(
+        slivers: [
+          // Modern Profile Header
+          SliverAppBar(
+            expandedHeight: 280,
+            floating: false,
+            pinned: true,
+            backgroundColor: fblaBlue,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      fblaBlue,
+                      fblaBlue.withOpacity(0.8),
+                      Color(0xFF00274D),
+                    ],
+                  ),
                 ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: EdgeInsets.all(16),
-        children: [
-          // Profile Header Card
-          Card(
-            elevation: 6,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [fblaBlue, fblaBlue.withOpacity(0.8)],
+                child: SafeArea(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(height: 40),
+                      // Avatar with edit button
+                      Stack(
+                        children: [
+                          Hero(
+                            tag: 'profile_avatar',
+                            child: Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: fblaGold.withOpacity(0.5),
+                                    blurRadius: 20,
+                                    spreadRadius: 5,
+                                  ),
+                                ],
+                              ),
+                              child: CircleAvatar(
+                                radius: 60,
+                                backgroundColor: fblaGold,
+                                child: Text(
+                                  app.displayName.isNotEmpty
+                                      ? app.displayName[0].toUpperCase()
+                                      : 'F',
+                                  style: TextStyle(
+                                    fontSize: 42,
+                                    fontWeight: FontWeight.bold,
+                                    color: fblaBlue,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: fblaGold,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 3),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.2),
+                                    blurRadius: 8,
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                Icons.edit,
+                                size: 20,
+                                color: fblaBlue,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        app.displayName.isNotEmpty
+                            ? app.displayName
+                            : 'FBLA Member',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: -0.5,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        app.userEmail.isNotEmpty ? app.userEmail : 'Not signed in',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      SizedBox(height: 8),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: fblaGold.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: fblaGold.withOpacity(0.5),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.verified, size: 16, color: fblaGold),
+                            SizedBox(width: 6),
+                            Text(
+                              'Active Member',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: fblaGold,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              padding: EdgeInsets.all(24),
+            ),
+            actions: [
+              IconButton(
+                icon: Icon(Icons.settings_outlined, color: Colors.white),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Settings coming soon'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+
+          // Content
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.all(16),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: fblaGold,
-                    child: Text(
-                      app.displayName.isNotEmpty
-                          ? app.displayName[0].toUpperCase()
-                          : 'F',
-                      style: TextStyle(
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        color: fblaBlue,
+                  // Stats Row
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: _buildModernStatCard(
+                              '${app.savedEventIds.length}',
+                              'Events',
+                              Icons.event,
+                              fblaBlue,
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: _buildModernStatCard(
+                              '12',
+                              'Posts',
+                              Icons.post_add,
+                              Color(0xFF6C63FF),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: _buildModernStatCard(
+                              '5',
+                              'Badges',
+                              Icons.emoji_events,
+                              fblaGold,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                  SizedBox(height: 28),
+
+                  // Badges Section
+                  _buildModernSectionHeader('Achievements', Icons.emoji_events, isDark, fblaBlue),
+                  SizedBox(height: 16),
+                  SizedBox(
+                    height: 140,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        _buildModernBadge('First Event', 'Attended first event', Icons.star, fblaGold),
+                        _buildModernBadge('Active', 'Participated 5+ events', Icons.group, Color(0xFF2196F3)),
+                        _buildModernBadge('Competitor', 'Joined competition', Icons.emoji_events, Color(0xFF4CAF50)),
+                        _buildModernBadge('Leader', 'Led chapter activity', Icons.leaderboard, Color(0xFF9C27B0)),
+                        _buildModernBadge('Scholar', 'Completed materials', Icons.school, Color(0xFFFF9800)),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 28),
+
+                  // Quick Actions
+                  _buildModernSectionHeader('Quick Actions', Icons.bolt, isDark, fblaBlue),
+                  SizedBox(height: 16),
+                  _buildModernActionCard(
+                    context,
+                    'Edit Profile',
+                    'Update your information',
+                    Icons.edit_outlined,
+                    fblaBlue,
+                    () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                    ),
+                  ),
+                  _buildModernActionCard(
+                    context,
+                    'Membership Status',
+                    'View and renew membership',
+                    Icons.card_membership_outlined,
+                    Color(0xFF4CAF50),
+                    () {
+                      final url = Uri.parse('https://www.fbla-pbl.org/');
+                      launchUrl(url);
+                    },
+                  ),
+                  _buildModernActionCard(
+                    context,
+                    'Notification Settings',
+                    'Manage your preferences',
+                    Icons.notifications_outlined,
+                    Color(0xFFFF9800),
+                    () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Notification settings coming soon'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    ),
+                  ),
+                  _buildModernActionCard(
+                    context,
+                    'Help & Support',
+                    'Get help or contact support',
+                    Icons.help_outline,
+                    Color(0xFF9C27B0),
+                    () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Help center coming soon'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 24),
+
+                  // Logout Button
+                  Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.red.shade400, Colors.red.shade600],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.red.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          app.logout();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Logged out successfully'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.logout, color: Colors.white),
+                              SizedBox(width: 8),
+                              Text(
+                                'Log Out',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
                   SizedBox(height: 16),
-                  Text(
-                    app.displayName.isNotEmpty
-                        ? app.displayName
-                        : 'FBLA Member',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    app.userEmail.isNotEmpty ? app.userEmail : 'Not signed in',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.white.withOpacity(0.8),
+
+                  // App Info
+                  Center(
+                    child: Text(
+                      'FBLA Member App v1.0.0',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                   SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildStatItem(
-                          'Events', '${app.savedEventIds.length}', Icons.event),
-                      _buildStatItem('Posts', '12', Icons.post_add),
-                      _buildStatItem('Badges', '5', Icons.emoji_events),
-                    ],
-                  ),
                 ],
-              ),
-            ),
-          ),
-          SizedBox(height: 24),
-
-          // Badges Section
-          SectionHeader(title: 'Achievements & Badges'),
-          SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _buildBadgeCard('First Event', 'Attended your first FBLA event',
-                  Icons.star, fblaGold),
-              _buildBadgeCard('Active Member', 'Participated in 5+ events',
-                  Icons.group, Colors.blue),
-              _buildBadgeCard('Competitor', 'Joined a competition',
-                  Icons.emoji_events, Colors.green),
-              _buildBadgeCard('Leader', 'Led a chapter activity',
-                  Icons.leaderboard, Colors.purple),
-              _buildBadgeCard('Scholar', 'Completed study materials',
-                  Icons.school, Colors.orange),
-            ],
-          ),
-          SizedBox(height: 24),
-
-          // Quick Actions
-          SectionHeader(title: 'Quick Actions'),
-          SizedBox(height: 16),
-          _buildActionCard(
-            context,
-            'Edit Profile',
-            'Update your information',
-            Icons.edit,
-            () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const EditProfileScreen()),
-            ),
-          ),
-          _buildActionCard(
-            context,
-            'Membership Status',
-            'View and renew membership',
-            Icons.card_membership,
-            () {
-              final url = Uri.parse('https://www.fbla-pbl.org/');
-              launchUrl(url);
-            },
-          ),
-          _buildActionCard(
-            context,
-            'Notification Settings',
-            'Manage your preferences',
-            Icons.notifications,
-            () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Notification settings coming soon'),
-                behavior: SnackBarBehavior.floating,
-              ),
-            ),
-          ),
-          _buildActionCard(
-            context,
-            'Help & Support',
-            'Get help or contact support',
-            Icons.help,
-            () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Help center coming soon'),
-                behavior: SnackBarBehavior.floating,
-              ),
-            ),
-          ),
-          SizedBox(height: 24),
-
-          // Firebase Test Button (for debugging)
-          Card(
-            child: ListTile(
-              leading: Icon(Icons.bug_report, color: fblaBlue),
-              title: Text('Firebase Test'),
-              subtitle: Text('Test Firebase connectivity'),
-              trailing: Icon(Icons.arrow_forward_ios),
-              onTap: () {
-                Navigator.pushNamed(context, '/firebase_test');
-              },
-            ),
-          ),
-          SizedBox(height: 16),
-
-          // Logout Button
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                app.logout();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Logged out successfully'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-              icon: Icon(Icons.logout),
-              label: Text('Log Out'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.red,
-                side: BorderSide(color: Colors.red),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                padding: EdgeInsets.symmetric(vertical: 16),
-              ),
-            ),
-          ),
-          SizedBox(height: 16),
-
-          // App Info
-          Center(
-            child: Text(
-              'FBLA Member App v1.0.0',
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 12,
               ),
             ),
           ),
@@ -1764,106 +2213,202 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon) {
-    return Column(
+  Widget _buildModernStatCard(String value, String label, IconData icon, Color color) {
+    return Container(
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 24),
+          SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernSectionHeader(String title, IconData icon, bool isDark, Color fblaBlue) {
+    return Row(
       children: [
-        Icon(icon, color: Colors.white, size: 24),
-        SizedBox(height: 4),
+        Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: fblaBlue.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: fblaBlue, size: 20),
+        ),
+        SizedBox(width: 12),
         Text(
-          value,
+          title,
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.white.withOpacity(0.8),
+            color: isDark ? Colors.white : fblaBlue,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildBadgeCard(
-      String title, String description, IconData icon, Color color) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Container(
-        width: 150,
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            SizedBox(height: 8),
-            Text(
-              title,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 4),
-            Text(
-              description,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+  Widget _buildModernBadge(String title, String description, IconData icon, Color color) {
+    return Container(
+      width: 110,
+      margin: EdgeInsets.only(right: 12),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [color, color.withOpacity(0.7)],
         ),
-      ),
-    );
-  }
-
-  Widget _buildActionCard(BuildContext context, String title, String subtitle,
-      IconData icon, VoidCallback onTap) {
-    final Color fblaBlue = const Color(0xFF1D4E89);
-
-    return Card(
-      margin: EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-      ),
-      child: ListTile(
-        contentPadding: EdgeInsets.all(16),
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: fblaBlue.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.3),
+            blurRadius: 8,
+            offset: Offset(0, 4),
           ),
-          child: Icon(icon, color: fblaBlue, size: 24),
-        ),
-        title: Text(
-          title,
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(subtitle),
-        trailing: Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
-        onTap: onTap,
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.3),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: Colors.white, size: 24),
+          ),
+          SizedBox(height: 8),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          SizedBox(height: 2),
+          Text(
+            description,
+            style: TextStyle(
+              fontSize: 9,
+              color: Colors.white.withOpacity(0.9),
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
+
+  Widget _buildModernActionCard(
+    BuildContext context,
+    String title,
+    String subtitle,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color.withOpacity(0.2), width: 1.5),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 20),
+                ),
+                SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios, color: color, size: 16),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
 }

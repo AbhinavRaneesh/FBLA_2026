@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-// Temporarily disabled image picker import
-// import 'package:image_picker/image_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
-// Temporarily disabled Firebase service import
-// import '../services/firebase_service.dart';
+import '../services/firebase_service.dart';
 import '../main.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -44,19 +42,30 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _loadUserProfile() async {
     final app = Provider.of<AppState>(context, listen: false);
-    // Temporarily disabled Firebase user check
-    // if (app.firebaseUser != null) {
-    if (app.userEmail.isNotEmpty) {
+    if (app.firebaseUser != null) {
       try {
-        // Use local user data instead of Firebase
-        setState(() {
-          _nameController.text = app.displayName;
-          _chapterController.text = 'Your Chapter'; // Default value
-          _schoolController.text = 'Your School'; // Default value
-          _positionController.text = 'Member'; // Default value
-          _biographyController.text = 'FBLA Member'; // Default value
-          _currentImageUrl = null; // No image for local auth
-        });
+        // Load Firebase user profile
+        final profileData = await FirebaseService.getUserProfile(app.firebaseUser!.uid);
+        if (profileData != null) {
+          setState(() {
+            _nameController.text = profileData['name'] ?? app.displayName;
+            _chapterController.text = profileData['chapter'] ?? 'Your Chapter';
+            _schoolController.text = profileData['school'] ?? 'Your School';
+            _positionController.text = profileData['officerPosition'] ?? 'Member';
+            _biographyController.text = profileData['biography'] ?? 'FBLA Member';
+            _currentImageUrl = profileData['photoUrl'];
+          });
+        } else {
+          // No profile data yet, use defaults
+          setState(() {
+            _nameController.text = app.displayName;
+            _chapterController.text = '';
+            _schoolController.text = '';
+            _positionController.text = '';
+            _biographyController.text = '';
+            _currentImageUrl = null;
+          });
+        }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -69,27 +78,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _pickImage() async {
-    // Temporarily disabled image picker when Firebase is disabled
-    // final picker = ImagePicker();
-    // final pickedFile = await picker.pickImage(
-    //   source: ImageSource.gallery,
-    //   maxWidth: 1024,
-    //   maxHeight: 1024,
-    //   imageQuality: 85,
-    // );
-
-    // if (pickedFile != null) {
-    //   setState(() {
-    //     _selectedImagePath = pickedFile.path;
-    //   });
-    // }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Image picker disabled - Firebase not configured'),
-        behavior: SnackBarBehavior.floating,
-      ),
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 85,
     );
+
+    if (pickedFile != null) {
+      setState(() {
+        _selectedImagePath = pickedFile.path;
+      });
+    }
   }
 
   Future<void> _saveProfile() async {
@@ -99,12 +100,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     try {
       final app = Provider.of<AppState>(context, listen: false);
-      // Temporarily disabled Firebase user check
-      // if (app.firebaseUser == null) return;
-      if (app.userEmail.isEmpty) return;
+      
+      if (app.firebaseUser != null) {
+        // Save to Firebase
+        String? photoUrl = _currentImageUrl;
+        
+        // Upload new image if selected
+        if (_selectedImagePath != null) {
+          final imageFile = File(_selectedImagePath!);
+          photoUrl = await FirebaseService.uploadProfileImage(
+            app.firebaseUser!.uid, 
+            imageFile
+          );
+        }
 
-      // Update local user data instead of Firebase
-      await app.login(app.userEmail, _nameController.text.trim());
+        // Update user profile in Firestore
+        await FirebaseService.updateUserProfile(app.firebaseUser!.uid, {
+          'name': _nameController.text.trim(),
+          'chapter': _chapterController.text.trim(),
+          'school': _schoolController.text.trim(),
+          'officerPosition': _positionController.text.trim(),
+          'biography': _biographyController.text.trim(),
+          'photoUrl': photoUrl,
+        });
+
+        // Update local app state
+        await app.setFirebaseUser(app.firebaseUser!);
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

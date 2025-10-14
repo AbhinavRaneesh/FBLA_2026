@@ -8,24 +8,24 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   List<ChatMessageModel> messages = [];
   bool generating = false;
 
-  ChatBloc() : super(ChatInitialState()) {
-    on<ChatGenerateNewTextMessageEvent>(_generateNewTextMessageEvent);
-    on<ChatClearHistoryEvent>(_clearHistoryEvent);
+  ChatBloc() : super(ChatInitial()) {
+    on<SendMessageEvent>(_sendMessageEvent);
+    on<ClearChatEvent>(_clearChatEvent);
   }
 
-  void _clearHistoryEvent(
-      ChatClearHistoryEvent event, Emitter<ChatState> emit) {
+  void _clearChatEvent(
+      ClearChatEvent event, Emitter<ChatState> emit) {
     messages = [];
-    emit(ChatSuccessState(messages: messages));
+    emit(ChatLoaded(messages: messages));
   }
 
-  Future<void> _generateNewTextMessageEvent(
-      ChatGenerateNewTextMessageEvent event, Emitter<ChatState> emit) async {
+  Future<void> _sendMessageEvent(
+      SendMessageEvent event, Emitter<ChatState> emit) async {
     if (generating) return;
 
-    messages.add(ChatMessageModel.user(event.inputMessage));
+    messages.add(ChatMessageModel.user(event.message));
     generating = true;
-    emit(ChatGeneratingState(messages: messages));
+    emit(ChatLoaded(messages: messages, isLoading: true));
     try {
       // Get AI response
       final generatedText = await ChatRepo.chatTextGenerationRepo(messages);
@@ -38,12 +38,12 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       messages.add(ChatMessageModel.assistant(generatedText));
 
       generating = false;
-      emit(ChatSuccessState(messages: messages));
+      emit(ChatLoaded(messages: messages, isLoading: false));
     } catch (e) {
       generating = false;
       // Add error message to chat
       messages.add(ChatMessageModel.assistant("Sorry, I encountered an error: ${e.toString()}"));
-      emit(ChatSuccessState(messages: messages));
+      emit(ChatLoaded(messages: messages, isLoading: false));
     }
   }
 }

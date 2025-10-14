@@ -7,161 +7,307 @@ class ResourcesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color fblaBlue = const Color(0xFF1D4E89);
+    final Color fblaGold = const Color(0xFFF6C500);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Resources'),
-        backgroundColor: fblaBlue,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Quick Access Section
-          _buildSectionHeader(context, 'Quick Access'),
-          const SizedBox(height: 16),
-
-          _buildResourceCard(
-            context,
-            'FBLA Connect',
-            'Access your FBLA Connect account',
-            Icons.account_circle,
-            () => _launchUrl('https://connect.fbla.org/'),
+      body: CustomScrollView(
+        slivers: [
+          // Modern App Bar
+          SliverAppBar(
+            expandedHeight: 160,
+            floating: false,
+            pinned: true,
+            backgroundColor: fblaBlue,
+            flexibleSpace: FlexibleSpaceBar(
+              title: Text(
+                'Resources',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      fblaBlue,
+                      fblaBlue.withOpacity(0.8),
+                      Color(0xFF00274D),
+                    ],
+                  ),
+                ),
+                child: SafeArea(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.library_books,
+                          color: fblaGold,
+                          size: 40,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
 
-          _buildResourceCard(
-            context,
-            'Competition Guidelines',
-            'Study guides and competition rules',
-            Icons.school,
-            () => _launchUrl('https://www.fbla-pbl.org/competitive-events/'),
-          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Quick Access Section
+                  _buildModernSectionHeader(context, 'Quick Access', Icons.flash_on),
+                  const SizedBox(height: 16),
 
-          _buildResourceCard(
-            context,
-            'Leadership Development',
-            'Build your leadership skills',
-            Icons.leaderboard,
-            () =>
-                _launchUrl('https://www.fbla-pbl.org/leadership-development/'),
-          ),
+                  _buildResourceCard(
+                    context,
+                    'FBLA Connect',
+                    'Access your FBLA Connect account',
+                    Icons.account_circle,
+                    Color(0xFF1D4E89),
+                    () => _launchUrl('https://connect.fbla.org/'),
+                  ),
 
-          const SizedBox(height: 24),
+                  _buildResourceCard(
+                    context,
+                    'Competition Guidelines',
+                    'Study guides and competition rules',
+                    Icons.school,
+                    Color(0xFFF6C500),
+                    () => _launchUrl('https://www.fbla-pbl.org/competitive-events/'),
+                  ),
 
-          // Study Materials Section
-          _buildSectionHeader(context, 'Study Materials'),
-          const SizedBox(height: 16),
+                  _buildResourceCard(
+                    context,
+                    'Leadership Development',
+                    'Build your leadership skills',
+                    Icons.leaderboard,
+                    Color(0xFF4CAF50),
+                    () =>
+                        _launchUrl('https://www.fbla-pbl.org/leadership-development/'),
+                  ),
 
-          _buildResourceCard(
-            context,
-            'Business Skills',
-            'Fundamentals of business and entrepreneurship',
-            Icons.business,
-            () => _showComingSoon(context),
-          ),
+                  const SizedBox(height: 28),
 
-          _buildResourceCard(
-            context,
-            'Technology & Innovation',
-            'Latest trends in business technology',
-            Icons.computer,
-            () => _showComingSoon(context),
-          ),
+                  // Study Materials Section
+                  _buildModernSectionHeader(context, 'Study Materials', Icons.book),
+                  const SizedBox(height: 16),
 
-          _buildResourceCard(
-            context,
-            'Career Preparation',
-            'Resume building and interview skills',
-            Icons.work,
-            () => _showComingSoon(context),
-          ),
+                  _buildResourceCard(
+                    context,
+                    'Business Skills',
+                    'Fundamentals of business and entrepreneurship',
+                    Icons.business,
+                    Color(0xFFFF9800),
+                    () => _showComingSoon(context),
+                  ),
 
-          const SizedBox(height: 24),
+                  _buildResourceCard(
+                    context,
+                    'Technology & Innovation',
+                    'Latest trends in business technology',
+                    Icons.computer,
+                    Color(0xFF2196F3),
+                    () => _showComingSoon(context),
+                  ),
 
-          // Downloads Section
-          _buildSectionHeader(context, 'Downloads'),
-          const SizedBox(height: 16),
+                  _buildResourceCard(
+                    context,
+                    'Career Preparation',
+                    'Resume building and interview skills',
+                    Icons.work,
+                    Color(0xFF9C27B0),
+                    () => _showComingSoon(context),
+                  ),
 
-          _buildResourceCard(
-            context,
-            'FBLA Handbook',
-            'Complete guide to FBLA programs',
-            Icons.book,
-            () => _showComingSoon(context),
-          ),
+                  const SizedBox(height: 28),
 
-          _buildResourceCard(
-            context,
-            'Chapter Resources',
-            'Templates and guides for chapter activities',
-            Icons.group,
-            () => _showComingSoon(context),
-          ),
+                  // Downloads Section
+                  _buildModernSectionHeader(context, 'Downloads', Icons.download),
+                  const SizedBox(height: 16),
 
-          _buildResourceCard(
-            context,
-            'Competition Materials',
-            'Practice tests and study guides',
-            Icons.quiz,
-            () => _showComingSoon(context),
-          ),
+                  _buildResourceCard(
+                    context,
+                    'FBLA Handbook',
+                    'Complete guide to FBLA programs',
+                    Icons.book,
+                    Color(0xFFFF5722),
+                    () => _showComingSoon(context),
+                  ),
 
-          const SizedBox(height: 24),
+                  _buildResourceCard(
+                    context,
+                    'Chapter Resources',
+                    'Templates and guides for chapter activities',
+                    Icons.group,
+                    Color(0xFF607D8B),
+                    () => _showComingSoon(context),
+                  ),
 
-          // External Links Section
-          _buildSectionHeader(context, 'External Links'),
-          const SizedBox(height: 16),
+                  _buildResourceCard(
+                    context,
+                    'Competition Materials',
+                    'Practice tests and study guides',
+                    Icons.quiz,
+                    Colors.deepPurple,
+                    () => _showComingSoon(context),
+                  ),
 
-          _buildResourceCard(
-            context,
-            'FBLA-PBL Official Website',
-            'Visit the national FBLA website',
-            Icons.language,
-            () => _launchUrl('https://www.fbla-pbl.org/'),
-          ),
+                  const SizedBox(height: 28),
 
-          _buildResourceCard(
-            context,
-            'State FBLA',
-            'Connect with your state organization',
-            Icons.location_on,
-            () => _showComingSoon(context),
-          ),
+                  // External Links Section
+                  _buildModernSectionHeader(context, 'External Links', Icons.link),
+                  const SizedBox(height: 16),
 
-          _buildResourceCard(
-            context,
-            'Career Center',
-            'Explore career opportunities',
-            Icons.explore,
-            () => _launchUrl('https://www.fbla-pbl.org/career-center/'),
+                  _buildResourceCard(
+                    context,
+                    'FBLA-PBL Official Website',
+                    'Visit the national FBLA website',
+                    Icons.language,
+                    Color(0xFF1D4E89),
+                    () => _launchUrl('https://www.fbla-pbl.org/'),
+                  ),
+
+                  _buildResourceCard(
+                    context,
+                    'State FBLA',
+                    'Connect with your state organization',
+                    Icons.location_on,
+                    Color(0xFFE91E63),
+                    () => _showComingSoon(context),
+                  ),
+
+                  _buildResourceCard(
+                    context,
+                    'Career Center',
+                    'Explore career opportunities',
+                    Icons.explore,
+                    Color(0xFF00BCD4),
+                    () => _launchUrl('https://www.fbla-pbl.org/career-center/'),
+                  ),
+                  
+                  const SizedBox(height: 28),
+                  
+                  // Social Media Section
+                  _buildModernSectionHeader(context, 'Connect With Us', Icons.share),
+                  const SizedBox(height: 16),
+                  _buildSocialMediaRow(context),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context, String title) {
+  Widget _buildSocialMediaRow(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _buildSocialButton(
+          context,
+          'Instagram',
+          Icons.camera_alt,
+          Color(0xFFE1306C),
+          () => _launchUrl('https://www.instagram.com/fbla_pbl/'),
+        ),
+        _buildSocialButton(
+          context,
+          'Twitter',
+          Icons.flutter_dash,
+          Color(0xFF1DA1F2),
+          () => _launchUrl('https://twitter.com/FBLA_PBL'),
+        ),
+        _buildSocialButton(
+          context,
+          'Facebook',
+          Icons.facebook,
+          Color(0xFF1877F2),
+          () => _launchUrl('https://www.facebook.com/FBLAPBL/'),
+        ),
+        _buildSocialButton(
+          context,
+          'LinkedIn',
+          Icons.business,
+          Color(0xFF0A66C2),
+          () => _launchUrl('https://www.linkedin.com/company/fbla-pbl/'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSocialButton(
+    BuildContext context,
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 28),
+            SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernSectionHeader(BuildContext context, String title, IconData icon) {
     final Color fblaBlue = const Color(0xFF1D4E89);
-    final Color fblaGold = const Color(0xFFF6C500);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Row(
       children: [
         Container(
-          width: 4,
-          height: 24,
+          padding: EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: fblaGold,
-            borderRadius: BorderRadius.circular(2),
+            color: fblaBlue.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            icon,
+            color: fblaBlue,
+            size: 20,
           ),
         ),
         const SizedBox(width: 12),
         Text(
           title,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: fblaBlue,
-              ),
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : fblaBlue,
+          ),
         ),
       ],
     );
@@ -172,52 +318,94 @@ class ResourcesScreen extends StatelessWidget {
     String title,
     String description,
     IconData icon,
+    Color color,
     VoidCallback onTap,
   ) {
-    final Color fblaBlue = const Color(0xFF1D4E89);
-    final Color fblaGold = const Color(0xFFF6C500);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: fblaBlue.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(
-            icon,
-            color: fblaBlue,
-            size: 24,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: color.withOpacity(0.2),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [color, color.withOpacity(0.7)],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    icon,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        description,
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 13,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: color,
+                  size: 18,
+                ),
+              ],
+            ),
           ),
         ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-        subtitle: Text(
-          description,
-          style: TextStyle(
-            color: Colors.grey.shade600,
-            fontSize: 14,
-          ),
-        ),
-        trailing: Icon(
-          Icons.arrow_forward_ios,
-          color: fblaGold,
-          size: 16,
-        ),
-        onTap: onTap,
       ),
     );
   }
