@@ -14,10 +14,35 @@ class FirebaseService {
   static Future<UserCredential?> signInWithEmail(
       String email, String password) async {
     try {
-      return await _auth.signInWithEmailAndPassword(
+      print('FirebaseService: Attempting sign in with email: $email');
+      final result = await _auth.signInWithEmailAndPassword(
           email: email, password: password);
+      print('FirebaseService: Sign in successful for UID: ${result.user?.uid}');
+      return result;
+    } on FirebaseAuthException catch (e) {
+      print('FirebaseService: Auth error code: ${e.code}');
+      print('FirebaseService: Auth error message: ${e.message}');
+      if (e.code == 'user-not-found') {
+        throw Exception('No account found with this email address.');
+      } else if (e.code == 'wrong-password') {
+        throw Exception('Incorrect password. Please try again.');
+      } else if (e.code == 'invalid-email') {
+        throw Exception('The email address is invalid.');
+      } else if (e.code == 'user-disabled') {
+        throw Exception('This account has been disabled.');
+      } else if (e.code == 'too-many-requests') {
+        throw Exception('Too many failed attempts. Please try again later.');
+      } else if (e.code == 'operation-not-allowed') {
+        throw Exception('Email/Password authentication is not enabled in Firebase Console.');
+      } else if (e.code == 'network-request-failed') {
+        throw Exception('Network error. Please check your internet connection.');
+      }
+      rethrow;
     } catch (e) {
-      print('Sign in error: $e');
+      print('FirebaseService: Sign in error: $e');
+      if (e.toString().contains('network')) {
+        throw Exception('Network error. Please check your internet connection.');
+      }
       rethrow;
     }
   }
@@ -43,6 +68,8 @@ class FirebaseService {
         throw Exception('An account already exists with this email.');
       } else if (e.code == 'invalid-email') {
         throw Exception('The email address is invalid.');
+      } else if (e.code == 'network-request-failed') {
+        throw Exception('Network error. Please check your internet connection.');
       }
       rethrow;
     } catch (e) {
@@ -182,4 +209,48 @@ class FirebaseService {
 
   // Auth state stream
   static Stream<User?> get authStateChanges => _auth.authStateChanges();
+
+  // Connectivity and configuration check
+  static Future<bool> checkFirebaseConnection() async {
+    try {
+      // Try to read from Firestore to test connectivity
+      await _firestore.collection('test').doc('connection').get();
+      print('FirebaseService: Connection test successful');
+      return true;
+    } catch (e) {
+      print('FirebaseService: Connection test failed: $e');
+      return false;
+    }
+  }
+
+  // Check if Firebase is properly configured
+  static Future<Map<String, bool>> checkFirebaseConfiguration() async {
+    Map<String, bool> results = {
+      'firebase_initialized': false,
+      'firestore_accessible': false,
+      'auth_enabled': false,
+    };
+
+    try {
+      // Check if Firebase is initialized
+      results['firebase_initialized'] = true; // Firebase is initialized if we can access _auth
+      
+      // Check Firestore connectivity
+      results['firestore_accessible'] = await checkFirebaseConnection();
+      
+      // Check if auth is enabled (try to get current user)
+      try {
+        await _auth.currentUser;
+        results['auth_enabled'] = true;
+      } catch (e) {
+        results['auth_enabled'] = false;
+      }
+      
+      print('FirebaseService: Configuration check results: $results');
+    } catch (e) {
+      print('FirebaseService: Configuration check error: $e');
+    }
+    
+    return results;
+  }
 }

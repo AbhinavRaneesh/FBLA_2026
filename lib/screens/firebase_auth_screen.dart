@@ -97,6 +97,18 @@ class _FirebaseAuthScreenState extends State<FirebaseAuthScreen>
     setState(() => _isLoading = true);
 
     try {
+      // Check Firebase configuration first
+      final config = await FirebaseService.checkFirebaseConfiguration();
+      print('Firebase config check: $config');
+      
+      if (!config['firebase_initialized']!) {
+        throw Exception('Firebase is not properly initialized. Please check your configuration.');
+      }
+      
+      if (!config['firestore_accessible']!) {
+        throw Exception('Cannot connect to Firebase. Please check your internet connection.');
+      }
+
       final userCredential = await FirebaseService.signInWithEmail(
         _emailController.text.trim(),
         _passwordController.text,
@@ -153,6 +165,18 @@ class _FirebaseAuthScreenState extends State<FirebaseAuthScreen>
     setState(() => _isLoading = true);
 
     try {
+      // Check Firebase configuration first
+      final config = await FirebaseService.checkFirebaseConfiguration();
+      print('Firebase config check: $config');
+      
+      if (!config['firebase_initialized']!) {
+        throw Exception('Firebase is not properly initialized. Please check your configuration.');
+      }
+      
+      if (!config['firestore_accessible']!) {
+        throw Exception('Cannot connect to Firebase. Please check your internet connection.');
+      }
+
       final userCredential = await FirebaseService.signUpWithEmail(
         _emailController.text.trim(),
         _passwordController.text,

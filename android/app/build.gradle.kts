@@ -23,7 +23,7 @@ android {
     defaultConfig {
         applicationId = "com.example.fbla_2026"
         // Firebase REQUIRES API 21+. DO NOT USE flutter.minSdkVersion (it's 16)
-        minSdk = 21
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

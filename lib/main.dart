@@ -45,6 +45,7 @@ class AppState extends ChangeNotifier {
   List<ChatThread> threads;
   Set<String> savedEventIds = {};
   bool hasSeenOnboarding;
+  bool isDarkMode = false;
 
   // Firebase integration
   User? firebaseUser;
@@ -59,7 +60,8 @@ class AppState extends ChangeNotifier {
         news = sampleNews,
         competitions = sampleCompetitions,
         threads = sampleThreads,
-        hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false {
+        hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false,
+        isDarkMode = prefs.getBool('isDarkMode') ?? false {
     savedEventIds = prefs.getStringList('savedEvents')?.toSet() ?? {};
     _initializeFirebase();
   }
@@ -115,6 +117,12 @@ class AppState extends ChangeNotifier {
   Future<void> skipOnboarding() async {
     hasSeenOnboarding = true;
     await prefs.setBool('hasSeenOnboarding', true);
+    notifyListeners();
+  }
+
+  Future<void> toggleDarkMode() async {
+    isDarkMode = !isDarkMode;
+    await prefs.setBool('isDarkMode', isDarkMode);
     notifyListeners();
   }
 
@@ -384,7 +392,8 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => AppState(prefs: prefs),
-      child: MaterialApp(
+      child: Consumer<AppState>(
+        builder: (context, app, child) => MaterialApp(
         title: 'FBLA Member App',
         theme: ThemeData(
           primaryColor: fblaNavy,
@@ -441,7 +450,7 @@ class MyApp extends StatelessWidget {
             color: Colors.grey.shade800,
           ),
         ),
-        themeMode: ThemeMode.system,
+        themeMode: app.isDarkMode ? ThemeMode.dark : ThemeMode.light,
         debugShowCheckedModeBanner: false,
         routes: {
           '/login': (_) => const LoginScreen(),
@@ -450,6 +459,7 @@ class MyApp extends StatelessWidget {
           '/firebase_auth': (_) => const FirebaseAuthScreen(),
         },
         home: AuthGate(),
+        ),
       ),
     );
   }
@@ -777,7 +787,7 @@ class HomeScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  SizedBox(height: 16),
+                  SizedBox(height: 2),
                   LayoutBuilder(
                     builder: (context, constraints) {
                       return GridView.count(
@@ -792,7 +802,11 @@ class HomeScreen extends StatelessWidget {
                             icon: Icons.calendar_month,
                             label: 'Events',
                             subtitle: '${app.events.length} upcoming',
-                            color: fblaBlue,
+                            gradient: LinearGradient(
+                              colors: [fblaBlue, fblaBlue.withOpacity(0.8)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                             onTap: () => Navigator.push(context,
                                 MaterialPageRoute(builder: (_) => EventsScreen())),
                           ),
@@ -800,7 +814,11 @@ class HomeScreen extends StatelessWidget {
                             icon: Icons.school,
                             label: 'Resources',
                             subtitle: 'Study materials',
-                            color: Color(0xFFFF6B6B),
+                            gradient: LinearGradient(
+                              colors: [fblaNavy, fblaNavy.withOpacity(0.8)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                             onTap: () => Navigator.push(context,
                                 MaterialPageRoute(builder: (_) => ResourcesScreen())),
                           ),
@@ -808,7 +826,11 @@ class HomeScreen extends StatelessWidget {
                             icon: Icons.group,
                             label: 'Chapter',
                             subtitle: 'Connect',
-                            color: fblaGold,
+                            gradient: LinearGradient(
+                              colors: [fblaGold, fblaGold.withOpacity(0.8)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                             onTap: () async {
                               final url = Uri.parse('https://connect.fbla.org/');
                               if (await canLaunchUrl(url)) launchUrl(url);
@@ -818,7 +840,11 @@ class HomeScreen extends StatelessWidget {
                             icon: Icons.notifications,
                             label: 'Notifications',
                             subtitle: 'Stay updated',
-                            color: Color(0xFF4CAF50),
+                            gradient: LinearGradient(
+                              colors: [fblaBlue.withOpacity(0.7), fblaNavy.withOpacity(0.7)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                             onTap: () {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(content: Text('Notifications coming soon!')),
@@ -829,7 +855,7 @@ class HomeScreen extends StatelessWidget {
                       );
                     },
                   ),
-                  SizedBox(height: 28),
+                  SizedBox(height: 8),
 
                   // Upcoming Events Section
                   Row(
@@ -1225,19 +1251,22 @@ class _ModernQuickButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final String subtitle;
-  final Color color;
+  final Gradient gradient;
   final VoidCallback onTap;
 
   const _ModernQuickButton({
     required this.icon,
     required this.label,
     required this.subtitle,
-    required this.color,
+    required this.gradient,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Extract the primary color from gradient for text and borders
+    final primaryColor = gradient.colors.first;
+    
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1245,10 +1274,17 @@ class _ModernQuickButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: Container(
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            gradient: LinearGradient(
+              colors: [
+                primaryColor.withOpacity(0.1),
+                primaryColor.withOpacity(0.05),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: color.withOpacity(0.3),
+              color: primaryColor.withOpacity(0.3),
               width: 1.5,
             ),
           ),
@@ -1260,11 +1296,11 @@ class _ModernQuickButton extends StatelessWidget {
               Container(
                 padding: EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: color,
+                  gradient: gradient,
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: color.withOpacity(0.3),
+                      color: primaryColor.withOpacity(0.3),
                       blurRadius: 8,
                       offset: Offset(0, 2),
                     ),
@@ -1282,7 +1318,7 @@ class _ModernQuickButton extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: color,
+                  color: primaryColor,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -2015,11 +2051,9 @@ class ProfileScreen extends StatelessWidget {
               IconButton(
                 icon: Icon(Icons.settings_outlined, color: Colors.white),
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Settings coming soon'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
                   );
                 },
               ),
@@ -2411,4 +2445,302 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+}
+
+/* ------------------------
+   Settings Screen
+   ------------------------ */
+
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final app = Provider.of<AppState>(context);
+    final Color fblaBlue = const Color(0xFF1D4E89);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Settings'),
+        backgroundColor: fblaBlue,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: ListView(
+        padding: EdgeInsets.all(16),
+        children: [
+          // General Settings Section
+          _buildSectionHeader('General Settings', Icons.settings_outlined, isDark, fblaBlue),
+          SizedBox(height: 16),
+          
+          // Dark Mode Toggle
+          _buildSettingsCard(
+            context,
+            'Dark Mode',
+            'Switch between light and dark themes',
+            Icons.dark_mode_outlined,
+            Switch(
+              value: app.isDarkMode,
+              onChanged: (value) => app.toggleDarkMode(),
+              activeColor: fblaBlue,
+            ),
+          ),
+          
+          // Notifications Settings
+          _buildSettingsCard(
+            context,
+            'Push Notifications',
+            'Receive notifications for events and updates',
+            Icons.notifications_outlined,
+            Switch(
+              value: true, // Default to enabled
+              onChanged: (value) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Notification settings coming soon'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+              activeColor: fblaBlue,
+            ),
+          ),
+          
+          // Email Notifications
+          _buildSettingsCard(
+            context,
+            'Email Notifications',
+            'Receive email updates about events',
+            Icons.email_outlined,
+            Switch(
+              value: true, // Default to enabled
+              onChanged: (value) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Email settings coming soon'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+              activeColor: fblaBlue,
+            ),
+          ),
+          
+          SizedBox(height: 32),
+          
+          // Privacy & Security Section
+          _buildSectionHeader('Privacy & Security', Icons.security_outlined, isDark, fblaBlue),
+          SizedBox(height: 16),
+          
+          _buildSettingsCard(
+            context,
+            'Data Privacy',
+            'Manage your data and privacy settings',
+            Icons.privacy_tip_outlined,
+            Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Privacy settings coming soon'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+          ),
+          
+          _buildSettingsCard(
+            context,
+            'Account Security',
+            'Password and security settings',
+            Icons.lock_outline,
+            Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Security settings coming soon'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+          ),
+          
+          SizedBox(height: 32),
+          
+          // App Information Section
+          _buildSectionHeader('App Information', Icons.info_outline, isDark, fblaBlue),
+          SizedBox(height: 16),
+          
+          _buildSettingsCard(
+            context,
+            'About FBLA App',
+            'Version 1.0.0 • Learn more about the app',
+            Icons.info_outlined,
+            Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: Text('About FBLA Member App'),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Version: 1.0.0'),
+                      SizedBox(height: 8),
+                      Text('The official FBLA Member App for staying connected with your chapter, events, and resources.'),
+                      SizedBox(height: 8),
+                      Text('Built with Flutter for the best mobile experience.'),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text('Close'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          
+          _buildSettingsCard(
+            context,
+            'Help & Support',
+            'Get help or contact support',
+            Icons.help_outline,
+            Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Help center coming soon'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+          ),
+          
+          _buildSettingsCard(
+            context,
+            'Terms of Service',
+            'Read our terms and conditions',
+            Icons.description_outlined,
+            Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Terms of service coming soon'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+          ),
+          
+          SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon, bool isDark, Color fblaBlue) {
+    return Row(
+      children: [
+        Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: fblaBlue.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: fblaBlue, size: 20),
+        ),
+        SizedBox(width: 12),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : fblaBlue,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSettingsCard(
+    BuildContext context,
+    String title,
+    String subtitle,
+    IconData icon,
+    Widget trailing, {
+    VoidCallback? onTap,
+  }) {
+    final Color fblaBlue = const Color(0xFF1D4E89);
+    
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: fblaBlue.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: fblaBlue.withOpacity(0.2), width: 1.5),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: fblaBlue,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: fblaBlue.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 20),
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(width: 8),
+                trailing,
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
