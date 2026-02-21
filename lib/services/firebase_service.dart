@@ -2,7 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'dart:io';
+import 'dart:typed_data';
 
 class FirebaseService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -196,10 +196,13 @@ class FirebaseService {
 
   // Storage methods
   static Future<String?> uploadProfileImage(
-      String userId, File imageFile) async {
+      String userId, Uint8List imageBytes) async {
     try {
       final ref = _storage.ref().child('profile_images/$userId.jpg');
-      await ref.putFile(imageFile);
+      await ref.putData(
+        imageBytes,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
       return await ref.getDownloadURL();
     } catch (e) {
       print('Upload profile image error: $e');

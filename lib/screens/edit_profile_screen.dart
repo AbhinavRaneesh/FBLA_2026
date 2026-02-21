@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'dart:io';
+import 'dart:typed_data';
 import '../services/firebase_service.dart';
 import '../main.dart';
 
@@ -21,7 +21,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final TextEditingController _biographyController = TextEditingController();
 
   bool _isLoading = false;
-  String? _selectedImagePath;
+  Uint8List? _selectedImageBytes;
   String? _currentImageUrl;
 
   @override
@@ -87,8 +87,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
 
     if (pickedFile != null) {
+      final imageBytes = await pickedFile.readAsBytes();
       setState(() {
-        _selectedImagePath = pickedFile.path;
+        _selectedImageBytes = imageBytes;
       });
     }
   }
@@ -106,11 +107,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         String? photoUrl = _currentImageUrl;
         
         // Upload new image if selected
-        if (_selectedImagePath != null) {
-          final imageFile = File(_selectedImagePath!);
+        if (_selectedImageBytes != null) {
           photoUrl = await FirebaseService.uploadProfileImage(
             app.firebaseUser!.uid, 
-            imageFile
+            _selectedImageBytes!
           );
         }
 
@@ -199,13 +199,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       CircleAvatar(
                         radius: 60,
                         backgroundColor: fblaGold,
-                        backgroundImage: _selectedImagePath != null
-                            ? FileImage(File(_selectedImagePath!))
+                        backgroundImage: _selectedImageBytes != null
+                          ? MemoryImage(_selectedImageBytes!)
                             : (_currentImageUrl != null
                                 ? NetworkImage(_currentImageUrl!)
                                     as ImageProvider
                                 : null),
-                        child: _selectedImagePath == null &&
+                        child: _selectedImageBytes == null &&
                                 _currentImageUrl == null
                             ? Icon(
                                 Icons.person,
