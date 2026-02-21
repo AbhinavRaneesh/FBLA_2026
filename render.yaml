@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: fbla-2026
+    env: docker
+    plan: free
+    autoDeploy: true
