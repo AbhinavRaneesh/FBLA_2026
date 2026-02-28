@@ -7,6 +7,7 @@ class ResourcesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color fblaBlue = const Color(0xFF1D4E89);
+    final bottomSafe = MediaQuery.of(context).viewPadding.bottom;
     final Color fblaGold = const Color(0xFFF6C500);
 
     return Scaffold(
@@ -71,6 +72,22 @@ class ResourcesScreen extends StatelessWidget {
                   // Study Materials Section
                   _buildModernSectionHeader(context, 'Study Materials', Icons.book),
                   const SizedBox(height: 16),
+
+                  _buildResourceCard(
+                    context,
+                    'FBLA Competitive Events',
+                    'Browse all FBLA events with search and filters',
+                    Icons.emoji_events,
+                    Color(0xFF1D4E89),
+                    () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CompetitiveEventsScreen(),
+                        ),
+                      );
+                    },
+                  ),
 
                   _buildResourceCard(
                     context,
@@ -390,4 +407,372 @@ class ResourcesScreen extends StatelessWidget {
   void _showComingSoon(BuildContext context) {
     return;
   }
+}
+
+class CompetitiveEventsScreen extends StatefulWidget {
+  const CompetitiveEventsScreen({super.key});
+
+  @override
+  State<CompetitiveEventsScreen> createState() => _CompetitiveEventsScreenState();
+}
+
+class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+  String _selectedCategory = 'All';
+
+  static const List<String> _categories = [
+    'All',
+    'Presentation Events',
+    'Roleplay Events',
+    'Objective Test Events',
+    'Production Events',
+    'Virtual & Partner Challenges',
+    'Chapter Events',
+  ];
+
+  final List<_CompetitiveEventItem> _events = const [
+    _CompetitiveEventItem('Broadcast Journalism', 'Presentation Events'),
+    _CompetitiveEventItem('Business Ethics', 'Presentation Events'),
+    _CompetitiveEventItem('Business Plan', 'Presentation Events'),
+    _CompetitiveEventItem('Coding & Programming', 'Presentation Events'),
+    _CompetitiveEventItem('Computer Game & Simulation Programming', 'Presentation Events'),
+    _CompetitiveEventItem('Data Analysis', 'Presentation Events'),
+    _CompetitiveEventItem('Digital Animation', 'Presentation Events'),
+    _CompetitiveEventItem('Digital Video Production', 'Presentation Events'),
+    _CompetitiveEventItem('Electronic Career Portfolio', 'Presentation Events'),
+    _CompetitiveEventItem('Financial Planning', 'Presentation Events'),
+    _CompetitiveEventItem('Financial Statement Analysis', 'Presentation Events'),
+    _CompetitiveEventItem('Future Business Educator', 'Presentation Events'),
+    _CompetitiveEventItem('Future Business Leader', 'Presentation Events'),
+    _CompetitiveEventItem('Graphic Design', 'Presentation Events'),
+    _CompetitiveEventItem('Impromptu Speaking', 'Presentation Events'),
+    _CompetitiveEventItem('Introduction to Business Presentation', 'Presentation Events'),
+    _CompetitiveEventItem('Introduction to Public Speaking', 'Presentation Events'),
+    _CompetitiveEventItem('Introduction to Social Media Strategy', 'Presentation Events'),
+    _CompetitiveEventItem('Job Interview', 'Presentation Events'),
+    _CompetitiveEventItem('Mobile Application Development', 'Presentation Events'),
+    _CompetitiveEventItem('Public Service Announcement', 'Presentation Events'),
+    _CompetitiveEventItem('Public Speaking', 'Presentation Events'),
+    _CompetitiveEventItem('Sales Presentation', 'Presentation Events'),
+    _CompetitiveEventItem('Social Media Strategies', 'Presentation Events'),
+    _CompetitiveEventItem('Visual Design', 'Presentation Events'),
+    _CompetitiveEventItem('Website Design', 'Presentation Events'),
+    _CompetitiveEventItem('Banking & Financial Systems', 'Roleplay Events'),
+    _CompetitiveEventItem('Business Management', 'Roleplay Events'),
+    _CompetitiveEventItem('Customer Service', 'Roleplay Events'),
+    _CompetitiveEventItem('Entrepreneurship', 'Roleplay Events'),
+    _CompetitiveEventItem('Hospitality & Event Management', 'Roleplay Events'),
+    _CompetitiveEventItem('International Business', 'Roleplay Events'),
+    _CompetitiveEventItem('Management Information Systems', 'Roleplay Events'),
+    _CompetitiveEventItem('Marketing', 'Roleplay Events'),
+    _CompetitiveEventItem('Network Design', 'Roleplay Events'),
+    _CompetitiveEventItem('Parliamentary Procedure', 'Roleplay Events'),
+    _CompetitiveEventItem('Sports & Entertainment Management', 'Roleplay Events'),
+    _CompetitiveEventItem('Accounting I & II', 'Objective Test Events'),
+    _CompetitiveEventItem('Advertising', 'Objective Test Events'),
+    _CompetitiveEventItem('Agribusiness', 'Objective Test Events'),
+    _CompetitiveEventItem('Business Communication', 'Objective Test Events'),
+    _CompetitiveEventItem('Business Law', 'Objective Test Events'),
+    _CompetitiveEventItem('Cybersecurity', 'Objective Test Events'),
+    _CompetitiveEventItem('Data Science & AI', 'Objective Test Events'),
+    _CompetitiveEventItem('Economics', 'Objective Test Events'),
+    _CompetitiveEventItem('Financial Planning', 'Objective Test Events'),
+    _CompetitiveEventItem('Healthcare Administration', 'Objective Test Events'),
+    _CompetitiveEventItem('Insurance & Risk Management', 'Objective Test Events'),
+    _CompetitiveEventItem('Introduction to Business Communication', 'Objective Test Events'),
+    _CompetitiveEventItem('Introduction to Business Concepts', 'Objective Test Events'),
+    _CompetitiveEventItem('Introduction to FBLA', 'Objective Test Events'),
+    _CompetitiveEventItem('Journalism', 'Objective Test Events'),
+    _CompetitiveEventItem('Organizational Leadership', 'Objective Test Events'),
+    _CompetitiveEventItem('Personal Finance', 'Objective Test Events'),
+    _CompetitiveEventItem('Supply Chain Management', 'Objective Test Events'),
+    _CompetitiveEventItem('Computer Applications', 'Production Events'),
+    _CompetitiveEventItem('Spreadsheet Applications', 'Production Events'),
+    _CompetitiveEventItem('Word Processing', 'Production Events'),
+    _CompetitiveEventItem('Virtual Business Finance Challenge', 'Virtual & Partner Challenges'),
+    _CompetitiveEventItem('Virtual Business Management Challenge', 'Virtual & Partner Challenges'),
+    _CompetitiveEventItem('FBLA Stock Market Game', 'Virtual & Partner Challenges'),
+    _CompetitiveEventItem('LifeSmarts', 'Virtual & Partner Challenges'),
+    _CompetitiveEventItem('American Enterprise Project', 'Chapter Events'),
+    _CompetitiveEventItem('Community Service Project', 'Chapter Events'),
+    _CompetitiveEventItem('Local Chapter Annual Business Report', 'Chapter Events'),
+    _CompetitiveEventItem('Partnership with Business Project', 'Chapter Events'),
+  ];
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<_CompetitiveEventItem> get _filteredEvents {
+    final query = _query.trim().toLowerCase();
+
+    final filtered = _events.where((event) {
+      final categoryMatch =
+          _selectedCategory == 'All' || event.category == _selectedCategory;
+      final queryMatch = query.isEmpty ||
+          event.name.toLowerCase().contains(query) ||
+          event.category.toLowerCase().contains(query);
+      return categoryMatch && queryMatch;
+    }).toList();
+
+    filtered.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return filtered;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Color fblaBlue = const Color(0xFF1D4E89);
+    final bottomSafe = MediaQuery.of(context).viewPadding.bottom;
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: const Text('FBLA Competitive Events'),
+        backgroundColor: fblaBlue,
+        foregroundColor: Colors.white,
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) => setState(() => _query = value),
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Search events',
+                      hintStyle: TextStyle(color: Colors.grey.shade500),
+                      prefixIcon:
+                          Icon(Icons.search, color: Colors.grey.shade400),
+                      suffixIcon: _query.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(Icons.clear,
+                                  color: Colors.grey.shade400),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _query = '');
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: const Color(0xFF161616),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                OutlinedButton.icon(
+                  onPressed: _showFilterSheet,
+                  icon: const Icon(Icons.tune, size: 18),
+                  label: const Text('Filters'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: fblaBlue.withOpacity(0.7)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_selectedCategory != 'All')
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: fblaBlue.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: fblaBlue.withOpacity(0.6)),
+                  ),
+                  child: Text(
+                    _selectedCategory,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          Expanded(
+            child: ListView.separated(
+              padding: EdgeInsets.fromLTRB(12, 4, 12, 20 + bottomSafe + 16),
+              itemCount: _filteredEvents.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (context, index) {
+                final event = _filteredEvents[index];
+                return _buildEventCard(event);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEventCard(_CompetitiveEventItem event) {
+    final categoryColor = _categoryColor(event.category);
+    final badgeLetter = _categoryBadgeLetter(event.category);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111111),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: categoryColor.withOpacity(0.45)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  event.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: categoryColor.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: categoryColor.withOpacity(0.75)),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  badgeLetter,
+                  style: TextStyle(
+                    color: categoryColor,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _categoryBadgeLetter(String category) {
+    switch (category) {
+      case 'Presentation Events':
+        return 'Pr';
+      case 'Production Events':
+        return 'Po';
+      case 'Roleplay Events':
+        return 'R';
+      case 'Virtual & Partner Challenges':
+        return 'V';
+      case 'Objective Test Events':
+        return 'O';
+      case 'Chapter Events':
+        return 'C';
+      default:
+        return 'E';
+    }
+  }
+
+  Future<void> _showFilterSheet() async {
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF101010),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Filter by category',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ..._categories.map(
+                  (category) => ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      category,
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    trailing: _selectedCategory == category
+                        ? const Icon(Icons.check_circle, color: Color(0xFF1D4E89))
+                        : const SizedBox.shrink(),
+                    onTap: () {
+                      setState(() => _selectedCategory = category);
+                      Navigator.pop(context);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Color _categoryColor(String category) {
+    switch (category) {
+      case 'Presentation Events':
+        return const Color(0xFF64B5F6);
+      case 'Roleplay Events':
+        return const Color(0xFFFFD54F);
+      case 'Objective Test Events':
+        return const Color(0xFF81C784);
+      case 'Production Events':
+        return const Color(0xFFBA68C8);
+      case 'Virtual & Partner Challenges':
+        return const Color(0xFF4DD0E1);
+      case 'Chapter Events':
+        return const Color(0xFFFF8A65);
+      default:
+        return const Color(0xFF90A4AE);
+    }
+  }
+
+}
+
+class _CompetitiveEventItem {
+  final String name;
+  final String category;
+
+  const _CompetitiveEventItem(this.name, this.category);
 }

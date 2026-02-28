@@ -854,13 +854,40 @@ class _RootScreenState extends State<RootScreen> {
               ),
             );
           },
-          backgroundColor: fblaGold,
-          child: Icon(
-            Icons.smart_toy,
-            color: fblaNavy,
-            size: 28,
+          backgroundColor: const Color(0xFF0F1623),
+          elevation: 0,
+          highlightElevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+            side: const BorderSide(
+              color: Color(0xFF1D4E89),
+              width: 1.7,
+            ),
           ),
-          elevation: 8,
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1D4E89), Color(0xFF0B223E)],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF1D4E89).withOpacity(0.45),
+                  blurRadius: 12,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.smart_toy,
+                color: Colors.white,
+                size: 26,
+              ),
+            ),
+          ),
           tooltip: 'AI Assistant',
         ),
         floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
@@ -1402,6 +1429,9 @@ class EventsScreen extends StatefulWidget {
 class _EventsScreenState extends State<EventsScreen> {
   String _selectedFilter = 'All';
   DateTime _selectedDate = DateTime.now();
+  bool _showWeekCalendar = false;
+  bool _didScrollToCurrentMonth = false;
+  final GlobalKey _currentMonthKey = GlobalKey();
   final TextEditingController _eventSearchController = TextEditingController();
   String _eventSearchQuery = '';
   final List<String> _filters = [
@@ -1443,7 +1473,17 @@ class _EventsScreenState extends State<EventsScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black,
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
+        leading: _showWeekCalendar
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Back to monthly calendar',
+                onPressed: () {
+                  setState(() => _showWeekCalendar = false);
+                },
+              )
+            : null,
         title: Text('Events & Schedule'),
         backgroundColor: fblaBlue,
         foregroundColor: Colors.white,
@@ -1451,6 +1491,9 @@ class _EventsScreenState extends State<EventsScreen> {
       ),
       body: Column(
         children: [
+          if (_showWeekCalendar)
+            _buildWeekCalendarStrip(context, upcoming),
+
           // Filter chips
           Container(
             padding: EdgeInsets.fromLTRB(12, 12, 12, 10),
@@ -1574,7 +1617,7 @@ class _EventsScreenState extends State<EventsScreen> {
                     ),
                   ),
                 ),
-                if (searchMatches.isNotEmpty)
+                if (_showWeekCalendar && searchMatches.isNotEmpty)
                   Container(
                     constraints: const BoxConstraints(maxHeight: 150),
                     margin: const EdgeInsets.fromLTRB(10, 0, 10, 8),
@@ -1613,6 +1656,7 @@ class _EventsScreenState extends State<EventsScreen> {
                                 event.start.month,
                                 event.start.day,
                               );
+                              _showWeekCalendar = true;
                               _eventSearchQuery = '';
                               _eventSearchController.clear();
                             });
@@ -1621,31 +1665,15 @@ class _EventsScreenState extends State<EventsScreen> {
                       },
                     ),
                   ),
-                Theme(
-                  data: Theme.of(context).copyWith(
-                    colorScheme: Theme.of(context).colorScheme.copyWith(
-                          primary: fblaBlue,
-                          onPrimary: Colors.white,
-                          onSurface: Colors.white,
-                        ),
-                  ),
-                  child: CalendarDatePicker(
-                    initialDate: _selectedDate,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(2035),
-                    currentDate: DateTime.now(),
-                    onDateChanged: (date) {
-                      setState(() => _selectedDate = date);
-                    },
-                  ),
-                ),
               ],
             ),
           ),
 
           // List content
           Expanded(
-            child: _buildListView(context, dateFilteredEvents),
+            child: _showWeekCalendar
+                ? _buildListView(context, dateFilteredEvents)
+                : _buildVerticalMonthlyCalendar(context, upcoming),
           ),
         ],
       ),
@@ -1667,51 +1695,396 @@ class _EventsScreenState extends State<EventsScreen> {
     }
   }
 
+  Widget _buildWeekCalendarStrip(BuildContext context, List<Event> allEvents) {
+    final Color fblaBlue = const Color(0xFF1D4E89);
+    final weekStart = _startOfWeek(_selectedDate);
+    final weekDays = List<DateTime>.generate(
+      7,
+      (index) => DateTime(
+        weekStart.year,
+        weekStart.month,
+        weekStart.day + index,
+      ),
+    );
+    const weekdayShort = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF101010),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: fblaBlue.withOpacity(0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: fblaBlue.withOpacity(0.18),
+            blurRadius: 10,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1A1A),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.chevron_left, size: 20),
+                  color: Colors.white,
+                  tooltip: 'Previous week',
+                  onPressed: () {
+                    setState(() {
+                      _selectedDate = _selectedDate.subtract(const Duration(days: 7));
+                    });
+                  },
+                ),
+              ),
+              Text(
+                _monthYearLabel(_selectedDate),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1A1A),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.chevron_right, size: 20),
+                  color: Colors.white,
+                  tooltip: 'Next week',
+                  onPressed: () {
+                    setState(() {
+                      _selectedDate = _selectedDate.add(const Duration(days: 7));
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: weekDays.asMap().entries.map((entry) {
+              final index = entry.key;
+              final day = entry.value;
+              final isSelected = _isSameDate(day, _selectedDate);
+              final hasEvents = allEvents.any((event) => _isSameDate(event.start, day));
+
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _selectedDate = day),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? fblaBlue : const Color(0xFF1A1A1A),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isSelected
+                            ? fblaBlue.withOpacity(0.9)
+                            : Colors.white12,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          weekdayShort[index],
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isSelected ? Colors.white : Colors.grey.shade400,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${day.day}',
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: isSelected ? Colors.white : Colors.grey.shade200,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: hasEvents
+                                ? (isSelected ? Colors.white : const Color(0xFFF6C500))
+                                : Colors.transparent,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  DateTime _startOfWeek(DateTime date) {
+    final diff = date.weekday - DateTime.monday;
+    return DateTime(date.year, date.month, date.day - diff);
+  }
+
+  String _monthYearLabel(DateTime date) {
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return '${months[date.month - 1]} ${date.year}';
+  }
+
+  bool _isSameDate(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  List<Event> _eventsForDay(List<Event> allEvents, DateTime day) {
+    return allEvents.where((event) => _isSameDate(event.start, day)).toList();
+  }
+
+  Widget _buildVerticalMonthlyCalendar(BuildContext context, List<Event> allEvents) {
+    final Color fblaBlue = const Color(0xFF1D4E89);
+    final now = DateTime.now();
+    final startMonth = DateTime(2020, 1);
+    final endMonth = DateTime(2035, 12);
+    final monthCount =
+        ((endMonth.year - startMonth.year) * 12) + (endMonth.month - startMonth.month) + 1;
+    const weekdayShort = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    if (!_didScrollToCurrentMonth) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final ctx = _currentMonthKey.currentContext;
+        if (!mounted || ctx == null) return;
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOut,
+          alignment: 0.1,
+        );
+        _didScrollToCurrentMonth = true;
+      });
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+      cacheExtent: 200000,
+      itemCount: monthCount,
+      itemBuilder: (context, index) {
+        final monthDate = DateTime(startMonth.year, startMonth.month + index, 1);
+        final isCurrentMonth =
+            monthDate.year == now.year && monthDate.month == now.month;
+        final daysInMonth = DateTime(monthDate.year, monthDate.month + 1, 0).day;
+        final firstWeekdayOffset = monthDate.weekday - DateTime.monday;
+        final totalCells = (((firstWeekdayOffset + daysInMonth) / 7).ceil()) * 7;
+
+        return Container(
+          key: isCurrentMonth ? _currentMonthKey : null,
+          margin: const EdgeInsets.only(top: 10),
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF101010),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Column(
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 8, left: 2),
+                  child: Text(
+                    _monthYearLabel(monthDate),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ),
+              Row(
+                children: weekdayShort
+                    .map(
+                      (label) => Expanded(
+                        child: Center(
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              color: Colors.grey.shade400,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+              const SizedBox(height: 6),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 7,
+                  mainAxisSpacing: 6,
+                  crossAxisSpacing: 4,
+                  childAspectRatio: 0.88,
+                ),
+                itemCount: totalCells,
+                itemBuilder: (context, cellIndex) {
+                  final dayNumber = cellIndex - firstWeekdayOffset + 1;
+                  final isInMonth = dayNumber >= 1 && dayNumber <= daysInMonth;
+                  if (!isInMonth) {
+                    return const SizedBox.shrink();
+                  }
+
+                  final dayDate = DateTime(monthDate.year, monthDate.month, dayNumber);
+                  final isSelected = _isSameDate(dayDate, _selectedDate);
+                  final hasEvents = _eventsForDay(allEvents, dayDate).isNotEmpty;
+
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () {
+                      setState(() {
+                        _selectedDate = dayDate;
+                        _showWeekCalendar = true;
+                      });
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isSelected ? fblaBlue : const Color(0xFF181818),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSelected ? fblaBlue.withOpacity(0.85) : Colors.white10,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '$dayNumber',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            width: 5,
+                            height: 5,
+                            decoration: BoxDecoration(
+                              color: hasEvents
+                                  ? (isSelected ? Colors.white : const Color(0xFFF6C500))
+                                  : Colors.transparent,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildListView(BuildContext context, List<Event> events) {
     final Color fblaBlue = const Color(0xFF1D4E89);
     final Color fblaGold = const Color(0xFFF6C500);
 
-    return ListView.builder(
-      padding: EdgeInsets.all(16),
+    if (events.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 20),
       itemCount: events.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, idx) {
         final e = events[idx];
+        final eventType = _getEventType(e.title);
+        final typeColor = _eventTypeColor(eventType);
         final saved = Provider.of<AppState>(context, listen: false)
             .savedEventIds
             .contains(e.id);
-        return Card(
-          margin: EdgeInsets.only(bottom: 16),
-          elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF121212),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: fblaBlue.withOpacity(0.35), width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: fblaBlue.withOpacity(0.18),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: fblaGold.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        _getEventType(e.title),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: fblaBlue,
-                        ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: typeColor.withOpacity(0.16),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: typeColor.withOpacity(0.45)),
+                    ),
+                    child: Text(
+                      eventType,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: typeColor,
                       ),
                     ),
-                    Spacer(),
-                    IconButton(
+                  ),
+                  const Spacer(),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1A1A),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: IconButton(
                       icon: Icon(
-                        saved ? Icons.bookmark : Icons.bookmark_border,
+                        saved ? Icons.bookmark : Icons.bookmark_outline,
                         color: fblaGold,
+                        size: 20,
                       ),
                       onPressed: () {
                         final app =
@@ -1719,95 +2092,141 @@ class _EventsScreenState extends State<EventsScreen> {
                         app.toggleSaveEvent(e.id);
                       },
                     ),
-                  ],
-                ),
-                SizedBox(height: 8),
-                Text(
-                  e.title,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
                   ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                e.title,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  height: 1.2,
                 ),
-                SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.access_time,
-                        size: 16, color: Colors.grey.shade600),
-                    SizedBox(width: 4),
-                    Text(
-                      '${_shortDateTime(e.start)} — ${_shortDateTime(e.end)}',
-                      style: TextStyle(color: Colors.grey.shade600),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.location_on,
-                        size: 16, color: Colors.grey.shade600),
-                    SizedBox(width: 4),
-                    Text(
-                      e.location,
-                      style: TextStyle(color: Colors.grey.shade600),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 12),
-                Text(
-                  e.description,
-                  style: TextStyle(
-                    color: Colors.grey.shade700,
-                    height: 1.4,
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _eventMetaPill(
+                    icon: Icons.schedule,
+                    text:
+                        '${_shortDateTime(e.start)} — ${_shortDateTime(e.end)}',
                   ),
+                  _eventMetaPill(
+                    icon: Icons.location_on_outlined,
+                    text: e.location,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                e.description,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.grey.shade300,
+                  height: 1.35,
+                  fontSize: 13.5,
                 ),
-                SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          showModalBottomSheet(
-                            context: context,
-                            builder: (_) => _RsvpSheet(event: e),
-                          );
-                        },
-                        icon: Icon(Icons.rsvp, size: 16),
-                        label: Text('RSVP'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: fblaBlue,
-                          side: BorderSide(color: fblaBlue),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        showModalBottomSheet(
+                          context: context,
+                            useSafeArea: true,
+                          builder: (_) => _RsvpSheet(event: e),
+                        );
+                      },
+                      icon: const Icon(Icons.rsvp, size: 16),
+                      label: const Text('RSVP'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(color: fblaBlue.withOpacity(0.7)),
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          await scheduleEventReminder(e);
-                        },
-                        icon: Icon(Icons.notifications, size: 16),
-                        label: Text('Remind'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: fblaBlue,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        await scheduleEventReminder(e);
+                      },
+                      icon: const Icon(Icons.notifications_active_outlined,
+                          size: 16),
+                      label: const Text('Remind'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: fblaBlue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
         );
       },
     );
+  }
+
+  Widget _eventMetaPill({required IconData icon, required String text}) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 320),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1B1B1B),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.grey.shade300),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.grey.shade300,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _eventTypeColor(String eventType) {
+    switch (eventType) {
+      case 'Meeting':
+        return const Color(0xFF64B5F6);
+      case 'Competition':
+        return const Color(0xFFFFD54F);
+      case 'Workshop':
+        return const Color(0xFF81C784);
+      case 'Social':
+        return const Color(0xFFBA68C8);
+      default:
+        return const Color(0xFF90CAF9);
+    }
   }
 
   String _getEventType(String title) {
@@ -1825,33 +2244,38 @@ class _RsvpSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context, listen: false);
-    return Padding(
-      padding: EdgeInsets.all(12),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text('RSVP for "${event.title}"',
-            style: TextStyle(fontWeight: FontWeight.bold)),
-        SizedBox(height: 8),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-          ElevatedButton(
-              onPressed: () {
-                app.rsvpEvent(event.id, 'Yes');
-                Navigator.pop(context);
-              },
-              child: Text('Yes')),
-          ElevatedButton(
-              onPressed: () {
-                app.rsvpEvent(event.id, 'Maybe');
-                Navigator.pop(context);
-              },
-              child: Text('Maybe')),
-          ElevatedButton(
-              onPressed: () {
-                app.rsvpEvent(event.id, 'No');
-                Navigator.pop(context);
-              },
-              child: Text('No')),
+    final bottomSafe = MediaQuery.of(context).viewPadding.bottom;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(12, 12, 12, 12 + bottomSafe),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('RSVP for "${event.title}"',
+              style: TextStyle(fontWeight: FontWeight.bold)),
+          SizedBox(height: 8),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+            ElevatedButton(
+                onPressed: () {
+                  app.rsvpEvent(event.id, 'Yes');
+                  Navigator.pop(context);
+                },
+                child: Text('Yes')),
+            ElevatedButton(
+                onPressed: () {
+                  app.rsvpEvent(event.id, 'Maybe');
+                  Navigator.pop(context);
+                },
+                child: Text('Maybe')),
+            ElevatedButton(
+                onPressed: () {
+                  app.rsvpEvent(event.id, 'No');
+                  Navigator.pop(context);
+                },
+                child: Text('No')),
+          ]),
         ]),
-      ]),
+      ),
     );
   }
 }
@@ -2066,15 +2490,7 @@ class ProfileScreen extends StatelessWidget {
           SliverToBoxAdapter(
             child: Container(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    fblaBlue,
-                    fblaBlue.withOpacity(0.8),
-                    Color(0xFF00274D),
-                  ],
-                ),
+                color: Colors.black,
               ),
               child: SafeArea(
                 top: false,
@@ -2594,6 +3010,7 @@ class MoreScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color fblaBlue = const Color(0xFF1D4E89);
+    final bottomSafe = MediaQuery.of(context).viewPadding.bottom;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -2681,6 +3098,12 @@ class MoreScreen extends StatelessWidget {
             title: 'Help / FAQ',
             subtitle: 'Answers about dress code, events, and troubleshooting',
             icon: Icons.help_outline,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const FaqScreen()),
+              );
+            },
           ),
           _buildMoreTile(
             context,
@@ -2793,6 +3216,151 @@ class MoreScreen extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class FaqScreen extends StatelessWidget {
+  const FaqScreen({super.key});
+
+  static const List<Map<String, String>> _faqItems = [
+    {
+      'q': 'How do I join FBLA at my school?',
+      'a': 'Ask your chapter adviser about local membership steps and dues payment deadlines.'
+    },
+    {
+      'q': 'Where do I see upcoming chapter events?',
+      'a': 'Open the Events tab to view monthly and weekly schedules with event details.'
+    },
+    {
+      'q': 'How do I RSVP to an event?',
+      'a': 'Open an event card and tap RSVP, then choose Yes, Maybe, or No.'
+    },
+    {
+      'q': 'Can I set reminders for competitions?',
+      'a': 'Yes, tap Remind on an event card to schedule a local notification reminder.'
+    },
+    {
+      'q': 'How do I update my profile photo?',
+      'a': 'Go to Profile and tap the camera icon on your avatar to pick a new image.'
+    },
+    {
+      'q': 'Why is dark mode always on?',
+      'a': 'The app currently uses a fixed dark theme to keep the interface consistent.'
+    },
+    {
+      'q': 'Where can I find competitive event categories?',
+      'a': 'Open Resources > Study Materials > FBLA Competitive Events.'
+    },
+    {
+      'q': 'How do I search competitive events quickly?',
+      'a': 'Use the search bar at the top of the Competitive Events page.'
+    },
+    {
+      'q': 'Can I filter only roleplay events?',
+      'a': 'Yes, tap Filters and select Roleplay Events.'
+    },
+    {
+      'q': 'What does the circle badge on event cards mean?',
+      'a': 'Badge letters indicate category type (for example Pr, Po, R, or V).' 
+    },
+    {
+      'q': 'How do I access FBLA Connect?',
+      'a': 'Go to Resources and tap FBLA Connect to open it in your browser.'
+    },
+    {
+      'q': 'Can I save events for later?',
+      'a': 'Yes, tap the bookmark icon on any event card to save or unsave it.'
+    },
+    {
+      'q': 'Why does AI chat say it cannot connect?',
+      'a': 'AI requires a running Ollama server endpoint reachable from your device.'
+    },
+    {
+      'q': 'How do I sign out of the app?',
+      'a': 'Open Profile and tap Log Out at the bottom of the page.'
+    },
+    {
+      'q': 'Where are chapter documents stored?',
+      'a': 'Use More > Document Library for bylaws, minutes, and chapter resources.'
+    },
+    {
+      'q': 'Can I use the app offline?',
+      'a': 'Some local content may remain visible, but most live features require internet.'
+    },
+    {
+      'q': 'How do I report incorrect event information?',
+      'a': 'Share details with your chapter officer or adviser to update official data.'
+    },
+    {
+      'q': 'Where can I review scholarship opportunities?',
+      'a': 'Open More > Scholarship Hub to see scholarship-related resources.'
+    },
+    {
+      'q': 'How do I check attendance at meetings?',
+      'a': 'Use More > Attendance Tracker when your chapter enables check-in.'
+    },
+    {
+      'q': 'Who should I contact for app support?',
+      'a': 'Start with your chapter adviser or officer team for account and access help.'
+    },
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final Color fblaBlue = const Color(0xFF1D4E89);
+    final bottomSafe = MediaQuery.of(context).viewPadding.bottom;
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: const Text('Help / FAQ'),
+        backgroundColor: fblaBlue,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: ListView.separated(
+        padding: EdgeInsets.fromLTRB(14, 14, 14, 20 + bottomSafe + 16),
+        itemCount: _faqItems.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final item = _faqItems[index];
+          return Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF111111),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: fblaBlue.withOpacity(0.35), width: 1.1),
+            ),
+            child: ExpansionTile(
+              collapsedIconColor: Colors.white70,
+              iconColor: Colors.white,
+              tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+              childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              title: Text(
+                item['q'] ?? '',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    item['a'] ?? '',
+                    style: TextStyle(
+                      color: Colors.grey.shade300,
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
