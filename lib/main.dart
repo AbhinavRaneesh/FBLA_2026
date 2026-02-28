@@ -457,6 +457,7 @@ class MyApp extends StatelessWidget {
           '/signup': (_) => const SignupScreen(),
           '/onboarding': (_) => const OnboardingScreen(),
           '/firebase_auth': (_) => const FirebaseAuthScreen(),
+          '/home': (_) => RootScreen(),
         },
         home: AuthGate(),
         ),

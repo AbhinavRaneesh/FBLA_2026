@@ -97,47 +97,29 @@ class _FirebaseAuthScreenState extends State<FirebaseAuthScreen>
     setState(() => _isLoading = true);
 
     try {
-      // Check Firebase configuration first
-      final config = await FirebaseService.checkFirebaseConfiguration();
-      print('Firebase config check: $config');
-      
-      if (!config['firebase_initialized']!) {
-        throw Exception('Firebase is not properly initialized. Please check your configuration.');
-      }
-      
-      if (!config['firestore_accessible']!) {
-        throw Exception('Cannot connect to Firebase. Please check your internet connection.');
-      }
+      final app = Provider.of<AppState>(context, listen: false);
+      final email = _emailController.text.trim();
+      final displayName = email.contains('@') ? email.split('@').first : email;
 
-      final userCredential = await FirebaseService.signInWithEmail(
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
+      await app.login(email, displayName);
 
-      if (userCredential?.user != null) {
-        final app = Provider.of<AppState>(context, listen: false);
-        await app.setFirebaseUser(userCredential!.user!);
+      Navigator.pushReplacementNamed(context, '/home');
 
-        // Navigate to home screen
-        Navigator.pushReplacementNamed(context, '/home');
-
-        // Show success message only if widget is still mounted
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Text(
-                      'Welcome back, ${app.displayName.isNotEmpty ? app.displayName : 'FBLA Member'}!'),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(
+                    'Welcome back, ${app.displayName.isNotEmpty ? app.displayName : 'FBLA Member'}!'),
+              ],
             ),
-          );
-        }
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       }
     } catch (e) {
       // Show error message only if widget is still mounted

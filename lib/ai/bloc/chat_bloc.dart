@@ -7,6 +7,8 @@ import 'chat_state.dart';
 class ChatBloc extends Bloc<ChatEvent, ChatState> {
   
   ChatBloc() : super(ChatInitial()) {
+    Future(() => ChatRepo.preloadModel());
+
     on<SendMessageEvent>(_onSendMessage);
     on<ClearChatEvent>(_onClearChat);
     on<LoadChatHistoryEvent>(_onLoadChatHistory);

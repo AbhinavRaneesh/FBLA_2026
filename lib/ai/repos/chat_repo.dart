@@ -1,22 +1,34 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../models/chat_message_model.dart';
 import '../utils/constants.dart';
 
-class ChatRepo {
-  /**
-   * Main method to generate AI responses using OpenRouter API
-   */
-  static Future<String> chatTextGenerationRepo(List<ChatMessageModel> previousMessage) async {
-    // Convert messages to OpenAI format
-    final messages = previousMessage.map((msg) => msg.toJson()).toList();
+class _ApiCallResult {
+  final String? content;
+  final String? error;
+  final String? endpoint;
 
-    // Add a system message for better context
+  const _ApiCallResult({this.content, this.error, this.endpoint});
+}
+
+class ChatRepo {
+  static const int _maxHistoryMessages = 8;
+
+  static Future<String> chatTextGenerationRepo(List<ChatMessageModel> previousMessage) async {
+    final trimmedMessages = previousMessage.length > _maxHistoryMessages
+        ? previousMessage.sublist(previousMessage.length - _maxHistoryMessages)
+        : previousMessage;
+
+    final messages = trimmedMessages.map((msg) => msg.toJson()).toList();
+    final failures = <String>[];
+
     if (messages.isEmpty || messages.first['role'] != 'system') {
       messages.insert(0, {
         "role": "system",
-        "content": "You are a helpful AI assistant for FBLA (Future Business Leaders of America) students. Provide clear, concise, and helpful responses."
+        "content": "You are a helpful AI assistant for FBLA (Future Business Leaders of America) students. Keep answers practical and concise, but complete the response fully without cutting off important details."
       });
     }
 
@@ -27,185 +39,178 @@ class ChatRepo {
       try {
         log('Trying model: $model');
         
-        final response = await _makeApiCall(model, messages);
-        if (response != null) {
+        final result = await _makeApiCall(model, messages);
+        if (result.content != null) {
           log('Success with model: $model');
-          return response;
+          return result.content!;
         }
+        failures.add('$model: ${result.error ?? 'Unknown error'}');
       } catch (e) {
         log('Model $model failed: $e');
+        failures.add('$model: $e');
         continue;
       }
     }
 
-    return "I'm sorry, but I'm currently unable to process your request. Please try again later or check your internet connection.";
+    final reason = failures.isNotEmpty ? failures.first : 'Unknown issue';
+    return "I couldn't reach Ollama right now. $reason. If you're on Android emulator use 10.0.2.2, and if you're on a real phone use your PC LAN IP.";
   }
 
-  /**
-   * Makes the actual API call to OpenRouter
-   */
-  static Future<String?> _makeApiCall(String model, List<Map<String, dynamic>> messages) async {
-    try {
-      final request = {
-        "model": model,
-        "messages": messages,
-        "max_tokens": 300,
-        "temperature": 0.7,
-        "stream": false
-      };
-
-      log('Making request to $model...');
-      log('Request body: ${jsonEncode(request)}');
-      
-      final response = await http.post(
-        Uri.parse(apiEndpoint),
-        headers: {
-          'Authorization': 'Bearer $apiKey',
-          'Content-Type': 'application/json',
-          'User-Agent': 'FBLA-App/1.0',
-          'HTTP-Referer': 'https://fbla-app.com',
-        },
-        body: jsonEncode(request),
-      ).timeout(Duration(seconds: 20));
-
-      log('Response status for $model: ${response.statusCode}');
-      log('Response body for $model: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final content = data['choices']?[0]?['message']?['content'];
-        if (content != null && content.toString().trim().isNotEmpty) {
-          log('✅ Success with $model: ${content.toString().trim()}');
-          return content.toString().trim();
-        } else {
-          log('❌ $model returned empty content');
-        }
-      } else {
-        log('❌ $model API Error ${response.statusCode}: ${response.body}');
+  static Future<_ApiCallResult> _makeApiCall(String model, List<Map<String, dynamic>> messages) async {
+    final request = {
+      "model": model,
+      "messages": messages,
+      "stream": false,
+      "keep_alive": "30m",
+      "options": {
+        "num_predict": 320,
+        "num_ctx": 2048,
+        "temperature": 0.4,
       }
-    } catch (e) {
-      log('Request failed for $model: $e');
+    };
+
+    log('Making request to $model...');
+    log('Request body: ${jsonEncode(request)}');
+
+    final endpointErrors = <String>[];
+
+    for (final endpoint in apiEndpoints) {
+      try {
+        final response = await http.post(
+          Uri.parse(endpoint),
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(request),
+        ).timeout(Duration(seconds: 90));
+
+        log('Response status for $model on $endpoint: ${response.statusCode}');
+        log('Response body for $model on $endpoint: ${response.body}');
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final content = data['message']?['content'];
+          if (content != null && content.toString().trim().isNotEmpty) {
+            log('✅ Success with $model on $endpoint: ${content.toString().trim()}');
+            return _ApiCallResult(content: content.toString().trim(), endpoint: endpoint);
+          }
+
+          endpointErrors.add('$endpoint: Model returned empty content');
+          continue;
+        }
+
+        endpointErrors.add('$endpoint: HTTP ${response.statusCode}');
+      } on TimeoutException {
+        endpointErrors.add('$endpoint: Request timed out waiting for Ollama response');
+      } on SocketException {
+        endpointErrors.add('$endpoint: Cannot connect to Ollama server');
+      } catch (e) {
+        endpointErrors.add('$endpoint: $e');
+      }
     }
-    return null;
+
+    return _ApiCallResult(error: endpointErrors.join(' | '));
   }
 
-  /**
-   * Tests API connectivity with a simple request
-   */
+  static Future<void> preloadModel() async {
+    await _makeApiCall(defaultModel, const [
+      {
+        "role": "user",
+        "content": "Hi"
+      }
+    ]);
+  }
+
   static Future<String> testApiConnection() async {
     try {
       final testMessages = [
         {"role": "user", "content": "Hello"}
       ];
 
-      final result = await _makeApiCall(defaultModel, testMessages);
-      return result != null 
-          ? "✅ API Connection Successful: $result"
-          : "❌ API Connection Failed - Check API key";
+        final result = await _makeApiCall(defaultModel, testMessages);
+        return result.content != null 
+          ? "✅ API Connection Successful: ${result.content}"
+          : "❌ API Connection Failed - Check Ollama server and selected model";
     } catch (e) {
       return "❌ Connection Error: $e";
     }
   }
 
-  /**
-   * Quick test of individual models
-   */
   static Future<String> simpleTest() async {
     for (final model in availableModels) {
       final result = await _makeApiCall(model, [
         {"role": "user", "content": "Say hi"}
       ]);
       
-      if (result != null) {
-        return "✅ $model: $result";
+      if (result.content != null) {
+        return "✅ $model: ${result.content}";
       }
     }
     return "❌ All models failed";
   }
 
-  /**
-   * Validates the API key by checking authentication
-   */
-  static Future<String> validateApiKey() async {
-    try {
-      final response = await http.get(
-        Uri.parse("https://openrouter.ai/api/v1/auth/key"),
-        headers: {
-          'Authorization': 'Bearer $apiKey',
-        },
-      ).timeout(Duration(seconds: 10));
+  static Future<String> validateOllamaConnection() async {
+    final endpointErrors = <String>[];
 
-      log('API Key validation status: ${response.statusCode}');
-      log('API Key validation response: ${response.body}');
+    for (final endpoint in ollamaTagsEndpoints) {
+      try {
+        final response = await http.get(
+          Uri.parse(endpoint),
+        ).timeout(Duration(seconds: 10));
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['data'] != null) {
-          return '✅ Valid - ${data['data']['label'] ?? 'Unknown'}';
+        log('Ollama connection validation status on $endpoint: ${response.statusCode}');
+        log('Ollama connection validation response on $endpoint: ${response.body}');
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final models = data['models'] as List<dynamic>?;
+          if (models != null) {
+            return '✅ Ollama connected via $endpoint - ${models.length} models found';
+          }
+          return '✅ Ollama connected via $endpoint';
         }
-        return '✅ Valid API Key';
-      } else if (response.statusCode == 401) {
-        return '❌ Invalid API Key';
-      } else {
-        return '⚠️ Status ${response.statusCode}';
+        endpointErrors.add('$endpoint: Status ${response.statusCode}');
+      } catch (e) {
+        log('Ollama connection validation error on $endpoint: $e');
+        endpointErrors.add('$endpoint: $e');
       }
-    } catch (e) {
-      log('API Key validation error: $e');
-      return '❌ Error: $e';
     }
+
+    return '❌ Error: ${endpointErrors.join(' | ')}';
   }
 
-  /**
-   * Comprehensive API debugging method
-   */
   static Future<String> debugApiConnection() async {
-    log('🔍 Starting comprehensive API debugging...');
-    
-    // Test 1: Check API key format
-    if (!apiKey.startsWith('sk-or-v1-')) {
-      return '❌ Invalid API key format. Should start with sk-or-v1-';
-    }
-    
-    log('✅ API key format is correct');
-    
-    // Test 2: Try a simple request with the most reliable model
+    log('🔍 Starting Ollama API debugging...');
+
     try {
       log('🧪 Testing with $defaultModel...');
       final result = await _makeApiCall(defaultModel, [
         {"role": "user", "content": "Hi"}
       ]);
       
-      if (result != null) {
-        return '✅ API Working! Response: $result';
+      if (result.content != null) {
+        return '✅ Ollama API Working! Response: ${result.content}';
       } else {
-        return '❌ API call succeeded but returned null content';
+        return '❌ API call failed: ${result.error ?? 'Unknown error'}';
       }
     } catch (e) {
       return '❌ API test failed: $e';
     }
   }
 
-  /**
-   * Complete troubleshooting with multiple checks
-   */
   static Future<String> troubleshootApi() async {
     final results = <String>[];
-    
-    // Check 1: API Key format
-    results.add('🔑 API Key Format: ${apiKey.startsWith('sk-or-v1-') ? '✅ Valid' : '❌ Invalid'}');
-    
-    // Check 2: API Key validation
-    final keyValidation = await validateApiKey();
-    results.add('🔐 API Key Auth: $keyValidation');
-    
-    // Check 3: Test each model
+
+    final connectionValidation = await validateOllamaConnection();
+    results.add('🔌 Ollama Connection: $connectionValidation');
+
     results.add('\n📋 Model Tests:');
     for (final model in availableModels) {
       try {
         final result = await _makeApiCall(model, [
           {"role": "user", "content": "Test"}
         ]);
-        results.add('  • $model: ${result != null ? '✅ Working' : '❌ Failed'}');
+        results.add('  • $model: ${result.content != null ? '✅ Working' : '❌ ${result.error ?? 'Failed'}'}');
       } catch (e) {
         results.add('  • $model: ❌ Error - $e');
       }
