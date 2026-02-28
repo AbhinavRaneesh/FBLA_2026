@@ -10,50 +10,20 @@ class ResourcesScreen extends StatelessWidget {
     final Color fblaGold = const Color(0xFFF6C500);
 
     return Scaffold(
+      backgroundColor: Colors.black,
       body: CustomScrollView(
         slivers: [
           // Modern App Bar
           SliverAppBar(
-            expandedHeight: 160,
+            expandedHeight: 56,
             floating: false,
             pinned: true,
             backgroundColor: fblaBlue,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                'Resources',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      fblaBlue,
-                      fblaBlue.withOpacity(0.8),
-                      Color(0xFF00274D),
-                    ],
-                  ),
-                ),
-                child: SafeArea(
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.library_books,
-                          color: fblaGold,
-                          size: 40,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+            title: const Text(
+              'Resources',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
             ),
           ),
@@ -418,11 +388,6 @@ class ResourcesScreen extends StatelessWidget {
   }
 
   void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('This resource will be available soon'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    return;
   }
 }

@@ -29,13 +29,7 @@ class _NewsFeedScreenState extends State<NewsFeedScreen> {
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () {
-              // TODO: Implement search
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Search feature coming soon'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
+              return;
             },
           ),
         ],
@@ -104,13 +98,7 @@ class _NewsFeedScreenState extends State<NewsFeedScreen> {
         backgroundColor: fblaGold,
         foregroundColor: Colors.black,
         onPressed: () {
-          // TODO: Implement create post
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Create post feature coming soon'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          return;
         },
         child: const Icon(Icons.add),
       ),
@@ -187,20 +175,8 @@ class _NewsFeedScreenState extends State<NewsFeedScreen> {
                   onSelected: (value) {
                     switch (value) {
                       case 'share':
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Share feature coming soon'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
                         break;
                       case 'save':
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Post saved'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
                         break;
                     }
                   },
@@ -255,42 +231,21 @@ class _NewsFeedScreenState extends State<NewsFeedScreen> {
                     Icons.favorite_border,
                     color: Colors.grey.shade600,
                   ),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Liked!'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
+                  onPressed: () {},
                 ),
                 IconButton(
                   icon: Icon(
                     Icons.comment_outlined,
                     color: Colors.grey.shade600,
                   ),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Comments feature coming soon'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
+                  onPressed: () {},
                 ),
                 IconButton(
                   icon: Icon(
                     Icons.share_outlined,
                     color: Colors.grey.shade600,
                   ),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Share feature coming soon'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
+                  onPressed: () {},
                 ),
                 const Spacer(),
                 Container(

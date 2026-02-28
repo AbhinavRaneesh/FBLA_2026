@@ -8,6 +8,9 @@ import '../ai/models/chat_message_model.dart';
 // FBLA Colors
 const fblaNavy = Color(0xFF00274D);
 const fblaGold = Color(0xFFFDB913);
+const chatBlueGlow = Color(0xFF1D4E89);
+const chatSurfaceDark = Color(0xFF0D1117);
+const chatSurfaceDarker = Color(0xFF090C12);
 
 class ChatbotScreen extends StatefulWidget {
   @override
@@ -71,8 +74,13 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final keyboardInset = mediaQuery.viewInsets.bottom;
+    final bottomSafeInset = mediaQuery.viewPadding.bottom;
+
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: Colors.black,
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Text(
           'FBLA AI Assistant',
@@ -81,8 +89,15 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: fblaNavy,
+        backgroundColor: Colors.black,
         elevation: 0,
+        surfaceTintColor: Colors.black,
+        shape: Border(
+          bottom: BorderSide(
+            color: chatBlueGlow.withOpacity(0.45),
+            width: 1,
+          ),
+        ),
         actions: [
           IconButton(
             icon: Icon(Icons.refresh, color: Colors.white),
@@ -91,45 +106,71 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Chat messages
-          Expanded(
-            child: BlocBuilder<ChatBloc, ChatState>(
-              builder: (context, state) {
-                if (state is ChatInitial) {
-                  return _buildWelcomeMessage();
-                }
-
-                if (state is ChatLoading) {
-                  return _buildLoadingState();
-                }
-
-                if (state is ChatLoaded) {
-                  return _buildChatMessages(state.messages, state.isLoading);
-                }
-
-                if (state is ChatError) {
-                  return _buildErrorState(state.message);
-                }
-
-                return _buildWelcomeMessage();
-              },
+      body: SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.black,
+            border: Border(
+              left: BorderSide(color: chatBlueGlow.withOpacity(0.22), width: 1),
+              right: BorderSide(color: chatBlueGlow.withOpacity(0.22), width: 1),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: chatBlueGlow.withOpacity(0.18),
+                blurRadius: 18,
+                spreadRadius: -2,
+              ),
+            ],
           ),
+          child: Column(
+            children: [
+              Expanded(
+                child: BlocBuilder<ChatBloc, ChatState>(
+                  builder: (context, state) {
+                    if (state is ChatInitial) {
+                      return _buildWelcomeMessage();
+                    }
 
-          // Message input
-          _buildMessageInput(),
-        ],
+                    if (state is ChatLoading) {
+                      return _buildLoadingState();
+                    }
+
+                    if (state is ChatLoaded) {
+                      return _buildChatMessages(state.messages, state.isLoading);
+                    }
+
+                    if (state is ChatError) {
+                      return _buildErrorState(state.message);
+                    }
+
+                    return _buildWelcomeMessage();
+                  },
+                ),
+              ),
+              AnimatedPadding(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                padding: EdgeInsets.only(bottom: keyboardInset),
+                child: _buildMessageInput(bottomSafeInset),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildWelcomeMessage() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight - 40),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
           Container(
             width: 80,
             height: 80,
@@ -156,7 +197,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: fblaNavy,
+              color: Colors.white,
             ),
           ),
           SizedBox(height: 12),
@@ -165,26 +206,37 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 16,
-              color: Colors.grey.shade600,
+              color: Colors.white70,
             ),
           ),
           SizedBox(height: 32),
           Container(
             padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(
-              color: fblaNavy.withOpacity(0.1),
+              color: chatSurfaceDark,
+              border: Border.all(
+                color: chatBlueGlow.withOpacity(0.45),
+              ),
               borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: chatBlueGlow.withOpacity(0.15),
+                  blurRadius: 10,
+                ),
+              ],
             ),
             child: Text(
               'Try asking: "What is FBLA?" or "Tell me about competitions"',
               style: TextStyle(
                 fontSize: 14,
-                color: fblaNavy,
+                color: Colors.white,
                 fontStyle: FontStyle.italic,
               ),
             ),
           ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -202,7 +254,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
             'AI is thinking...',
             style: TextStyle(
               fontSize: 16,
-              color: Colors.grey.shade600,
+              color: Colors.white70,
             ),
           ),
         ],
@@ -235,7 +287,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey.shade600,
+              color: Colors.white70,
             ),
           ),
           SizedBox(height: 24),
@@ -261,7 +313,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
 
     return ListView.builder(
       controller: _scrollController,
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       itemCount: messages.length + (isLoading ? 1 : 0),
       itemBuilder: (context, index) {
         if (index < messages.length) {
@@ -302,12 +354,18 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
             child: Container(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: isUser ? fblaNavy : Colors.white,
+                color: isUser ? fblaNavy : chatSurfaceDark,
                 borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isUser
+                      ? chatBlueGlow.withOpacity(0.85)
+                      : chatBlueGlow.withOpacity(0.55),
+                  width: 1.2,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 4,
+                    color: chatBlueGlow.withOpacity(0.22),
+                    blurRadius: 9,
                     offset: Offset(0, 2),
                   ),
                 ],
@@ -318,7 +376,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                   Text(
                     message.content,
                     style: TextStyle(
-                      color: isUser ? Colors.white : Colors.black87,
+                      color: Colors.white,
                       fontSize: 16,
                     ),
                   ),
@@ -326,9 +384,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                   Text(
                     "Just now", // Remove timestamp for now
                     style: TextStyle(
-                      color: isUser
-                          ? Colors.white.withOpacity(0.7)
-                          : Colors.grey.shade500,
+                      color: Colors.white70,
                       fontSize: 12,
                     ),
                   ),
@@ -379,12 +435,16 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
           Container(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: chatSurfaceDark,
               borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: chatBlueGlow.withOpacity(0.55),
+                width: 1.2,
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 4,
+                  color: chatBlueGlow.withOpacity(0.2),
+                  blurRadius: 9,
                   offset: Offset(0, 2),
                 ),
               ],
@@ -395,7 +455,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                 Text(
                   'Thinking',
                   style: TextStyle(
-                    color: Colors.grey.shade600,
+                    color: Colors.white70,
                     fontSize: 16,
                   ),
                 ),
@@ -416,15 +476,18 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     );
   }
 
-  Widget _buildMessageInput() {
+  Widget _buildMessageInput(double bottomSafeInset) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottomSafeInset),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: chatSurfaceDarker,
+        border: Border(
+          top: BorderSide(color: chatBlueGlow.withOpacity(0.55), width: 1.2),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
+            color: chatBlueGlow.withOpacity(0.25),
+            blurRadius: 10,
             offset: Offset(0, -2),
           ),
         ],
@@ -434,13 +497,26 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: chatSurfaceDark,
+                border: Border.all(
+                  color: chatBlueGlow.withOpacity(0.7),
+                  width: 1.2,
+                ),
                 borderRadius: BorderRadius.circular(25),
+                boxShadow: [
+                  BoxShadow(
+                    color: chatBlueGlow.withOpacity(0.16),
+                    blurRadius: 9,
+                  ),
+                ],
               ),
               child: TextField(
                 controller: _messageController,
+                style: const TextStyle(color: Colors.white),
+                cursorColor: fblaGold,
                 decoration: InputDecoration(
                   hintText: 'Ask me anything about FBLA...',
+                  hintStyle: TextStyle(color: Colors.white54),
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.symmetric(
                     horizontal: 20,
@@ -448,6 +524,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                   ),
                 ),
                 maxLines: null,
+                minLines: 1,
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => _sendMessage(context),
               ),

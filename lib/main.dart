@@ -1,13 +1,16 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/onboarding_screen.dart';
@@ -45,12 +48,13 @@ class AppState extends ChangeNotifier {
   List<ChatThread> threads;
   Set<String> savedEventIds = {};
   bool hasSeenOnboarding;
-  bool isDarkMode = false;
+  bool isDarkMode = true;
 
   // Firebase integration
   User? firebaseUser;
   FBLAUser? userProfile;
   Chapter? userChapter;
+  Uint8List? localProfileImageBytes;
   bool _firebaseInitialized = false;
 
   AppState({required this.prefs})
@@ -61,7 +65,7 @@ class AppState extends ChangeNotifier {
         competitions = sampleCompetitions,
         threads = sampleThreads,
         hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false,
-        isDarkMode = prefs.getBool('isDarkMode') ?? false {
+        isDarkMode = true {
     savedEventIds = prefs.getStringList('savedEvents')?.toSet() ?? {};
     _initializeFirebase();
   }
@@ -73,6 +77,8 @@ class AppState extends ChangeNotifier {
       await Firebase.initializeApp();
       print('🔥 Firebase initialized successfully');
       _firebaseInitialized = true;
+
+      await _loadAppDataFromFirestore();
       
       // Firebase auth state listener
       FirebaseService.authStateChanges.listen((User? user) {
@@ -88,6 +94,213 @@ class AppState extends ChangeNotifier {
     } catch (e) {
       print('🔥 Firebase initialization failed: $e');
     }
+  }
+
+  Future<void> _loadAppDataFromFirestore() async {
+    try {
+      await FirebaseService.ensureAppDataSeeded(
+        events: _sampleEventsToFirestore(),
+        news: _sampleNewsToFirestore(),
+        competitions: _sampleCompetitionsToFirestore(),
+        threads: _sampleThreadsToFirestore(),
+      );
+
+      final results = await Future.wait([
+        FirebaseService.getEvents(),
+        FirebaseService.getNews(),
+        FirebaseService.getCompetitions(),
+        FirebaseService.getThreads(),
+      ]);
+
+      events = (results[0] as List<Map<String, dynamic>>)
+          .map(_eventFromFirestore)
+          .toList();
+      news = (results[1] as List<Map<String, dynamic>>)
+          .map(_newsFromFirestore)
+          .toList();
+      competitions = (results[2] as List<Map<String, dynamic>>)
+          .map(_competitionFromFirestore)
+          .toList();
+      threads = (results[3] as List<Map<String, dynamic>>)
+          .map(_threadFromFirestore)
+          .toList();
+
+      notifyListeners();
+    } catch (e) {
+      print('Failed to load Firestore app data: $e');
+    }
+  }
+
+  DateTime _toDateTime(dynamic value, DateTime fallback) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value) ?? fallback;
+    if (value is int) {
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    }
+    return fallback;
+  }
+
+  Event _eventFromFirestore(Map<String, dynamic> data) {
+    final now = DateTime.now();
+    final event = Event(
+      id: (data['id'] ?? '').toString(),
+      title: (data['title'] ?? '').toString(),
+      start: _toDateTime(data['start'], now),
+      end: _toDateTime(data['end'], now.add(const Duration(hours: 1))),
+      location: (data['location'] ?? '').toString(),
+      description: (data['description'] ?? '').toString(),
+    );
+
+    final rawRsvps = data['rsvps'];
+    if (rawRsvps is Map) {
+      event.rsvps.addAll(rawRsvps.map(
+        (key, value) => MapEntry(key.toString(), value.toString()),
+      ));
+    }
+
+    return event;
+  }
+
+  NewsItem _newsFromFirestore(Map<String, dynamic> data) {
+    return NewsItem(
+      id: (data['id'] ?? '').toString(),
+      title: (data['title'] ?? '').toString(),
+      body: (data['body'] ?? '').toString(),
+      date: _toDateTime(data['date'], DateTime.now()),
+    );
+  }
+
+  Competition _competitionFromFirestore(Map<String, dynamic> data) {
+    final rawLeaderboard = data['leaderboard'];
+    final leaderboard = <LeaderboardEntry>[];
+
+    if (rawLeaderboard is List) {
+      for (final entry in rawLeaderboard) {
+        if (entry is Map<String, dynamic>) {
+          leaderboard.add(
+            LeaderboardEntry(
+              user: (entry['user'] ?? '').toString(),
+              points: (entry['points'] is int)
+                  ? entry['points'] as int
+                  : int.tryParse((entry['points'] ?? '0').toString()) ?? 0,
+            ),
+          );
+        } else if (entry is Map) {
+          leaderboard.add(
+            LeaderboardEntry(
+              user: (entry['user'] ?? '').toString(),
+              points: int.tryParse((entry['points'] ?? '0').toString()) ?? 0,
+            ),
+          );
+        }
+      }
+    }
+
+    return Competition(
+      id: (data['id'] ?? '').toString(),
+      name: (data['name'] ?? '').toString(),
+      description: (data['description'] ?? '').toString(),
+      leaderboard: leaderboard,
+    );
+  }
+
+  ChatThread _threadFromFirestore(Map<String, dynamic> data) {
+    final rawMessages = data['messages'];
+    final messages = <ChatMessage>[];
+
+    if (rawMessages is List) {
+      for (final item in rawMessages) {
+        if (item is Map<String, dynamic>) {
+          messages.add(
+            ChatMessage(
+              author: (item['author'] ?? '').toString(),
+              text: (item['text'] ?? '').toString(),
+              time: _toDateTime(item['time'], DateTime.now()),
+            ),
+          );
+        } else if (item is Map) {
+          messages.add(
+            ChatMessage(
+              author: (item['author'] ?? '').toString(),
+              text: (item['text'] ?? '').toString(),
+              time: _toDateTime(item['time'], DateTime.now()),
+            ),
+          );
+        }
+      }
+    }
+
+    return ChatThread(
+      id: (data['id'] ?? '').toString(),
+      title: (data['title'] ?? '').toString(),
+      messages: messages,
+    );
+  }
+
+  List<Map<String, dynamic>> _sampleEventsToFirestore() {
+    return sampleEvents
+        .map(
+          (event) => {
+            'id': event.id,
+            'title': event.title,
+            'start': Timestamp.fromDate(event.start),
+            'end': Timestamp.fromDate(event.end),
+            'location': event.location,
+            'description': event.description,
+            'rsvps': event.rsvps,
+          },
+        )
+        .toList(growable: false);
+  }
+
+  List<Map<String, dynamic>> _sampleNewsToFirestore() {
+    return sampleNews
+        .map(
+          (item) => {
+            'id': item.id,
+            'title': item.title,
+            'body': item.body,
+            'date': Timestamp.fromDate(item.date),
+          },
+        )
+        .toList(growable: false);
+  }
+
+  List<Map<String, dynamic>> _sampleCompetitionsToFirestore() {
+    return sampleCompetitions
+        .map(
+          (competition) => {
+            'id': competition.id,
+            'name': competition.name,
+            'description': competition.description,
+            'leaderboard': competition.leaderboard
+                .map((entry) => {
+                      'user': entry.user,
+                      'points': entry.points,
+                    })
+                .toList(growable: false),
+          },
+        )
+        .toList(growable: false);
+  }
+
+  List<Map<String, dynamic>> _sampleThreadsToFirestore() {
+    return sampleThreads
+        .map(
+          (thread) => {
+            'id': thread.id,
+            'title': thread.title,
+            'messages': thread.messages
+                .map((message) => {
+                      'author': message.author,
+                      'text': message.text,
+                      'time': Timestamp.fromDate(message.time),
+                    })
+                .toList(growable: false),
+          },
+        )
+        .toList(growable: false);
   }
 
   bool get loggedIn => firebaseUser != null || userEmail.isNotEmpty;
@@ -109,9 +322,33 @@ class AppState extends ChangeNotifier {
     firebaseUser = null;
     userProfile = null;
     userChapter = null;
+    localProfileImageBytes = null;
     await prefs.remove('userEmail');
     await prefs.remove('displayName');
     notifyListeners();
+  }
+
+  Future<void> updateProfileImage(Uint8List imageBytes) async {
+    localProfileImageBytes = imageBytes;
+    notifyListeners();
+
+    if (firebaseUser == null) {
+      return;
+    }
+
+    final photoUrl = await FirebaseService.uploadProfileImage(
+      firebaseUser!.uid,
+      imageBytes,
+    );
+
+    if (photoUrl != null) {
+      await FirebaseService.updateUserProfile(
+        firebaseUser!.uid,
+        {'photoUrl': photoUrl},
+      );
+      await _loadUserProfile(firebaseUser!.uid);
+      notifyListeners();
+    }
   }
 
   Future<void> skipOnboarding() async {
@@ -121,8 +358,8 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> toggleDarkMode() async {
-    isDarkMode = !isDarkMode;
-    await prefs.setBool('isDarkMode', isDarkMode);
+    isDarkMode = true;
+    await prefs.setBool('isDarkMode', true);
     notifyListeners();
   }
 
@@ -172,17 +409,58 @@ class AppState extends ChangeNotifier {
   void rsvpEvent(String eventId, String response) {
     final e = events.firstWhere((ev) => ev.id == eventId);
     e.rsvps[userEmail] = response;
+
+    final userKey = (firebaseUser?.uid ?? userEmail).trim();
+    if (userKey.isNotEmpty) {
+      unawaited(
+        FirebaseService.updateEventRsvp(
+          eventId: eventId,
+          userKey: userKey,
+          response: response,
+        ),
+      );
+    }
+
     notifyListeners();
   }
 
   void postMessage(String threadId, ChatMessage message) {
     final t = threads.firstWhere((th) => th.id == threadId);
     t.messages.add(message);
+
+    unawaited(
+      FirebaseService.appendThreadMessage(
+        threadId: threadId,
+        message: {
+          'author': message.author,
+          'text': message.text,
+          'time': Timestamp.fromDate(message.time),
+        },
+      ),
+    );
+
     notifyListeners();
   }
 
   void addThread(ChatThread thread) {
     threads.add(thread);
+
+    unawaited(
+      FirebaseService.createThread({
+        'id': thread.id,
+        'title': thread.title,
+        'messages': thread.messages
+            .map(
+              (message) => {
+                'author': message.author,
+                'text': message.text,
+                'time': Timestamp.fromDate(message.time),
+              },
+            )
+            .toList(growable: false),
+      }),
+    );
+
     notifyListeners();
   }
 }
@@ -259,20 +537,60 @@ class ChatMessage {
 
 final sampleEvents = [
   Event(
-    id: 'e1',
-    title: 'National Conference Opening Session',
-    start: DateTime.now().add(Duration(days: 3, hours: 9)),
-    end: DateTime.now().add(Duration(days: 3, hours: 11)),
-    location: 'Main Hall',
-    description: 'Join delegates for the opening keynote and announcements.',
+    id: 'e_ga_2026',
+    title: 'Georgia State Leadership Conference',
+    start: DateTime(2026, 3, 13, 8, 0),
+    end: DateTime(2026, 3, 14, 17, 0),
+    location: 'Hyatt Regency, Atlanta',
+    description: 'Georgia SLC hosted at Hyatt Regency in Atlanta.',
   ),
   Event(
-    id: 'e2',
-    title: 'Resume Workshop',
-    start: DateTime.now().add(Duration(days: 4, hours: 14)),
-    end: DateTime.now().add(Duration(days: 4, hours: 16)),
-    location: 'Room B12',
-    description: 'Hands-on resume & career prep workshop.',
+    id: 'e_fl_2026',
+    title: 'Florida State Leadership Conference',
+    start: DateTime(2026, 3, 12, 8, 0),
+    end: DateTime(2026, 3, 15, 17, 0),
+    location: 'Hilton Orlando, Orlando',
+    description: 'Florida SLC hosted at Hilton Orlando in Orlando.',
+  ),
+  Event(
+    id: 'e_ut_2026',
+    title: 'Utah State Leadership Conference',
+    start: DateTime(2026, 3, 10, 8, 0),
+    end: DateTime(2026, 3, 11, 17, 0),
+    location: 'Davis Conference Center, Layton',
+    description: 'Utah SLC hosted at Davis Conference Center in Layton.',
+  ),
+  Event(
+    id: 'e_wy_2026',
+    title: 'Wyoming State Leadership Conference',
+    start: DateTime(2026, 3, 18, 8, 0),
+    end: DateTime(2026, 3, 20, 17, 0),
+    location: 'University of Wyoming, Laramie',
+    description: 'Wyoming SLC hosted at University of Wyoming in Laramie.',
+  ),
+  Event(
+    id: 'e_tn_2026',
+    title: 'Tennessee State Leadership Conference',
+    start: DateTime(2026, 4, 6, 8, 0),
+    end: DateTime(2026, 4, 9, 17, 0),
+    location: 'Chattanooga Convention Center',
+    description: 'Tennessee SLC hosted at Chattanooga Convention Center.',
+  ),
+  Event(
+    id: 'e_pa_2026',
+    title: 'Pennsylvania State Leadership Conference',
+    start: DateTime(2026, 4, 13, 8, 0),
+    end: DateTime(2026, 4, 15, 17, 0),
+    location: 'Hershey Lodge, Hershey',
+    description: 'Pennsylvania SLC hosted at Hershey Lodge in Hershey.',
+  ),
+  Event(
+    id: 'e_wa_2026',
+    title: 'Washington State Leadership Conference',
+    start: DateTime(2026, 4, 21, 8, 0),
+    end: DateTime(2026, 4, 24, 17, 0),
+    location: 'Spokane Convention Center',
+    description: 'Washington SLC hosted at Spokane Convention Center.',
   ),
 ];
 
@@ -450,7 +768,7 @@ class MyApp extends StatelessWidget {
             color: Colors.grey.shade800,
           ),
         ),
-        themeMode: app.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+        themeMode: ThemeMode.dark,
         debugShowCheckedModeBanner: false,
         routes: {
           '/login': (_) => const LoginScreen(),
@@ -473,12 +791,14 @@ class RootScreen extends StatefulWidget {
 
 class _RootScreenState extends State<RootScreen> {
   int _index = 0;
+  DateTime? _lastBackPressedAt;
 
   final _pages = [
     HomeScreen(),
     EventsScreen(),
     const ResourcesScreen(),
     ProfileScreen(),
+    const MoreScreen(),
   ];
 
   @override
@@ -489,44 +809,62 @@ class _RootScreenState extends State<RootScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _pages[_index],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _index,
-        onTap: (i) => setState(() => _index = i),
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: fblaGold,
-        unselectedItemColor: Colors.grey,
-        backgroundColor: fblaNavy,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.event), label: 'Events'),
-          BottomNavigationBarItem(icon: Icon(Icons.school), label: 'Resources'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => BlocProvider(
-                create: (context) => ChatBloc(),
-                child: ChatbotScreen(),
-              ),
-            ),
-          );
-        },
-        backgroundColor: fblaGold,
-        child: Icon(
-          Icons.smart_toy,
-          color: fblaNavy,
-          size: 28,
+    return WillPopScope(
+      onWillPop: () async {
+        if (_index != 0) {
+          setState(() => _index = 0);
+          return false;
+        }
+
+        final now = DateTime.now();
+        if (_lastBackPressedAt == null ||
+            now.difference(_lastBackPressedAt!) > const Duration(seconds: 2)) {
+          _lastBackPressedAt = now;
+          return false;
+        }
+
+        return true;
+      },
+      child: Scaffold(
+        body: _pages[_index],
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _index,
+          onTap: (i) => setState(() => _index = i),
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: fblaGold,
+          unselectedItemColor: Colors.grey,
+          backgroundColor: fblaNavy,
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+            BottomNavigationBarItem(icon: Icon(Icons.event), label: 'Events'),
+            BottomNavigationBarItem(icon: Icon(Icons.school), label: 'Resources'),
+            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+            BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'More'),
+          ],
         ),
-        elevation: 8,
-        tooltip: 'AI Assistant',
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => BlocProvider(
+                  create: (context) => ChatBloc(),
+                  child: ChatbotScreen(),
+                ),
+              ),
+            );
+          },
+          backgroundColor: fblaGold,
+          child: Icon(
+            Icons.smart_toy,
+            color: fblaNavy,
+            size: 28,
+          ),
+          elevation: 8,
+          tooltip: 'AI Assistant',
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }
@@ -577,612 +915,320 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context);
     final Color fblaBlue = const Color(0xFF1D4E89);
-    final Color fblaGold = const Color(0xFFF6C500);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          // Modern App Bar with gradient
-          SliverAppBar(
-            expandedHeight: 180,
-            floating: false,
-            pinned: true,
-            backgroundColor: fblaBlue,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      fblaBlue,
-                      fblaBlue.withOpacity(0.8),
-                      fblaNavy,
-                    ],
-                  ),
-                ),
-                child: SafeArea(
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _getGreeting(),
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.white.withOpacity(0.9),
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                  SizedBox(height: 4),
-                                  Text(
-                                    app.displayName.isNotEmpty
-                                        ? app.displayName
-                                        : 'FBLA Member',
-                                    style: TextStyle(
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                      letterSpacing: -0.5,
-                                    ),
-                                  ),
-                                  SizedBox(height: 4),
-                                  Container(
-                                    padding: EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: fblaGold.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                        color: fblaGold.withOpacity(0.5),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.star,
-                                          size: 14,
-                                          color: fblaGold,
-                                        ),
-                                        SizedBox(width: 4),
-                                        Text(
-                                          'Active Member',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: fblaGold,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Hero(
-                              tag: 'profile_avatar',
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: fblaGold.withOpacity(0.4),
-                                      blurRadius: 12,
-                                      spreadRadius: 2,
-                                    ),
-                                  ],
-                                ),
-                                child: CircleAvatar(
-                                  radius: 35,
-                                  backgroundColor: fblaGold,
-                                  child: Text(
-                                    app.displayName.isNotEmpty
-                                        ? app.displayName[0].toUpperCase()
-                                        : 'F',
-                                    style: TextStyle(
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.bold,
-                                      color: fblaBlue,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
           ),
-
-          // Content
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Stats Cards Row
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      return Row(
-                        children: [
-                          Expanded(
-                            child: _StatCard(
-                              icon: Icons.event,
-                              label: 'Events',
-                              value: '${app.events.length}',
-                              color: fblaBlue,
-                              gradient: LinearGradient(
-                                colors: [fblaBlue, fblaBlue.withOpacity(0.7)],
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: _StatCard(
-                              icon: Icons.bookmark,
-                              label: 'Saved',
-                              value: '${app.savedEventIds.length}',
-                              color: fblaGold,
-                              gradient: LinearGradient(
-                                colors: [fblaGold, fblaGold.withOpacity(0.7)],
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: _StatCard(
-                              icon: Icons.campaign,
-                              label: 'News',
-                              value: '${app.news.length}',
-                              color: Color(0xFF6C63FF),
-                              gradient: LinearGradient(
-                                colors: [
-                                  Color(0xFF6C63FF),
-                                  Color(0xFF6C63FF).withOpacity(0.7)
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                  SizedBox(height: 28),
-
-                  // Quick Access Section
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Quick Access',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : fblaNavy,
-                        ),
+        ),
+        title: const Text('Posts'),
+        backgroundColor: fblaBlue,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              showSearch(
+                context: context,
+                delegate: _PostSearchDelegate(app.news),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.notifications_none),
+            onPressed: () {},
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 8, top: 8, bottom: 8, left: 4),
+            child: CircleAvatar(
+              radius: 16,
+              backgroundColor: Colors.white,
+              backgroundImage: app.localProfileImageBytes != null
+                  ? MemoryImage(app.localProfileImageBytes!)
+                  : (app.userProfile?.photoUrl != null &&
+                          app.userProfile!.photoUrl!.isNotEmpty
+                      ? NetworkImage(app.userProfile!.photoUrl!)
+                      : null) as ImageProvider<Object>?,
+              child: app.localProfileImageBytes == null &&
+                      (app.userProfile?.photoUrl == null ||
+                          app.userProfile!.photoUrl!.isEmpty)
+                  ? Text(
+                      app.displayName.isNotEmpty
+                          ? app.displayName[0].toUpperCase()
+                          : 'F',
+                      style: TextStyle(
+                        color: fblaBlue,
+                        fontWeight: FontWeight.bold,
                       ),
-                      TextButton.icon(
-                        onPressed: () {},
-                        icon: Icon(Icons.more_horiz, size: 20),
-                        label: Text('More'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: fblaBlue,
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 2),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      return GridView.count(
-                        crossAxisCount: 2,
-                        shrinkWrap: true,
-                        physics: NeverScrollableScrollPhysics(),
-                        mainAxisSpacing: 12,
-                        crossAxisSpacing: 12,
-                        childAspectRatio: 1.4,
-                        children: [
-                          _ModernQuickButton(
-                            icon: Icons.calendar_month,
-                            label: 'Events',
-                            subtitle: '${app.events.length} upcoming',
-                            gradient: LinearGradient(
-                              colors: [fblaBlue, fblaBlue.withOpacity(0.8)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            onTap: () => Navigator.push(context,
-                                MaterialPageRoute(builder: (_) => EventsScreen())),
-                          ),
-                          _ModernQuickButton(
-                            icon: Icons.school,
-                            label: 'Resources',
-                            subtitle: 'Study materials',
-                            gradient: LinearGradient(
-                              colors: [fblaNavy, fblaNavy.withOpacity(0.8)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            onTap: () => Navigator.push(context,
-                                MaterialPageRoute(builder: (_) => ResourcesScreen())),
-                          ),
-                          _ModernQuickButton(
-                            icon: Icons.group,
-                            label: 'Chapter',
-                            subtitle: 'Connect',
-                            gradient: LinearGradient(
-                              colors: [fblaGold, fblaGold.withOpacity(0.8)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            onTap: () async {
-                              final url = Uri.parse('https://connect.fbla.org/');
-                              if (await canLaunchUrl(url)) launchUrl(url);
-                            },
-                          ),
-                          _ModernQuickButton(
-                            icon: Icons.notifications,
-                            label: 'Notifications',
-                            subtitle: 'Stay updated',
-                            gradient: LinearGradient(
-                              colors: [fblaBlue.withOpacity(0.7), fblaNavy.withOpacity(0.7)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Notifications coming soon!')),
-                              );
-                            },
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                  SizedBox(height: 8),
-
-                  // Upcoming Events Section
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Upcoming Events',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : fblaNavy,
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: () => Navigator.push(context,
-                            MaterialPageRoute(builder: (_) => EventsScreen())),
-                        icon: Icon(Icons.arrow_forward, size: 18),
-                        label: Text('View All'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: fblaBlue,
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 16),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      return SizedBox(
-                        height: 240,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: app.events.length,
-                          itemBuilder: (context, index) {
-                            final event = app.events[index];
-                            return Container(
-                              width: constraints.maxWidth > 400 ? 320 : 280,
-                              margin: EdgeInsets.only(right: 16),
-                              child: Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: fblaGold.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  _formatEventDate(event.start),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: fblaBlue,
-                                  ),
-                                ),
-                              ),
-                              Spacer(),
-                              IconButton(
-                                icon: Icon(
-                                  app.savedEventIds.contains(event.id)
-                                      ? Icons.bookmark
-                                      : Icons.bookmark_border,
-                                  color: fblaGold,
-                                ),
-                                onPressed: () {
-                                  app.toggleSaveEvent(event.id);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        app.savedEventIds.contains(event.id)
-                                            ? 'Event saved'
-                                            : 'Event removed',
-                                      ),
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            event.title,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            event.location,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.access_time,
-                                size: 16,
-                                color: Colors.grey.shade600,
-                              ),
-                              SizedBox(width: 4),
-                              Text(
-                                _formatTime(event.start),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey.shade600,
-                                ),
-                              ),
-                              Expanded(child: SizedBox()),
-                              TextButton(
-                                onPressed: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (_) => AlertDialog(
-                                      title: Text(event.title),
-                                      content: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(event.description),
-                                          SizedBox(height: 8),
-                                          Text(
-                                              'Date: ${_formatEventDate(event.start)}'),
-                                          Text(
-                                              'Time: ${_formatTime(event.start)}'),
-                                          Text('Location: ${event.location}'),
-                                        ],
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(context),
-                                          child: Text('Close'),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                                child: Text(
-                                  'Details',
-                                  style: TextStyle(color: fblaBlue),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          );
-        },
-      ),
-      SizedBox(height: 24),
-
-                  // Recent Announcements Section
-                  SizedBox(height: 28),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Recent Announcements',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : fblaNavy,
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: () {},
-                        icon: Icon(Icons.arrow_forward, size: 18),
-                        label: Text('View All'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: fblaBlue,
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 16),
-                  ...app.news.take(3).map((n) => Container(
-                        margin: EdgeInsets.only(bottom: 12),
-                        child: Card(
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: InkWell(
-                            onTap: () => showDialog(
-                                context: context,
-                                builder: (_) => AlertDialog(
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      title: Text(n.title),
-                                      content: Text(n.body),
-                                      actions: [
-                                        TextButton(
-                                            onPressed: () => Navigator.pop(context),
-                                            child: Text('Close'))
-                                      ],
-                                    )),
-                            borderRadius: BorderRadius.circular(16),
-                            child: Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: fblaBlue.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Icon(
-                                      Icons.campaign,
-                                      color: fblaBlue,
-                                      size: 24,
-                                    ),
-                                  ),
-                                  SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          n.title,
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 15,
-                                          ),
-                                        ),
-                                        SizedBox(height: 4),
-                                        Text(
-                                          n.body,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: Colors.grey.shade600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  SizedBox(width: 8),
-                                  Column(
-                                    children: [
-                                      Text(
-                                        '${n.date.month}/${n.date.day}',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: fblaBlue,
-                                        ),
-                                      ),
-                                      Icon(
-                                        Icons.arrow_forward_ios,
-                                        size: 14,
-                                        color: Colors.grey.shade400,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      )),
-                  SizedBox(height: 24),
-                ],
-              ),
+                    )
+                  : null,
             ),
           ),
         ],
       ),
+      drawer: Drawer(
+        child: SafeArea(
+          child: Column(
+            children: [
+              ListTile(
+                title: const Text('Menu Item 1'),
+                onTap: () => Navigator.pop(context),
+              ),
+              ListTile(
+                title: const Text('Menu Item 2'),
+                onTap: () => Navigator.pop(context),
+              ),
+              ListTile(
+                title: const Text('Menu Item 3'),
+                onTap: () => Navigator.pop(context),
+              ),
+              const Divider(),
+              const ListTile(
+                title: Text('More items coming soon'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      body: app.news.isEmpty
+          ? Center(
+              child: Text(
+                'No posts yet',
+                style: TextStyle(
+                  color: Colors.grey.shade400,
+                  fontSize: 16,
+                ),
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 26),
+              itemCount: app.news.length + 1,
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.only(left: 4, right: 4, bottom: 10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Latest Posts',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        Text(
+                          '${app.news.length}',
+                          style: TextStyle(
+                            color: Colors.grey.shade400,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                final post = app.news[index - 1];
+                return _buildPostCard(context, post, fblaBlue);
+              },
+            ),
     );
   }
 
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    return 'Good Evening';
+  Widget _buildPostCard(BuildContext context, NewsItem post, Color accentColor) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: Text(post.title),
+              content: Text(post.body),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close'),
+                ),
+              ],
+            ),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF111111),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white12, width: 1),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black54,
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      height: 36,
+                      width: 36,
+                      decoration: BoxDecoration(
+                        color: accentColor.withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.campaign,
+                        color: accentColor,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'FBLA Updates',
+                        style: TextStyle(
+                          color: Colors.grey.shade200,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      _formatPostDate(post.date),
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  post.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  post.body,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.grey.shade300,
+                    fontSize: 14,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.favorite_border, color: Colors.grey.shade400, size: 18),
+                    const SizedBox(width: 6),
+                    Text('Like', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
+                    const SizedBox(width: 18),
+                    Icon(Icons.mode_comment_outlined, color: Colors.grey.shade400, size: 18),
+                    const SizedBox(width: 6),
+                    Text('Comment', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
+                    const Spacer(),
+                    Icon(Icons.open_in_new, color: accentColor, size: 18),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
-  String _formatEventDate(DateTime date) {
-    final months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
+  String _formatPostDate(DateTime date) {
+    return '${date.month}/${date.day}/${date.year.toString().substring(2)}';
+  }
+}
+
+class _PostSearchDelegate extends SearchDelegate {
+  final List<NewsItem> posts;
+
+  _PostSearchDelegate(this.posts);
+
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    return [
+      IconButton(
+        icon: const Icon(Icons.clear),
+        onPressed: () => query = '',
+      ),
     ];
-    return '${months[date.month - 1]} ${date.day}';
   }
 
-  String _formatTime(DateTime date) {
-    final hour = date.hour > 12 ? date.hour - 12 : date.hour;
-    final ampm = date.hour >= 12 ? 'PM' : 'AM';
-    return '${hour == 0 ? 12 : hour}:${date.minute.toString().padLeft(2, '0')} $ampm';
+  @override
+  Widget? buildLeading(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () => close(context, null),
+    );
+  }
+
+  @override
+  Widget buildResults(BuildContext context) {
+    return _buildMatches();
+  }
+
+  @override
+  Widget buildSuggestions(BuildContext context) {
+    return _buildMatches();
+  }
+
+  Widget _buildMatches() {
+    final q = query.trim().toLowerCase();
+    final filtered = q.isEmpty
+        ? posts
+        : posts
+            .where(
+              (post) =>
+                  post.title.toLowerCase().contains(q) ||
+                  post.body.toLowerCase().contains(q),
+            )
+            .toList();
+
+    if (filtered.isEmpty) {
+      return const Center(child: Text('No matching posts'));
+    }
+
+    return ListView.builder(
+      itemCount: filtered.length,
+      itemBuilder: (context, index) {
+        final post = filtered[index];
+        return ListTile(
+          title: Text(post.title),
+          subtitle: Text(
+            post.body,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          onTap: () => close(context, null),
+        );
+      },
+    );
   }
 }
 
@@ -1353,9 +1399,11 @@ class EventsScreen extends StatefulWidget {
   State<EventsScreen> createState() => _EventsScreenState();
 }
 
-class _EventsScreenState extends State<EventsScreen>
-    with TickerProviderStateMixin {
+class _EventsScreenState extends State<EventsScreen> {
   String _selectedFilter = 'All';
+  DateTime _selectedDate = DateTime.now();
+  final TextEditingController _eventSearchController = TextEditingController();
+  String _eventSearchQuery = '';
   final List<String> _filters = [
     'All',
     'Meetings',
@@ -1363,17 +1411,10 @@ class _EventsScreenState extends State<EventsScreen>
     'Social',
     'Workshops'
   ];
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _eventSearchController.dispose();
     super.dispose();
   }
 
@@ -1381,38 +1422,44 @@ class _EventsScreenState extends State<EventsScreen>
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context);
     final upcoming = app.events..sort((a, b) => a.start.compareTo(b.start));
+    final searchMatches = _eventSearchQuery.trim().isEmpty
+      ? <Event>[]
+      : upcoming
+        .where((event) {
+          final query = _eventSearchQuery.toLowerCase();
+          return event.title.toLowerCase().contains(query) ||
+            event.description.toLowerCase().contains(query) ||
+            event.location.toLowerCase().contains(query);
+        })
+        .toList();
+    final dateFilteredEvents = upcoming.where((event) {
+      return event.start.year == _selectedDate.year &&
+          event.start.month == _selectedDate.month &&
+          event.start.day == _selectedDate.day;
+    }).toList();
     final Color fblaBlue = const Color(0xFF1D4E89);
     final Color fblaGold = const Color(0xFFF6C500);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
         title: Text('Events & Schedule'),
         backgroundColor: fblaBlue,
         foregroundColor: Colors.white,
         elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: fblaGold,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: [
-            Tab(text: 'Calendar'),
-            Tab(text: 'List'),
-          ],
-        ),
       ),
       body: Column(
         children: [
           // Filter chips
           Container(
-            padding: EdgeInsets.all(16),
+            padding: EdgeInsets.fromLTRB(12, 12, 12, 10),
             decoration: BoxDecoration(
-              color: isDark ? Colors.grey.shade800 : Colors.grey.shade50,
+              color: Colors.black,
               border: Border(
                 bottom: BorderSide(
-                  color: Colors.grey.shade300,
-                  width: 1,
+                  color: Colors.white12,
+                  width: 0.8,
                 ),
               ),
             ),
@@ -1423,24 +1470,60 @@ class _EventsScreenState extends State<EventsScreen>
                   final isSelected = _selectedFilter == filter;
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: FilterChip(
-                      label: Text(filter),
-                      selected: isSelected,
-                      onSelected: (selected) {
-                        setState(() => _selectedFilter = filter);
-                      },
-                      backgroundColor:
-                          isDark ? Colors.grey.shade700 : Colors.white,
-                      selectedColor: fblaBlue,
-                      checkmarkColor: Colors.white,
-                      labelStyle: TextStyle(
-                        color: isSelected ? Colors.white : fblaBlue,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.normal,
-                      ),
-                      side: BorderSide(
-                        color: isSelected ? fblaBlue : Colors.grey.shade400,
-                        width: 1,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(24),
+                      onTap: () => setState(() => _selectedFilter = filter),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOut,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(24),
+                          gradient: isSelected
+                              ? LinearGradient(
+                                  colors: [fblaBlue, fblaBlue.withOpacity(0.8)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                )
+                              : null,
+                          color: isSelected ? null : const Color(0xFF141414),
+                          border: Border.all(
+                            color: isSelected
+                                ? fblaBlue.withOpacity(0.9)
+                                : Colors.white24,
+                            width: isSelected ? 1.2 : 1,
+                          ),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: fblaBlue.withOpacity(0.35),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ]
+                              : const [],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _filterIcon(filter),
+                              size: 15,
+                              color: isSelected ? Colors.white : Colors.grey.shade300,
+                            ),
+                            const SizedBox(width: 7),
+                            Text(
+                              filter,
+                              style: TextStyle(
+                                color: isSelected ? Colors.white : Colors.grey.shade200,
+                                fontWeight:
+                                    isSelected ? FontWeight.w700 : FontWeight.w500,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   );
@@ -1449,102 +1532,139 @@ class _EventsScreenState extends State<EventsScreen>
             ),
           ),
 
-          // Tab content
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
+          Container(
+            margin: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF111111),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: Column(
               children: [
-                _buildCalendarView(context, upcoming),
-                _buildListView(context, upcoming),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+                  child: TextField(
+                    controller: _eventSearchController,
+                    onChanged: (value) {
+                      setState(() => _eventSearchQuery = value);
+                    },
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Search events and jump to date',
+                      hintStyle: TextStyle(color: Colors.grey.shade500),
+                      prefixIcon:
+                          Icon(Icons.search, color: Colors.grey.shade400),
+                      suffixIcon: _eventSearchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(Icons.clear,
+                                  color: Colors.grey.shade400),
+                              onPressed: () {
+                                _eventSearchController.clear();
+                                setState(() => _eventSearchQuery = '');
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: const Color(0xFF1A1A1A),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                    ),
+                  ),
+                ),
+                if (searchMatches.isNotEmpty)
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 150),
+                    margin: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF161616),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white10),
+                    ),
+                    child: ListView.builder(
+                      itemCount: searchMatches.length > 6
+                          ? 6
+                          : searchMatches.length,
+                      itemBuilder: (context, index) {
+                        final event = searchMatches[index];
+                        return ListTile(
+                          dense: true,
+                          title: Text(
+                            event.title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Text(
+                            _shortDateTime(event.start),
+                            style: TextStyle(
+                              color: Colors.grey.shade400,
+                              fontSize: 12,
+                            ),
+                          ),
+                          onTap: () {
+                            setState(() {
+                              _selectedDate = DateTime(
+                                event.start.year,
+                                event.start.month,
+                                event.start.day,
+                              );
+                              _eventSearchQuery = '';
+                              _eventSearchController.clear();
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                Theme(
+                  data: Theme.of(context).copyWith(
+                    colorScheme: Theme.of(context).colorScheme.copyWith(
+                          primary: fblaBlue,
+                          onPrimary: Colors.white,
+                          onSurface: Colors.white,
+                        ),
+                  ),
+                  child: CalendarDatePicker(
+                    initialDate: _selectedDate,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2035),
+                    currentDate: DateTime.now(),
+                    onDateChanged: (date) {
+                      setState(() => _selectedDate = date);
+                    },
+                  ),
+                ),
               ],
             ),
+          ),
+
+          // List content
+          Expanded(
+            child: _buildListView(context, dateFilteredEvents),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCalendarView(BuildContext context, List<Event> events) {
-    final Color fblaBlue = const Color(0xFF1D4E89);
-
-    return Padding(
-      padding: EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // Calendar header
-          Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: fblaBlue.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '${DateTime.now().month}/${DateTime.now().year}',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: fblaBlue,
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.today, color: fblaBlue),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Calendar navigation coming soon'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 16),
-
-          // Calendar grid placeholder
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.calendar_month,
-                      size: 64,
-                      color: Colors.grey.shade400,
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      'Calendar View',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Interactive calendar coming soon',
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  IconData _filterIcon(String filter) {
+    switch (filter) {
+      case 'Meetings':
+        return Icons.groups_2_outlined;
+      case 'Competitions':
+        return Icons.emoji_events_outlined;
+      case 'Social':
+        return Icons.celebration_outlined;
+      case 'Workshops':
+        return Icons.school_outlined;
+      default:
+        return Icons.grid_view_rounded;
+    }
   }
 
   Widget _buildListView(BuildContext context, List<Event> events) {
@@ -1597,13 +1717,6 @@ class _EventsScreenState extends State<EventsScreen>
                         final app =
                             Provider.of<AppState>(context, listen: false);
                         app.toggleSaveEvent(e.id);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                                saved ? 'Removed from saved' : 'Event saved'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
                       },
                     ),
                   ],
@@ -1675,12 +1788,6 @@ class _EventsScreenState extends State<EventsScreen>
                       child: ElevatedButton.icon(
                         onPressed: () async {
                           await scheduleEventReminder(e);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Reminder scheduled'),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
                         },
                         icon: Icon(Icons.notifications, size: 16),
                         label: Text('Remind'),
@@ -1901,6 +2008,30 @@ class _ThreadScreenState extends State<ThreadScreen> {
    ------------------------ */
 
 class ProfileScreen extends StatelessWidget {
+  Future<void> _selectProfileImage(BuildContext context) async {
+    final picker = ImagePicker();
+    final selectedImage = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 1024,
+    );
+
+    if (selectedImage == null || !context.mounted) {
+      return;
+    }
+
+    final imageBytes = await selectedImage.readAsBytes();
+    if (!context.mounted) {
+      return;
+    }
+
+    final app = Provider.of<AppState>(context, listen: false);
+    await app.updateProfileImage(imageBytes);
+    if (!context.mounted) {
+      return;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context);
@@ -1909,145 +2040,16 @@ class ProfileScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      backgroundColor: Colors.black,
       body: CustomScrollView(
         slivers: [
-          // Modern Profile Header
+          // Compact top bar
           SliverAppBar(
-            expandedHeight: 280,
+            expandedHeight: 56,
             floating: false,
             pinned: true,
             backgroundColor: fblaBlue,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      fblaBlue,
-                      fblaBlue.withOpacity(0.8),
-                      Color(0xFF00274D),
-                    ],
-                  ),
-                ),
-                child: SafeArea(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(height: 40),
-                      // Avatar with edit button
-                      Stack(
-                        children: [
-                          Hero(
-                            tag: 'profile_avatar',
-                            child: Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: fblaGold.withOpacity(0.5),
-                                    blurRadius: 20,
-                                    spreadRadius: 5,
-                                  ),
-                                ],
-                              ),
-                              child: CircleAvatar(
-                                radius: 60,
-                                backgroundColor: fblaGold,
-                                child: Text(
-                                  app.displayName.isNotEmpty
-                                      ? app.displayName[0].toUpperCase()
-                                      : 'F',
-                                  style: TextStyle(
-                                    fontSize: 42,
-                                    fontWeight: FontWeight.bold,
-                                    color: fblaBlue,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: Container(
-                              padding: EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: fblaGold,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 3),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.2),
-                                    blurRadius: 8,
-                                  ),
-                                ],
-                              ),
-                              child: Icon(
-                                Icons.edit,
-                                size: 20,
-                                color: fblaBlue,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        app.displayName.isNotEmpty
-                            ? app.displayName
-                            : 'FBLA Member',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: -0.5,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        app.userEmail.isNotEmpty ? app.userEmail : 'Not signed in',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white.withOpacity(0.9),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      SizedBox(height: 8),
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: fblaGold.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: fblaGold.withOpacity(0.5),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.verified, size: 16, color: fblaGold),
-                            SizedBox(width: 6),
-                            Text(
-                              'Active Member',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: fblaGold,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+            title: const Text('Profile'),
             actions: [
               IconButton(
                 icon: Icon(Icons.settings_outlined, color: Colors.white),
@@ -2059,6 +2061,156 @@ class ProfileScreen extends StatelessWidget {
                 },
               ),
             ],
+          ),
+
+          SliverToBoxAdapter(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    fblaBlue,
+                    fblaBlue.withOpacity(0.8),
+                    Color(0xFF00274D),
+                  ],
+                ),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(height: 24),
+                    Stack(
+                      children: [
+                        Hero(
+                          tag: 'profile_avatar',
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: fblaGold.withOpacity(0.5),
+                                  blurRadius: 20,
+                                  spreadRadius: 5,
+                                ),
+                              ],
+                            ),
+                            child: CircleAvatar(
+                              radius: 60,
+                              backgroundColor: fblaGold,
+                              backgroundImage: app.localProfileImageBytes != null
+                                  ? MemoryImage(app.localProfileImageBytes!)
+                                  : (app.userProfile?.photoUrl != null &&
+                                          app.userProfile!.photoUrl!.isNotEmpty
+                                      ? NetworkImage(app.userProfile!.photoUrl!)
+                                      : null) as ImageProvider<Object>?,
+                              child: app.localProfileImageBytes == null &&
+                                      (app.userProfile?.photoUrl == null ||
+                                          app.userProfile!.photoUrl!.isEmpty)
+                                  ? Text(
+                                      app.displayName.isNotEmpty
+                                          ? app.displayName[0].toUpperCase()
+                                          : 'F',
+                                      style: TextStyle(
+                                        fontSize: 42,
+                                        fontWeight: FontWeight.bold,
+                                        color: fblaBlue,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () => _selectProfileImage(context),
+                              customBorder: const CircleBorder(),
+                              child: Container(
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: fblaGold,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 3),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.2),
+                                      blurRadius: 8,
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  Icons.camera_alt,
+                                  size: 18,
+                                  color: fblaBlue,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 16),
+                    Text(
+                      app.displayName.isNotEmpty
+                          ? app.displayName
+                          : 'FBLA Member',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: -0.5,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      app.userEmail.isNotEmpty ? app.userEmail : 'Not signed in',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(height: 8),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: fblaGold.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: fblaGold.withOpacity(0.5),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.verified, size: 16, color: fblaGold),
+                          SizedBox(width: 6),
+                          Text(
+                            'Active Member',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: fblaGold,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 14),
+                  ],
+                ),
+              ),
+            ),
           ),
 
           // Content
@@ -2154,12 +2306,7 @@ class ProfileScreen extends StatelessWidget {
                     'Manage your preferences',
                     Icons.notifications_outlined,
                     Color(0xFFFF9800),
-                    () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Notification settings coming soon'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    ),
+                    () {},
                   ),
                   _buildModernActionCard(
                     context,
@@ -2167,12 +2314,7 @@ class ProfileScreen extends StatelessWidget {
                     'Get help or contact support',
                     Icons.help_outline,
                     Color(0xFF9C27B0),
-                    () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Help center coming soon'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    ),
+                    () {},
                   ),
                   SizedBox(height: 24),
 
@@ -2197,12 +2339,6 @@ class ProfileScreen extends StatelessWidget {
                       child: InkWell(
                         onTap: () {
                           app.logout();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Logged out successfully'),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
                         },
                         borderRadius: BorderRadius.circular(16),
                         child: Padding(
@@ -2449,6 +2585,220 @@ class ProfileScreen extends StatelessWidget {
 }
 
 /* ------------------------
+   More Screen
+   ------------------------ */
+
+class MoreScreen extends StatelessWidget {
+  const MoreScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color fblaBlue = const Color(0xFF1D4E89);
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: const Text('More'),
+        backgroundColor: fblaBlue,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildGroupHeader(context, 'Community & Connection', Icons.groups_outlined),
+          _buildMoreTile(
+            context,
+            title: 'Chapter Directory',
+            subtitle: 'Search local members and officers',
+            icon: Icons.badge_outlined,
+          ),
+          _buildMoreTile(
+            context,
+            title: 'Social Wall',
+            subtitle: 'Instagram, LinkedIn, and X feeds',
+            icon: Icons.public_outlined,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ResourcesScreen()),
+              );
+            },
+          ),
+          _buildMoreTile(
+            context,
+            title: 'Message Center',
+            subtitle: 'Connect with chapter officers or advisers',
+            icon: Icons.mark_chat_unread_outlined,
+          ),
+          const SizedBox(height: 20),
+
+          _buildGroupHeader(context, 'Leadership & Growth', Icons.emoji_events_outlined),
+          _buildMoreTile(
+            context,
+            title: 'BAA Progress Tracker',
+            subtitle: 'Track Business Achievement Awards checklist',
+            icon: Icons.checklist_outlined,
+          ),
+          _buildMoreTile(
+            context,
+            title: 'Scholarship Hub',
+            subtitle: 'FBLA scholarships and deadlines',
+            icon: Icons.school_outlined,
+          ),
+          _buildMoreTile(
+            context,
+            title: 'Officer Corner',
+            subtitle: 'Resources for current or aspiring officers',
+            icon: Icons.workspace_premium_outlined,
+          ),
+          const SizedBox(height: 20),
+
+          _buildGroupHeader(context, 'Administration', Icons.admin_panel_settings_outlined),
+          _buildMoreTile(
+            context,
+            title: 'Attendance Tracker',
+            subtitle: 'Scan QR code to check in at meetings',
+            icon: Icons.qr_code_scanner_outlined,
+          ),
+          _buildMoreTile(
+            context,
+            title: 'Dues & Payments',
+            subtitle: 'Check membership status and payment portal',
+            icon: Icons.payments_outlined,
+          ),
+          _buildMoreTile(
+            context,
+            title: 'Document Library',
+            subtitle: 'Bylaws, Robert’s Rules, and meeting minutes',
+            icon: Icons.folder_open_outlined,
+          ),
+          const SizedBox(height: 20),
+
+          _buildGroupHeader(context, 'Support', Icons.support_agent_outlined),
+          _buildMoreTile(
+            context,
+            title: 'Help / FAQ',
+            subtitle: 'Answers about dress code, events, and troubleshooting',
+            icon: Icons.help_outline,
+          ),
+          _buildMoreTile(
+            context,
+            title: 'Settings',
+            subtitle: 'Notifications, privacy, and account logout',
+            icon: Icons.settings_outlined,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGroupHeader(BuildContext context, String title, IconData icon) {
+    final Color fblaBlue = const Color(0xFF1D4E89);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: fblaBlue.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: fblaBlue, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : fblaBlue,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMoreTile(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    VoidCallback? onTap,
+  }) {
+    final Color fblaBlue = const Color(0xFF1D4E89);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap ??
+              () {
+                return;
+              },
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: fblaBlue.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: fblaBlue.withOpacity(0.18), width: 1.2),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: fblaBlue,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 18),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: fblaBlue),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/* ------------------------
    Settings Screen
    ------------------------ */
 
@@ -2479,11 +2829,11 @@ class SettingsScreen extends StatelessWidget {
           _buildSettingsCard(
             context,
             'Dark Mode',
-            'Switch between light and dark themes',
+            'Dark theme is always enabled',
             Icons.dark_mode_outlined,
             Switch(
               value: app.isDarkMode,
-              onChanged: (value) => app.toggleDarkMode(),
+              onChanged: null,
               activeColor: fblaBlue,
             ),
           ),
@@ -2496,14 +2846,7 @@ class SettingsScreen extends StatelessWidget {
             Icons.notifications_outlined,
             Switch(
               value: true, // Default to enabled
-              onChanged: (value) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Notification settings coming soon'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
+              onChanged: (value) {},
               activeColor: fblaBlue,
             ),
           ),
@@ -2516,14 +2859,7 @@ class SettingsScreen extends StatelessWidget {
             Icons.email_outlined,
             Switch(
               value: true, // Default to enabled
-              onChanged: (value) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Email settings coming soon'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
+              onChanged: (value) {},
               activeColor: fblaBlue,
             ),
           ),
@@ -2540,14 +2876,7 @@ class SettingsScreen extends StatelessWidget {
             'Manage your data and privacy settings',
             Icons.privacy_tip_outlined,
             Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Privacy settings coming soon'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
+            onTap: () {},
           ),
           
           _buildSettingsCard(
@@ -2556,14 +2885,7 @@ class SettingsScreen extends StatelessWidget {
             'Password and security settings',
             Icons.lock_outline,
             Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Security settings coming soon'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
+            onTap: () {},
           ),
           
           SizedBox(height: 32),
@@ -2611,14 +2933,7 @@ class SettingsScreen extends StatelessWidget {
             'Get help or contact support',
             Icons.help_outline,
             Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Help center coming soon'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
+            onTap: () {},
           ),
           
           _buildSettingsCard(
@@ -2627,14 +2942,7 @@ class SettingsScreen extends StatelessWidget {
             'Read our terms and conditions',
             Icons.description_outlined,
             Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Terms of service coming soon'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
+            onTap: () {},
           ),
           
           SizedBox(height: 24),

@@ -194,6 +194,101 @@ class FirebaseService {
     }
   }
 
+  static Future<List<Map<String, dynamic>>> _getCollectionDocuments(
+    String collection, {
+    String? orderBy,
+    bool descending = false,
+  }) async {
+    Query<Map<String, dynamic>> query = _firestore.collection(collection);
+    if (orderBy != null) {
+      query = query.orderBy(orderBy, descending: descending);
+    }
+
+    final snapshot = await query.get();
+    return snapshot.docs
+        .map((doc) => {'id': doc.id, ...doc.data()})
+        .toList(growable: false);
+  }
+
+  static Future<List<Map<String, dynamic>>> getEvents() async {
+    return _getCollectionDocuments('events', orderBy: 'start');
+  }
+
+  static Future<List<Map<String, dynamic>>> getNews() async {
+    return _getCollectionDocuments('news', orderBy: 'date', descending: true);
+  }
+
+  static Future<List<Map<String, dynamic>>> getCompetitions() async {
+    return _getCollectionDocuments('competitions');
+  }
+
+  static Future<List<Map<String, dynamic>>> getThreads() async {
+    return _getCollectionDocuments('threads');
+  }
+
+  static Future<void> ensureAppDataSeeded({
+    required List<Map<String, dynamic>> events,
+    required List<Map<String, dynamic>> news,
+    required List<Map<String, dynamic>> competitions,
+    required List<Map<String, dynamic>> threads,
+  }) async {
+    final collections = {
+      'events': events,
+      'news': news,
+      'competitions': competitions,
+      'threads': threads,
+    };
+
+    for (final entry in collections.entries) {
+      final collectionRef = _firestore.collection(entry.key);
+      final batch = _firestore.batch();
+      var hasWrites = false;
+      for (final item in entry.value) {
+        final data = Map<String, dynamic>.from(item);
+        final id = (data.remove('id') ?? '').toString();
+        if (id.isEmpty) continue;
+        final docRef = collectionRef.doc(id);
+        final existingDoc = await docRef.get();
+        if (!existingDoc.exists) {
+          batch.set(docRef, data);
+          hasWrites = true;
+        }
+      }
+
+      if (hasWrites) {
+        await batch.commit();
+      }
+    }
+  }
+
+  static Future<void> updateEventRsvp({
+    required String eventId,
+    required String userKey,
+    required String response,
+  }) async {
+    await _firestore.collection('events').doc(eventId).set({
+      'rsvps': {userKey: response},
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  static Future<void> appendThreadMessage({
+    required String threadId,
+    required Map<String, dynamic> message,
+  }) async {
+    await _firestore.collection('threads').doc(threadId).set({
+      'messages': FieldValue.arrayUnion([message]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  static Future<void> createThread(Map<String, dynamic> thread) async {
+    final data = Map<String, dynamic>.from(thread);
+    final id = (data.remove('id') ?? '').toString();
+    if (id.isEmpty) return;
+    await _firestore.collection('threads').doc(id).set(data, SetOptions(merge: true));
+  }
+
   // Storage methods
   static Future<String?> uploadProfileImage(
       String userId, Uint8List imageBytes) async {

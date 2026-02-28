@@ -79,19 +79,6 @@ class _LoginScreenState extends State<LoginScreen>
     if (Navigator.canPop(context)) {
       Navigator.pop(context);
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle, color: Colors.white),
-            const SizedBox(width: 8),
-            Text('Welcome back, $displayName!'),
-          ],
-        ),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   @override
@@ -305,15 +292,7 @@ class _LoginScreenState extends State<LoginScreen>
                                   alignment: Alignment.centerRight,
                                   child: TextButton(
                                     onPressed: () {
-                                      // TODO: Implement forgot password
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                              'Password reset feature coming soon'),
-                                          behavior: SnackBarBehavior.floating,
-                                        ),
-                                      );
+                                      return;
                                     },
                                     child: Text(
                                       'Forgot Password?',

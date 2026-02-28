@@ -67,12 +67,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           });
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to load profile: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        return;
       }
     }
   }
@@ -128,29 +123,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         await app.setFirebaseUser(app.firebaseUser!);
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Profile updated successfully!'),
-            ],
-          ),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-
       Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to update profile: $e'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      return;
     } finally {
       setState(() => _isLoading = false);
     }
@@ -160,12 +135,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget build(BuildContext context) {
     final Color fblaBlue = const Color(0xFF1D4E89);
     final Color fblaGold = const Color(0xFFF6C500);
+    final Color cardBg = const Color(0xFF121212);
+    final Color inputBg = const Color(0xFF1A1A1A);
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(16),
-      borderSide: BorderSide(color: Colors.grey.shade300, width: 1.5),
+      borderSide: BorderSide(color: Colors.white24, width: 1.2),
     );
 
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text('Edit Profile'),
         backgroundColor: fblaBlue,
@@ -188,63 +166,81 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
             // Profile Image Section
-            Center(
-              child: Column(
-                children: [
-                  Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 60,
-                        backgroundColor: fblaGold,
-                        backgroundImage: _selectedImageBytes != null
-                          ? MemoryImage(_selectedImageBytes!)
-                            : (_currentImageUrl != null
-                                ? NetworkImage(_currentImageUrl!)
-                                    as ImageProvider
-                                : null),
-                        child: _selectedImageBytes == null &&
-                                _currentImageUrl == null
-                            ? Icon(
-                                Icons.person,
-                                size: 60,
-                                color: fblaBlue,
-                              )
-                            : null,
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: fblaBlue,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.camera_alt,
-                                color: Colors.white, size: 20),
-                            onPressed: _pickImage,
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Center(
+                child: Column(
+                  children: [
+                    Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 60,
+                          backgroundColor: fblaGold,
+                          backgroundImage: _selectedImageBytes != null
+                              ? MemoryImage(_selectedImageBytes!)
+                              : (_currentImageUrl != null
+                                  ? NetworkImage(_currentImageUrl!)
+                                      as ImageProvider
+                                  : null),
+                          child: _selectedImageBytes == null &&
+                                  _currentImageUrl == null
+                              ? Icon(
+                                  Icons.person,
+                                  size: 60,
+                                  color: fblaBlue,
+                                )
+                              : null,
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: fblaBlue,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: IconButton(
+                              icon: const Icon(Icons.camera_alt,
+                                  color: Colors.white, size: 20),
+                              onPressed: _pickImage,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: _pickImage,
-                    child: Text(
-                      'Change Photo',
-                      style: TextStyle(
-                          color: fblaBlue, fontWeight: FontWeight.w600),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 10),
+                    TextButton(
+                      onPressed: _pickImage,
+                      child: Text(
+                        'Change Photo',
+                        style: TextStyle(
+                            color: fblaGold, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 32),
+
+            Text(
+              'Profile Details',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
 
             // Name Field
             TextFormField(
@@ -255,7 +251,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 prefixIcon: Icon(Icons.person_outline,
                     color: fblaBlue.withOpacity(0.7)),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: inputBg,
+                labelStyle: TextStyle(color: Colors.grey.shade300),
+                hintStyle: TextStyle(color: Colors.grey.shade500),
                 border: border,
                 enabledBorder: border,
                 focusedBorder: OutlineInputBorder(
@@ -263,6 +261,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   borderSide: BorderSide(color: fblaBlue, width: 2),
                 ),
               ),
+              style: const TextStyle(color: Colors.white),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
                   return 'Name is required';
@@ -280,7 +279,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 hintText: 'e.g., Lincoln High School FBLA',
                 prefixIcon: Icon(Icons.group, color: fblaBlue.withOpacity(0.7)),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: inputBg,
+                labelStyle: TextStyle(color: Colors.grey.shade300),
+                hintStyle: TextStyle(color: Colors.grey.shade500),
                 border: border,
                 enabledBorder: border,
                 focusedBorder: OutlineInputBorder(
@@ -288,6 +289,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   borderSide: BorderSide(color: fblaBlue, width: 2),
                 ),
               ),
+              style: const TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 20),
 
@@ -300,7 +302,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 prefixIcon:
                     Icon(Icons.school, color: fblaBlue.withOpacity(0.7)),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: inputBg,
+                labelStyle: TextStyle(color: Colors.grey.shade300),
+                hintStyle: TextStyle(color: Colors.grey.shade500),
                 border: border,
                 enabledBorder: border,
                 focusedBorder: OutlineInputBorder(
@@ -308,6 +312,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   borderSide: BorderSide(color: fblaBlue, width: 2),
                 ),
               ),
+              style: const TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 20),
 
@@ -319,7 +324,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 hintText: 'e.g., President, Vice President, Secretary',
                 prefixIcon: Icon(Icons.badge, color: fblaBlue.withOpacity(0.7)),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: inputBg,
+                labelStyle: TextStyle(color: Colors.grey.shade300),
+                hintStyle: TextStyle(color: Colors.grey.shade500),
                 border: border,
                 enabledBorder: border,
                 focusedBorder: OutlineInputBorder(
@@ -327,6 +334,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   borderSide: BorderSide(color: fblaBlue, width: 2),
                 ),
               ),
+              style: const TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 20),
 
@@ -339,14 +347,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 prefixIcon:
                     Icon(Icons.description, color: fblaBlue.withOpacity(0.7)),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: inputBg,
+                labelStyle: TextStyle(color: Colors.grey.shade300),
+                hintStyle: TextStyle(color: Colors.grey.shade500),
                 border: border,
                 enabledBorder: border,
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                   borderSide: BorderSide(color: fblaBlue, width: 2),
                 ),
+                counterStyle: TextStyle(color: Colors.grey.shade500),
               ),
+              style: const TextStyle(color: Colors.white),
               maxLines: 4,
               maxLength: 500,
             ),
@@ -390,21 +402,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: cardBg,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue.shade200),
+                border: Border.all(color: Colors.white12),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline,
-                      color: Colors.blue.shade700, size: 20),
+                  Icon(Icons.info_outline, color: fblaGold, size: 20),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Your profile information helps other FBLA members connect with you and learn about your chapter.',
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.blue.shade800,
+                        color: Colors.grey.shade300,
                         height: 1.3,
                       ),
                     ),

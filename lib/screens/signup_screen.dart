@@ -76,19 +76,6 @@ class _SignupScreenState extends State<SignupScreen>
     if (!_formKey.currentState!.validate()) return;
 
     if (!_agreedToTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.warning, color: Colors.white),
-              SizedBox(width: 8),
-              Expanded(child: Text('Please agree to the Terms and Conditions')),
-            ],
-          ),
-          backgroundColor: Colors.orange,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
       return;
     }
 
@@ -105,19 +92,6 @@ class _SignupScreenState extends State<SignupScreen>
     setState(() => _isLoading = false);
 
     Navigator.popUntil(context, (route) => route.isFirst);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle, color: Colors.white),
-            const SizedBox(width: 8),
-            Expanded(child: Text('Welcome to FBLA, $displayName!')),
-          ],
-        ),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   @override
@@ -412,15 +386,7 @@ class _SignupScreenState extends State<SignupScreen>
                                           InkWell(
                                             onTap: () {
                                               // TODO: Show terms
-                                              ScaffoldMessenger.of(context)
-                                                  .showSnackBar(
-                                                const SnackBar(
-                                                  content: Text(
-                                                      'Terms & Conditions viewer coming soon'),
-                                                  behavior:
-                                                      SnackBarBehavior.floating,
-                                                ),
-                                              );
+                                              return;
                                             },
                                             child: Text(
                                               'Terms & Conditions',

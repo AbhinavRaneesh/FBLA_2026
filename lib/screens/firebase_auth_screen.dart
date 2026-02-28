@@ -106,31 +106,12 @@ class _FirebaseAuthScreenState extends State<FirebaseAuthScreen>
       Navigator.pushReplacementNamed(context, '/home');
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 8),
-                Text(
-                    'Welcome back, ${app.displayName.isNotEmpty ? app.displayName : 'FBLA Member'}!'),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        return;
       }
     } catch (e) {
       // Show error message only if widget is still mounted
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Sign in failed: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        return;
       }
     } finally {
       // Only update state if widget is still mounted
@@ -186,20 +167,7 @@ class _FirebaseAuthScreenState extends State<FirebaseAuthScreen>
 
         // Show success message only if widget is still mounted
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Text(
-                      'Welcome to FBLA, ${app.displayName.isNotEmpty ? app.displayName : 'FBLA Member'}!'),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          return;
         }
       }
     } catch (e) {
@@ -207,13 +175,7 @@ class _FirebaseAuthScreenState extends State<FirebaseAuthScreen>
 
       // Show error message only if widget is still mounted
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Sign up failed: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        return;
       }
     } finally {
       // Only update state if widget is still mounted
@@ -255,44 +217,19 @@ class _FirebaseAuthScreenState extends State<FirebaseAuthScreen>
 
         // Show success message only if widget is still mounted
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Text(
-                      'Welcome back, ${app.displayName.isNotEmpty ? app.displayName : 'FBLA Member'}!'),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          return;
         }
       } else {
         print('Google Sign-In returned null (cancelled or failed)');
         // Show cancellation message only if widget is still mounted
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Google sign in was cancelled'),
-              backgroundColor: Colors.orange,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          return;
         }
       }
     } catch (e) {
       // Show error message only if widget is still mounted
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Google sign in failed: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        return;
       }
     } finally {
       // Only update state if widget is still mounted
