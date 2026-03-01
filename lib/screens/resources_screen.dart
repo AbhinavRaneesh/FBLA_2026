@@ -628,55 +628,89 @@ class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
     final categoryColor = _categoryColor(event.category);
     final badgeLetter = _categoryBadgeLetter(event.category);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF111111),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: categoryColor.withOpacity(0.45)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CompetitiveEventDetailScreen(event: event),
+            ),
+          );
+        },
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF111111),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: categoryColor.withOpacity(0.45)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: Text(
-                  event.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    height: 1.2,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      event.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        height: 1.2,
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 10),
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: categoryColor.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                      border:
+                          Border.all(color: categoryColor.withOpacity(0.75)),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      badgeLetter,
+                      style: TextStyle(
+                        color: categoryColor,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: categoryColor.withOpacity(0.2),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: categoryColor.withOpacity(0.75)),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  badgeLetter,
-                  style: TextStyle(
-                    color: categoryColor,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 11,
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Tap to open study resources',
+                      style: TextStyle(
+                        color: Colors.grey.shade400,
+                        fontSize: 12,
+                      ),
+                    ),
                   ),
-                ),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    color: categoryColor,
+                    size: 14,
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -775,4 +809,579 @@ class _CompetitiveEventItem {
   final String category;
 
   const _CompetitiveEventItem(this.name, this.category);
+}
+
+class CompetitiveEventDetailScreen extends StatelessWidget {
+  final _CompetitiveEventItem event;
+
+  const CompetitiveEventDetailScreen({super.key, required this.event});
+
+  @override
+  Widget build(BuildContext context) {
+    const fblaBlue = Color(0xFF1D4E89);
+    final resources = _resourcesForEvent(event);
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: Text(event.name),
+        backgroundColor: fblaBlue,
+        foregroundColor: Colors.white,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF111111),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: fblaBlue.withOpacity(0.5)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  event.category,
+                  style: TextStyle(
+                    color: Colors.grey.shade300,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${event.name} Study Toolkit',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...resources.map((resource) => _buildResourceTile(resource)).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResourceTile(_StudyPackResource resource) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111111),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            resource.title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            resource.description,
+            style: TextStyle(color: Colors.grey.shade300, fontSize: 13),
+          ),
+          if (resource.url != null) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => _launchUrl(resource.url!),
+              icon: const Icon(Icons.open_in_new, size: 16),
+              label: Text(resource.linkLabel ?? 'Open Link'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF64B5F6),
+                side: const BorderSide(color: Color(0xFF64B5F6)),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  List<_StudyPackResource> _resourcesForEvent(_CompetitiveEventItem event) {
+    switch (event.category) {
+      case 'Objective Test Events':
+        return [
+          _StudyPackResource(
+            title: '${event.name} Blueprint',
+            description:
+                'Competency weighting summary (example: Ethics 10%, Economics 20%).',
+            url: 'https://www.fbla-pbl.org/competitive-events/',
+            linkLabel: 'Official Blueprint',
+          ),
+          _StudyPackResource(
+            title: '${event.name} Daily Practice',
+            description: '10–15 sample multiple-choice questions each day.',
+            url: 'https://quizlet.com/search?query=FBLA%20${Uri.encodeComponent(event.name)}',
+            linkLabel: 'Open Quizlet Sets',
+          ),
+          _StudyPackResource(
+            title: '${event.name} Rulebook',
+            description:
+                'Official guidelines: eligibility, test timing, and calculator rules.',
+            url: 'https://www.fbla-pbl.org/competitive-events/',
+            linkLabel: 'Official Rules',
+          ),
+          _StudyPackResource(
+            title: '${event.name} Study Links',
+            description: 'Quick links to Quizlet and relevant Investopedia topics.',
+            url: 'https://www.investopedia.com/search?q=${Uri.encodeComponent(event.name)}',
+            linkLabel: 'Investopedia Search',
+          ),
+        ];
+      case 'Roleplay Events':
+        return [
+          _StudyPackResource(
+            title: '${event.name} Case Study Library',
+            description:
+                '3–5 practice scenarios for timed 10-minute prep sessions.',
+            url: 'https://www.fbla-pbl.org/competitive-events/',
+            linkLabel: 'Past Scenarios',
+          ),
+          _StudyPackResource(
+            title: '${event.name} Performance Rubric',
+            description:
+                'Judge scoring sheet focus: eye contact, creativity, and practical solution quality.',
+            url: 'https://www.fbla-pbl.org/competitive-events/',
+            linkLabel: 'Rubric Guide',
+          ),
+          _StudyPackResource(
+            title: '${event.name} Secret Sauce Guide',
+            description:
+                'Roleplay structure one-pager: Intro, 3 Main Points, Ask, Conclusion.',
+          ),
+          _StudyPackResource(
+            title: '${event.name} Objective Test Sample',
+            description: '100-question practice exam for the objective test portion.',
+            url: 'https://quizlet.com/search?query=FBLA%20${Uri.encodeComponent(event.name)}%20test',
+            linkLabel: 'Practice Exams',
+          ),
+        ];
+      case 'Presentation Events':
+        return [
+          _StudyPackResource(
+            title: '${event.name} Current Prompt',
+            description:
+                'Current-year event prompt and topic requirements for preparation.',
+            url: 'https://www.fbla-pbl.org/competitive-events/',
+            linkLabel: 'Current Prompt',
+          ),
+          _StudyPackResource(
+            title: '${event.name} Scoring Rubric',
+            description:
+                'Checklist for delivery, visual aids quality, and Q&A performance.',
+            url: 'https://www.fbla-pbl.org/competitive-events/',
+            linkLabel: 'Scoring Rubric',
+          ),
+          _StudyPackResource(
+            title: '${event.name} Equipment Checklist',
+            description:
+                'Bring-ready list (HDMI adapter, clicker, backup file copy, presentation remote).',
+          ),
+          _StudyPackResource(
+            title: '${event.name} Sample Video',
+            description:
+                'Reference quality examples from national-level winning presentations.',
+            url:
+                'https://www.youtube.com/results?search_query=FBLA+${Uri.encodeComponent(event.name)}+national+winner',
+            linkLabel: 'Watch Examples',
+          ),
+        ];
+      case 'Production Events':
+        return [
+          _StudyPackResource(
+            title: '${event.name} Production Test',
+            description:
+                'Sample timed job packet (example tasks completed within event limits).',
+          ),
+          _StudyPackResource(
+            title: '${event.name} FBLA Format Guide',
+            description:
+                'Official formatting rules for documents, margins, spacing, and report structure.',
+            url: 'https://www.fbla-pbl.org/competitive-events/',
+            linkLabel: 'Format Rules',
+          ),
+          _StudyPackResource(
+            title: '${event.name} Solution Key',
+            description:
+                'Reference output showing what a fully correct final product should look like.',
+          ),
+        ];
+      case 'Virtual & Partner Challenges':
+        return [
+          _StudyPackResource(
+            title: '${event.name} Login Gateway',
+            description:
+                'Direct access to challenge portals (Knowledge Matters and partner systems).',
+            url:
+                'https://knowledgematters.com/high-school/virtual-business-challenge/',
+            linkLabel: 'Open Portal',
+          ),
+          _StudyPackResource(
+            title: '${event.name} Strategy Guide',
+            description:
+                'Tips from top competitors (focus priorities, first-round decisions, and pacing).',
+          ),
+          _StudyPackResource(
+            title: '${event.name} Dates & Rounds',
+            description:
+                'Round opening and closing schedule with checkpoint reminders.',
+            url: 'https://www.fbla-pbl.org/competitive-events/',
+            linkLabel: 'Official Schedule',
+          ),
+        ];
+      case 'Chapter Events':
+        return [
+          _StudyPackResource(
+            title: '${event.name} Project Guide',
+            description:
+                'Official project structure, required components, and submission instructions.',
+            url: 'https://www.fbla-pbl.org/competitive-events/',
+            linkLabel: 'Project Rules',
+          ),
+          _StudyPackResource(
+            title: '${event.name} Judging Rubric',
+            description:
+                'How chapter projects are evaluated for impact, planning, and execution quality.',
+            url: 'https://www.fbla-pbl.org/competitive-events/',
+            linkLabel: 'Rubric',
+          ),
+          _StudyPackResource(
+            title: '${event.name} Winning Samples',
+            description:
+                'Review past examples to benchmark scope, documentation, and presentation quality.',
+          ),
+        ];
+      default:
+        return [
+          _StudyPackResource(
+            title: '${event.name} Official Information',
+            description: 'General event details and current-year guidance.',
+            url: 'https://www.fbla-pbl.org/competitive-events/',
+            linkLabel: 'Open Official Page',
+          ),
+        ];
+    }
+  }
+
+  Future<void> _launchUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+}
+
+class CompetitiveEventStudyPacksScreen extends StatelessWidget {
+  const CompetitiveEventStudyPacksScreen({super.key});
+
+  static const List<_StudyPackCategory> _packs = [
+    _StudyPackCategory(
+      title: 'Objective Test Events',
+      examples: 'Accounting I, Business Law, Personal Finance',
+      resources: [
+        _StudyPackResource(
+          title: 'The Blueprint',
+          description:
+              'Summary of tested competencies by weight (for example, Ethics 10%, Economics 20%).',
+          url: 'https://www.fbla-pbl.org/competitive-events/',
+          linkLabel: 'Official Event Blueprints',
+        ),
+        _StudyPackResource(
+          title: 'Question Bank',
+          description:
+              'Daily Practice: 10–15 multiple-choice questions to build speed and accuracy.',
+          url: 'https://quizlet.com/search?query=FBLA%20objective%20test',
+          linkLabel: 'Quizlet Practice Sets',
+        ),
+        _StudyPackResource(
+          title: 'The Rulebook',
+          description:
+              'Official PDF guidelines including eligibility, timing, and calculator rules.',
+          url: 'https://www.fbla-pbl.org/competitive-events/',
+          linkLabel: 'Official Guidelines',
+        ),
+        _StudyPackResource(
+          title: 'Study Links',
+          description:
+              'Direct external resources such as Quizlet and Investopedia articles.',
+          url:
+              'https://www.investopedia.com/search?q=business%20law%20personal%20finance',
+          linkLabel: 'Investopedia Topics',
+        ),
+      ],
+    ),
+    _StudyPackCategory(
+      title: 'Roleplay Events',
+      examples: 'Marketing, Entrepreneurship, Hospitality & Event Management',
+      resources: [
+        _StudyPackResource(
+          title: 'Case Study Library',
+          description:
+              '3–5 past scenarios to practice timed 10-minute prep and delivery.',
+          url: 'https://www.fbla-pbl.org/competitive-events/',
+          linkLabel: 'Past Event Resources',
+        ),
+        _StudyPackResource(
+          title: 'Performance Rubric',
+          description:
+              'Judge score sheet criteria including eye contact, clarity, and creativity.',
+          url: 'https://www.fbla-pbl.org/competitive-events/',
+          linkLabel: 'Judging Rubrics',
+        ),
+        _StudyPackResource(
+          title: 'The Secret Sauce Guide',
+          description:
+              'One-page structure: Intro, 3 Main Points, the Ask, and Conclusion.',
+        ),
+        _StudyPackResource(
+          title: 'Objective Test Sample',
+          description:
+              '100-question practice exam for the objective test portion before roleplay.',
+          url: 'https://quizlet.com/search?query=FBLA%20roleplay%20objective%20test',
+          linkLabel: 'Practice Question Sets',
+        ),
+      ],
+    ),
+    _StudyPackCategory(
+      title: 'Presentation & Speech Events',
+      examples: 'Public Speaking, Social Media Strategies, Graphic Design',
+      resources: [
+        _StudyPackResource(
+          title: 'The Prompt',
+          description:
+              'Current-year topic statement and required scenario scope for your event.',
+          url: 'https://www.fbla-pbl.org/competitive-events/',
+          linkLabel: 'Current Year Topics',
+        ),
+        _StudyPackResource(
+          title: 'Scoring Rubric',
+          description:
+              'Checklist emphasizing delivery, visual aids, and Q&A performance.',
+          url: 'https://www.fbla-pbl.org/competitive-events/',
+          linkLabel: 'Presentation Rubrics',
+        ),
+        _StudyPackResource(
+          title: 'Equipment Checklist',
+          description:
+              'Bring-required items checklist (adapter, projector compatibility, clicker, backups).',
+        ),
+        _StudyPackResource(
+          title: 'Sample Video',
+          description:
+              'Watch national-winning style performances to benchmark quality expectations.',
+          url: 'https://www.youtube.com/results?search_query=FBLA+national+winning+presentation',
+          linkLabel: 'YouTube Samples',
+        ),
+      ],
+    ),
+    _StudyPackCategory(
+      title: 'Production Events',
+      examples: 'Computer Applications, Spreadsheet Applications',
+      resources: [
+        _StudyPackResource(
+          title: 'The Production Test',
+          description:
+              'Sample timed job packet (example: create a business letter and database in 2 hours).',
+        ),
+        _StudyPackResource(
+          title: 'FBLA Format Guide',
+          description:
+              'Formatting standards reference for reports, letters, spacing, and margins.',
+          url: 'https://www.fbla-pbl.org/competitive-events/',
+          linkLabel: 'Format Standards',
+        ),
+        _StudyPackResource(
+          title: 'Solution Key',
+          description:
+              'Target output PDF showing what a full-credit final document should look like.',
+        ),
+      ],
+    ),
+    _StudyPackCategory(
+      title: 'Virtual Business Challenges',
+      examples: 'VBC Finance, VBC Management',
+      resources: [
+        _StudyPackResource(
+          title: 'Login Gateway',
+          description:
+              'Direct launch point for competition simulation access and participation.',
+          url: 'https://knowledgematters.com/high-school/virtual-business-challenge/',
+          linkLabel: 'Knowledge Matters Portal',
+        ),
+        _StudyPackResource(
+          title: 'Strategy Guide',
+          description:
+              'Tips from top competitors (e.g., early-round staffing and decision priorities).',
+        ),
+        _StudyPackResource(
+          title: 'Dates & Rounds',
+          description:
+              'Clear schedule for Round 1 and Round 2 opening/closing deadlines.',
+          url: 'https://www.fbla-pbl.org/competitive-events/',
+          linkLabel: 'Official Schedule',
+        ),
+      ],
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    const fblaBlue = Color(0xFF1D4E89);
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: const Text('Category Study Packs'),
+        backgroundColor: fblaBlue,
+        foregroundColor: Colors.white,
+      ),
+      body: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+        itemCount: _packs.length,
+        itemBuilder: (context, index) {
+          final pack = _packs[index];
+          return _buildPackCard(context, pack);
+        },
+      ),
+    );
+  }
+
+  Widget _buildPackCard(BuildContext context, _StudyPackCategory pack) {
+    final accent = _packColor(pack.title);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111111),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withOpacity(0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            pack.title,
+            style: TextStyle(
+              color: accent,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Examples: ${pack.examples}',
+            style: TextStyle(
+              color: Colors.grey.shade300,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...pack.resources.map(
+            (resource) => _buildPackResourceTile(resource, accent),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPackResourceTile(_StudyPackResource resource, Color accent) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: accent.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: accent.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            resource.title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            resource.description,
+            style: TextStyle(color: Colors.grey.shade300, fontSize: 12),
+          ),
+          if (resource.url != null) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => _launchResource(resource.url!),
+              icon: const Icon(Icons.open_in_new, size: 15),
+              label: Text(resource.linkLabel ?? 'Open Link'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: accent,
+                side: BorderSide(color: accent.withOpacity(0.6)),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Color _packColor(String title) {
+    if (title.contains('Objective')) return const Color(0xFF81C784);
+    if (title.contains('Roleplay')) return const Color(0xFFFFD54F);
+    if (title.contains('Presentation')) return const Color(0xFF64B5F6);
+    if (title.contains('Production')) return const Color(0xFFBA68C8);
+    if (title.contains('Virtual')) return const Color(0xFF4DD0E1);
+    return const Color(0xFF90A4AE);
+  }
+
+  Future<void> _launchResource(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+}
+
+class _StudyPackCategory {
+  final String title;
+  final String examples;
+  final List<_StudyPackResource> resources;
+
+  const _StudyPackCategory({
+    required this.title,
+    required this.examples,
+    required this.resources,
+  });
+}
+
+class _StudyPackResource {
+  final String title;
+  final String description;
+  final String? url;
+  final String? linkLabel;
+
+  const _StudyPackResource({
+    required this.title,
+    required this.description,
+    this.url,
+    this.linkLabel,
+  });
 }

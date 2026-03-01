@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../main.dart';
+import '../models/youtube_video.dart';
+import '../services/youtube_feed_service.dart';
 
 class NewsFeedScreen extends StatefulWidget {
   const NewsFeedScreen({super.key});
@@ -12,12 +15,22 @@ class NewsFeedScreen extends StatefulWidget {
 class _NewsFeedScreenState extends State<NewsFeedScreen> {
   String _selectedFilter = 'All';
   final List<String> _filters = ['All', 'My Chapter', 'State', 'National'];
+  static const String _youtubeChannelId = 'UC_x5XG1OV2P6uZZ5FSM9Ttw';
+  late Future<List<YouTubeVideo>> _youtubeVideosFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _youtubeVideosFuture =
+        YouTubeFeedService.getChannelVideos(channelId: _youtubeChannelId);
+  }
 
   @override
   Widget build(BuildContext context) {
     final Color fblaBlue = const Color(0xFF1D4E89);
     final Color fblaGold = const Color(0xFFF6C500);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final filteredNews = _getFilteredNews();
 
     return Scaffold(
       appBar: AppBar(
@@ -85,9 +98,13 @@ class _NewsFeedScreenState extends State<NewsFeedScreen> {
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: _getFilteredNews().length,
+              itemCount: filteredNews.length + 1,
               itemBuilder: (context, index) {
-                final news = _getFilteredNews()[index];
+                if (index == 0) {
+                  return _buildYouTubeSection(context, isDark);
+                }
+
+                final news = filteredNews[index - 1];
                 return _buildNewsCard(context, news);
               },
             ),
@@ -117,6 +134,144 @@ class _NewsFeedScreenState extends State<NewsFeedScreen> {
       default:
         return app.news;
     }
+  }
+
+  Widget _buildYouTubeSection(BuildContext context, bool isDark) {
+    final Color fblaBlue = const Color(0xFF1D4E89);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: fblaBlue,
+                  child: const Icon(Icons.play_arrow, color: Colors.white),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'YouTube Feed',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            FutureBuilder<List<YouTubeVideo>>(
+              future: _youtubeVideosFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Text(
+                    'Unable to load YouTube feed right now.',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  );
+                }
+
+                final videos = snapshot.data ?? [];
+                if (videos.isEmpty) {
+                  return Text(
+                    'No videos found for this channel.',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  );
+                }
+
+                return Column(
+                  children: videos
+                      .take(5)
+                      .map((video) => _buildYouTubeVideoTile(video, isDark))
+                      .toList(),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildYouTubeVideoTile(YouTubeVideo video, bool isDark) {
+    final Color fblaBlue = const Color(0xFF1D4E89);
+
+    return InkWell(
+      onTap: () => _openExternalUrl(video.videoUrl),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                video.thumbnailUrl,
+                width: 110,
+                height: 62,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 110,
+                  height: 62,
+                  color: Colors.grey.shade300,
+                  alignment: Alignment.center,
+                  child: Icon(Icons.broken_image, color: Colors.grey.shade700),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    video.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${video.channelName} • ${_formatDate(video.publishedAt)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.open_in_new, color: fblaBlue, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openExternalUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   Widget _buildNewsCard(BuildContext context, NewsItem news) {

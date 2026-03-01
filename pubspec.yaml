@@ -38,10 +38,13 @@ dependencies:
   
   # WebView for social media
   webview_flutter: ^4.4.2
+  youtube_player_flutter: ^9.1.1
   
   # Additional utilities
   intl: ^0.19.0
   uuid: ^4.2.1
+  http: ^1.2.2
+  xml: ^6.5.0
 
 # (add assets if you include images)
 

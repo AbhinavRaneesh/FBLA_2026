@@ -11,6 +11,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/onboarding_screen.dart';
@@ -22,6 +23,9 @@ import 'ai/bloc/chat_bloc.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'services/firebase_service.dart';
 import 'models/fbla_models.dart';
+import 'models/video_model.dart';
+import 'screens/video_player_screen.dart';
+import 'services/youtube_service.dart';
 
 // FBLA Colors
 const fblaNavy = Color(0xFF00274D);
@@ -908,8 +912,7 @@ class AuthGate extends StatelessWidget {
     if (!app.hasSeenOnboarding) {
       return const OnboardingScreen();
     }
-    // Use Firebase authentication
-    return const FirebaseAuthScreen();
+    return RootScreen();
   }
 }
 
@@ -937,7 +940,28 @@ class SectionHeader extends StatelessWidget {
   }
 }
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  late Future<List<Video>> _youtubeVideosFuture;
+  static const String _instagramProfileUrl = 'https://www.instagram.com/fbla_pbl/';
+
+  @override
+  void initState() {
+    super.initState();
+    _youtubeVideosFuture = YouTubeService().fetchVideos(maxResults: 8);
+  }
+
+  Future<void> _refreshYouTubeVideos() async {
+    setState(() {
+      _youtubeVideosFuture = YouTubeService().fetchVideos(maxResults: 8);
+    });
+    await _youtubeVideosFuture;
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context);
@@ -1023,52 +1047,339 @@ class HomeScreen extends StatelessWidget {
         ),
       ),
       body: app.news.isEmpty
-          ? Center(
-              child: Text(
-                'No posts yet',
-                style: TextStyle(
-                  color: Colors.grey.shade400,
-                  fontSize: 16,
-                ),
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(14, 14, 14, 26),
-              itemCount: app.news.length + 1,
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return Padding(
-                    padding: const EdgeInsets.only(left: 4, right: 4, bottom: 10),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          ? FutureBuilder<List<Video>>(
+              future: _youtubeVideosFuture,
+              builder: (context, snapshot) {
+                final youtubeVideos = snapshot.data ?? [];
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    youtubeVideos.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (snapshot.hasError && youtubeVideos.isEmpty) {
+                  return RefreshIndicator(
+                    onRefresh: _refreshYouTubeVideos,
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 26),
+                      physics: const AlwaysScrollableScrollPhysics(),
                       children: [
-                        const Text(
-                          'Latest Posts',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.2,
-                          ),
-                        ),
-                        Text(
-                          '${app.news.length}',
-                          style: TextStyle(
-                            color: Colors.grey.shade400,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        _buildPostsHeader('Latest Posts', 1),
+                        _buildInstagramPostCard(fblaBlue),
+                        _buildYouTubeInlineError(snapshot.error.toString()),
                       ],
                     ),
                   );
                 }
 
-                final post = app.news[index - 1];
-                return _buildPostCard(context, post, fblaBlue);
+                return RefreshIndicator(
+                  onRefresh: _refreshYouTubeVideos,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 26),
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      _buildPostsHeader('Latest Posts', youtubeVideos.length + 1),
+                      _buildInstagramPostCard(fblaBlue),
+                      ...youtubeVideos
+                          .map((video) => _buildYouTubePostCard(context, video, fblaBlue))
+                          .toList(),
+                    ],
+                  ),
+                );
+              },
+            )
+          : FutureBuilder<List<Video>>(
+              future: _youtubeVideosFuture,
+              builder: (context, snapshot) {
+                final youtubeVideos = snapshot.data ?? [];
+                final totalPosts = app.news.length + youtubeVideos.length + 1;
+
+                return RefreshIndicator(
+                  onRefresh: _refreshYouTubeVideos,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 26),
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      _buildPostsHeader('Latest Posts', totalPosts),
+                      _buildInstagramPostCard(fblaBlue),
+                      if (snapshot.connectionState == ConnectionState.waiting)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 10),
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                      if (snapshot.hasError)
+                        _buildYouTubeInlineError(snapshot.error.toString()),
+                      ...youtubeVideos
+                          .map((video) => _buildYouTubePostCard(context, video, fblaBlue))
+                          .toList(),
+                      ...app.news
+                          .map((post) => _buildPostCard(context, post, fblaBlue))
+                          .toList(),
+                    ],
+                  ),
+                );
               },
             ),
     );
+  }
+
+  Widget _buildInstagramPostCard(Color accentColor) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111111),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white12, width: 1),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black54,
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                height: 36,
+                width: 36,
+                decoration: BoxDecoration(
+                  color: accentColor.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.photo_camera,
+                  color: accentColor,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Instagram',
+                  style: TextStyle(
+                    color: Colors.grey.shade200,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Text(
+                'Embedded',
+                style: TextStyle(
+                  color: Colors.grey.shade500,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Latest Instagram Feed',
+            style: TextStyle(
+              color: Colors.grey.shade100,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              height: 430,
+              child: _InstagramFeedEmbed(profileUrl: _instagramProfileUrl),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPostsHeader(String title, int count) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, right: 4, bottom: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.2,
+            ),
+          ),
+          Text(
+            '$count',
+            style: TextStyle(
+              color: Colors.grey.shade400,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildYouTubeInlineError(String message) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.orangeAccent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'YouTube feed unavailable: $message',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: Colors.grey.shade300, fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildYouTubePostCard(BuildContext context, Video video, Color accentColor) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => VideoPlayerScreen(video: video)),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF111111),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white12, width: 1),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black54,
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      height: 36,
+                      width: 36,
+                      decoration: BoxDecoration(
+                        color: accentColor.withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.play_arrow,
+                        color: accentColor,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'YouTube',
+                        style: TextStyle(
+                          color: Colors.grey.shade200,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      _formatPostDate(video.publishedAt),
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    video.thumbnailUrl,
+                    width: double.infinity,
+                    height: 190,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      height: 190,
+                      color: Colors.grey.shade800,
+                      alignment: Alignment.center,
+                      child: Icon(Icons.broken_image, color: Colors.grey.shade500),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  video.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _shorten(video.description, 170),
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.grey.shade300,
+                    fontSize: 14,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.play_circle_outline, color: Colors.grey.shade300, size: 18),
+                    const SizedBox(width: 6),
+                    Text('Watch', style: TextStyle(color: Colors.grey.shade300, fontSize: 12)),
+                    const Spacer(),
+                    Icon(Icons.open_in_new, color: accentColor, size: 18),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _shorten(String text, int maxLength) {
+    if (text.isEmpty) return 'No description available.';
+    if (text.length <= maxLength) return text;
+    return '${text.substring(0, maxLength).trim()}...';
   }
 
   Widget _buildPostCard(BuildContext context, NewsItem post, Color accentColor) {
@@ -1189,6 +1500,144 @@ class HomeScreen extends StatelessWidget {
 
   String _formatPostDate(DateTime date) {
     return '${date.month}/${date.day}/${date.year.toString().substring(2)}';
+  }
+}
+
+class _InstagramFeedEmbed extends StatefulWidget {
+  final String profileUrl;
+
+  const _InstagramFeedEmbed({required this.profileUrl});
+
+  @override
+  State<_InstagramFeedEmbed> createState() => _InstagramFeedEmbedState();
+}
+
+class _InstagramFeedEmbedState extends State<_InstagramFeedEmbed> {
+  static const List<String> _allowedHandles = ['fbla_pbl', 'fbla'];
+  late final WebViewController _controller;
+  bool _isLoading = true;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onNavigationRequest: (request) {
+            if (_isAllowedInstagramUrl(request.url)) {
+              return NavigationDecision.navigate;
+            }
+            return NavigationDecision.prevent;
+          },
+          onPageStarted: (_) {
+            if (mounted) {
+              setState(() {
+                _isLoading = true;
+                _hasError = false;
+              });
+            }
+          },
+          onPageFinished: (_) {
+            _removeInstagramSignupOverlay();
+            if (mounted) {
+              setState(() => _isLoading = false);
+            }
+          },
+          onWebResourceError: (_) {
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+                _hasError = true;
+              });
+            }
+          },
+        ),
+      )
+      ..loadRequest(Uri.parse(widget.profileUrl));
+  }
+
+  Future<void> _removeInstagramSignupOverlay() async {
+    try {
+      await _controller.runJavaScript('''
+        (function() {
+          const selectors = [
+            'div[role="dialog"]',
+            'div[aria-label="Sign up"]',
+            'section main + div',
+            'div._a9_1',
+            'div.xixxii4',
+            'div.x1n2onr6'
+          ];
+
+          selectors.forEach((selector) => {
+            document.querySelectorAll(selector).forEach((el) => {
+              el.style.display = 'none';
+              el.remove();
+            });
+          });
+
+          document.body.style.overflow = 'auto';
+        })();
+      ''');
+    } catch (_) {
+      // Ignore JS failures from CSP or DOM changes.
+    }
+  }
+
+  bool _isAllowedInstagramUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return false;
+
+    final host = uri.host.toLowerCase();
+    if (!host.contains('instagram.com')) {
+      return false;
+    }
+
+    final segments = uri.pathSegments.where((segment) => segment.isNotEmpty).toList();
+    if (segments.isEmpty) {
+      return true;
+    }
+
+    final first = segments.first.toLowerCase();
+    if (_allowedHandles.contains(first)) {
+      return true;
+    }
+
+    if (first == 'p' || first == 'reel' || first == 'tv') {
+      return true;
+    }
+
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_hasError) {
+      return Container(
+        color: const Color(0xFF0F0F0F),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.all(12),
+        child: Text(
+          'Instagram feed could not be loaded right now.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.grey.shade400),
+        ),
+      );
+    }
+
+    return Stack(
+      children: [
+        WebViewWidget(controller: _controller),
+        if (_isLoading)
+          Container(
+            color: const Color(0x99000000),
+            alignment: Alignment.center,
+            child: const CircularProgressIndicator(),
+          ),
+      ],
+    );
   }
 }
 
