@@ -13,9 +13,19 @@ class SignupScreen extends StatefulWidget {
 class _SignupScreenState extends State<SignupScreen>
     with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
+  final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmController = TextEditingController();
+  final TextEditingController _gradeLevelController = TextEditingController();
+  static const List<String> _roleOptions = [
+    'Chapter Member',
+    'Advisor',
+    'Student',
+    'Officer',
+    'Other',
+  ];
+  String? _selectedRole;
   bool _obscure = true;
   bool _obscureConfirm = true;
   bool _isLoading = false;
@@ -35,6 +45,21 @@ class _SignupScreenState extends State<SignupScreen>
   String? _validatePassword(String? value) {
     if (value == null || value.isEmpty) return 'Password is required';
     if (value.length < 6) return 'Minimum 6 characters';
+    return null;
+  }
+
+  String? _validateName(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Name is required';
+    return null;
+  }
+
+  String? _validateGradeLevel(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Grade level is required';
+    return null;
+  }
+
+  String? _validateRole(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Please choose a role';
     return null;
   }
 
@@ -66,53 +91,86 @@ class _SignupScreenState extends State<SignupScreen>
   @override
   void dispose() {
     _animationController.dispose();
+    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
+    _gradeLevelController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final roleValidation = _validateRole(_selectedRole);
+    if (roleValidation != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(roleValidation)),
+      );
+      return;
+    }
+
     if (!_agreedToTerms) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please agree to the terms first.')),
+      );
       return;
     }
 
     setState(() => _isLoading = true);
 
-    // Simulate network delay for better UX
-    await Future.delayed(const Duration(milliseconds: 600));
-
-    final app = Provider.of<AppState>(context, listen: false);
-    final email = _emailController.text.trim();
-    final displayName = email.split('@').first;
-    await app.login(email, displayName);
-
-    setState(() => _isLoading = false);
-
-    Navigator.popUntil(context, (route) => route.isFirst);
+    try {
+      final app = Provider.of<AppState>(context, listen: false);
+      await app.signUpWithMongo(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        name: _nameController.text.trim(),
+        role: _selectedRole!.trim(),
+        grade: _gradeLevelController.text.trim(),
+      );
+      if (!mounted) return;
+      Navigator.popUntil(context, (route) => route.isFirst);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final Color fblaBlue = const Color(0xFF1D4E89); // Royal Blue
     final Color fblaGold = const Color(0xFFF6C500); // Gold
+    final Color appBackground = const Color(0xFF0B1220);
+    final Color cardTop = const Color(0xFF13213A);
+    final Color cardBottom = const Color(0xFF0F1A2E);
+    final Color fieldBackground = const Color(0xFF192743);
+    final Color textPrimary = Colors.white;
+    final Color textSecondary = Colors.white70;
+    final Color infoBackground = const Color(0xFF1A2B47);
+    final Color infoBorder = const Color(0xFF335C9A);
+    final Color infoText = const Color(0xFFD0E2FF);
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(16),
-      borderSide: BorderSide(color: Colors.grey.shade300, width: 1.5),
+      borderSide: BorderSide(color: fblaBlue.withOpacity(0.45), width: 1.5),
     );
 
     return Scaffold(
+      backgroundColor: appBackground,
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              fblaBlue.withOpacity(0.05),
-              fblaGold.withOpacity(0.05),
-              Colors.white,
+              appBackground,
+              fblaBlue.withOpacity(0.25),
+              const Color(0xFF081120),
             ],
             stops: const [0.0, 0.4, 1.0],
           ),
@@ -130,6 +188,7 @@ class _SignupScreenState extends State<SignupScreen>
                     child: Card(
                       elevation: 12,
                       shadowColor: fblaBlue.withOpacity(0.3),
+                      color: Colors.transparent,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(28),
                       ),
@@ -140,15 +199,22 @@ class _SignupScreenState extends State<SignupScreen>
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              Colors.white,
-                              Colors.grey.shade50,
+                              cardTop,
+                              cardBottom,
                             ],
                           ),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 32, vertical: 40),
-                          child: Form(
+                          child: Theme(
+                            data: Theme.of(context).copyWith(
+                              inputDecorationTheme: InputDecorationTheme(
+                                labelStyle: TextStyle(color: textSecondary),
+                                hintStyle: TextStyle(color: textSecondary),
+                              ),
+                            ),
+                            child: Form(
                             key: _formKey,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -194,7 +260,7 @@ class _SignupScreenState extends State<SignupScreen>
                                           .headlineMedium
                                           ?.copyWith(
                                             fontWeight: FontWeight.bold,
-                                            color: fblaBlue,
+                                            color: textPrimary,
                                             letterSpacing: -0.5,
                                           ),
                                     ),
@@ -202,7 +268,7 @@ class _SignupScreenState extends State<SignupScreen>
                                     Text(
                                       "Create your account and get started",
                                       style: TextStyle(
-                                        color: Colors.grey.shade600,
+                                        color: textSecondary,
                                         fontSize: 15,
                                         letterSpacing: 0.2,
                                       ),
@@ -210,6 +276,44 @@ class _SignupScreenState extends State<SignupScreen>
                                   ],
                                 ),
                                 const SizedBox(height: 36),
+
+                                /// Email field
+                                TextFormField(
+                                  controller: _nameController,
+                                  decoration: InputDecoration(
+                                    labelText: 'Full Name',
+                                    hintText: 'Your full name',
+                                    prefixIcon: Icon(
+                                      Icons.person_outline,
+                                      color: fblaBlue.withOpacity(0.7),
+                                    ),
+                                    filled: true,
+                                    fillColor: fieldBackground,
+                                    border: border,
+                                    enabledBorder: border,
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide:
+                                          BorderSide(color: fblaBlue, width: 2),
+                                    ),
+                                    errorBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: BorderSide(
+                                          color: Colors.red.shade300,
+                                          width: 1.5),
+                                    ),
+                                    focusedErrorBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide:
+                                          BorderSide(color: Colors.red, width: 2),
+                                    ),
+                                  ),
+                                  textInputAction: TextInputAction.next,
+                                  style: TextStyle(color: textPrimary),
+                                  cursorColor: fblaGold,
+                                  validator: _validateName,
+                                ),
+                                const SizedBox(height: 20),
 
                                 /// Email field
                                 TextFormField(
@@ -222,7 +326,7 @@ class _SignupScreenState extends State<SignupScreen>
                                       color: fblaBlue.withOpacity(0.7),
                                     ),
                                     filled: true,
-                                    fillColor: Colors.white,
+                                    fillColor: fieldBackground,
                                     border: border,
                                     enabledBorder: border,
                                     focusedBorder: OutlineInputBorder(
@@ -243,12 +347,92 @@ class _SignupScreenState extends State<SignupScreen>
                                     ),
                                   ),
                                   keyboardType: TextInputType.emailAddress,
+                                  style: TextStyle(color: textPrimary),
+                                  cursorColor: fblaGold,
                                   textInputAction: TextInputAction.next,
                                   validator: _validateEmail,
                                   autofillHints: const [
                                     AutofillHints.username,
                                     AutofillHints.email
                                   ],
+                                ),
+                                const SizedBox(height: 20),
+
+                                /// Signing up as
+                                DropdownButtonFormField<String>(
+                                  value: _selectedRole,
+                                  style: TextStyle(color: textPrimary),
+                                  dropdownColor: fieldBackground,
+                                  iconEnabledColor: textSecondary,
+                                  decoration: InputDecoration(
+                                    labelText: 'Signing up as',
+                                    prefixIcon: Icon(
+                                      Icons.badge_outlined,
+                                      color: fblaBlue.withOpacity(0.7),
+                                    ),
+                                    filled: true,
+                                    fillColor: fieldBackground,
+                                    border: border,
+                                    enabledBorder: border,
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide:
+                                          BorderSide(color: fblaBlue, width: 2),
+                                    ),
+                                  ),
+                                  items: _roleOptions
+                                      .map(
+                                        (role) => DropdownMenuItem<String>(
+                                          value: role,
+                                          child: Text(
+                                            role,
+                                            style: TextStyle(color: textPrimary),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(growable: false),
+                                  onChanged: (value) {
+                                    setState(() => _selectedRole = value);
+                                  },
+                                  validator: _validateRole,
+                                ),
+                                const SizedBox(height: 20),
+
+                                /// Grade level
+                                TextFormField(
+                                  controller: _gradeLevelController,
+                                  decoration: InputDecoration(
+                                    labelText: 'Grade Level',
+                                    hintText: '9, 10, 11, 12, College, etc.',
+                                    prefixIcon: Icon(
+                                      Icons.school_outlined,
+                                      color: fblaBlue.withOpacity(0.7),
+                                    ),
+                                    filled: true,
+                                    fillColor: fieldBackground,
+                                    border: border,
+                                    enabledBorder: border,
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide:
+                                          BorderSide(color: fblaBlue, width: 2),
+                                    ),
+                                    errorBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: BorderSide(
+                                          color: Colors.red.shade300,
+                                          width: 1.5),
+                                    ),
+                                    focusedErrorBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide:
+                                          BorderSide(color: Colors.red, width: 2),
+                                    ),
+                                  ),
+                                  textInputAction: TextInputAction.next,
+                                  style: TextStyle(color: textPrimary),
+                                  cursorColor: fblaGold,
+                                  validator: _validateGradeLevel,
                                 ),
                                 const SizedBox(height: 20),
 
@@ -273,7 +457,7 @@ class _SignupScreenState extends State<SignupScreen>
                                           setState(() => _obscure = !_obscure),
                                     ),
                                     filled: true,
-                                    fillColor: Colors.white,
+                                    fillColor: fieldBackground,
                                     border: border,
                                     enabledBorder: border,
                                     focusedBorder: OutlineInputBorder(
@@ -294,6 +478,8 @@ class _SignupScreenState extends State<SignupScreen>
                                     ),
                                   ),
                                   obscureText: _obscure,
+                                  style: TextStyle(color: textPrimary),
+                                  cursorColor: fblaGold,
                                   textInputAction: TextInputAction.next,
                                   validator: _validatePassword,
                                   autofillHints: const [
@@ -323,7 +509,7 @@ class _SignupScreenState extends State<SignupScreen>
                                           _obscureConfirm = !_obscureConfirm),
                                     ),
                                     filled: true,
-                                    fillColor: Colors.white,
+                                    fillColor: fieldBackground,
                                     border: border,
                                     enabledBorder: border,
                                     focusedBorder: OutlineInputBorder(
@@ -344,6 +530,8 @@ class _SignupScreenState extends State<SignupScreen>
                                     ),
                                   ),
                                   obscureText: _obscureConfirm,
+                                  style: TextStyle(color: textPrimary),
+                                  cursorColor: fblaGold,
                                   textInputAction: TextInputAction.done,
                                   onFieldSubmitted: (_) => _submit(),
                                   validator: _validateConfirm,
@@ -379,7 +567,7 @@ class _SignupScreenState extends State<SignupScreen>
                                           Text(
                                             'I agree to the ',
                                             style: TextStyle(
-                                              color: Colors.grey.shade700,
+                                              color: textSecondary,
                                               fontSize: 13,
                                             ),
                                           ),
@@ -450,7 +638,7 @@ class _SignupScreenState extends State<SignupScreen>
                                     Text(
                                       "Already have an account? ",
                                       style: TextStyle(
-                                        color: Colors.grey.shade700,
+                                        color: textSecondary,
                                         fontSize: 15,
                                       ),
                                     ),
@@ -473,41 +661,9 @@ class _SignupScreenState extends State<SignupScreen>
                                   ],
                                 ),
                                 const SizedBox(height: 16),
-
-                                /// Demo note
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue.shade50,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: Colors.blue.shade200,
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.info_outline,
-                                        size: 18,
-                                        color: Colors.blue.shade700,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          'Demo mode: Signup validates locally. Connect to your auth backend for production.',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.blue.shade800,
-                                            height: 1.3,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
                               ],
                             ),
+                          ),
                           ),
                         ),
                       ),

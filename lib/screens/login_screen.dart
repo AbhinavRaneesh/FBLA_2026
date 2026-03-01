@@ -66,18 +66,40 @@ class _LoginScreenState extends State<LoginScreen>
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
-    // Simulate network delay for better UX
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      final app = Provider.of<AppState>(context, listen: false);
+      await app.signInWithMongo(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
-    final app = Provider.of<AppState>(context, listen: false);
-    final email = _emailController.text.trim();
-    final displayName = email.split('@').first;
-    await app.login(email, displayName);
+  Future<void> _signInDeveloperMode() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
 
-    setState(() => _isLoading = false);
-
-    if (Navigator.canPop(context)) {
-      Navigator.pop(context);
+    try {
+      final app = Provider.of<AppState>(context, listen: false);
+      await app.login(
+        'demo@fbla.app',
+        'FBLA Demo',
+        role: 'Developer',
+        grade: 'Demo',
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -85,21 +107,31 @@ class _LoginScreenState extends State<LoginScreen>
   Widget build(BuildContext context) {
     final Color fblaBlue = const Color(0xFF1D4E89); // Royal Blue
     final Color fblaGold = const Color(0xFFF6C500); // Gold
+    final Color appBackground = const Color(0xFF0B1220);
+    final Color cardTop = const Color(0xFF13213A);
+    final Color cardBottom = const Color(0xFF0F1A2E);
+    final Color fieldBackground = const Color(0xFF192743);
+    final Color textPrimary = Colors.white;
+    final Color textSecondary = Colors.white70;
+    final Color infoBackground = const Color(0xFF1A2B47);
+    final Color infoBorder = const Color(0xFF335C9A);
+    final Color infoText = const Color(0xFFD0E2FF);
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(16),
-      borderSide: BorderSide(color: Colors.grey.shade300, width: 1.5),
+      borderSide: BorderSide(color: fblaBlue.withOpacity(0.45), width: 1.5),
     );
 
     return Scaffold(
+      backgroundColor: appBackground,
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              fblaBlue.withOpacity(0.05),
-              fblaGold.withOpacity(0.05),
-              Colors.white,
+              appBackground,
+              fblaBlue.withOpacity(0.25),
+              const Color(0xFF081120),
             ],
             stops: const [0.0, 0.4, 1.0],
           ),
@@ -117,6 +149,7 @@ class _LoginScreenState extends State<LoginScreen>
                     child: Card(
                       elevation: 12,
                       shadowColor: fblaBlue.withOpacity(0.3),
+                      color: Colors.transparent,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(28),
                       ),
@@ -127,15 +160,22 @@ class _LoginScreenState extends State<LoginScreen>
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              Colors.white,
-                              Colors.grey.shade50,
+                              cardTop,
+                              cardBottom,
                             ],
                           ),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 32, vertical: 40),
-                          child: Form(
+                          child: Theme(
+                            data: Theme.of(context).copyWith(
+                              inputDecorationTheme: InputDecorationTheme(
+                                labelStyle: TextStyle(color: textSecondary),
+                                hintStyle: TextStyle(color: textSecondary),
+                              ),
+                            ),
+                            child: Form(
                             key: _formKey,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -181,7 +221,7 @@ class _LoginScreenState extends State<LoginScreen>
                                           .headlineMedium
                                           ?.copyWith(
                                             fontWeight: FontWeight.bold,
-                                            color: fblaBlue,
+                                            color: textPrimary,
                                             letterSpacing: -0.5,
                                           ),
                                     ),
@@ -189,7 +229,7 @@ class _LoginScreenState extends State<LoginScreen>
                                     Text(
                                       "Log in to continue your FBLA journey",
                                       style: TextStyle(
-                                        color: Colors.grey.shade600,
+                                        color: textSecondary,
                                         fontSize: 15,
                                         letterSpacing: 0.2,
                                       ),
@@ -209,7 +249,7 @@ class _LoginScreenState extends State<LoginScreen>
                                       color: fblaBlue.withOpacity(0.7),
                                     ),
                                     filled: true,
-                                    fillColor: Colors.white,
+                                    fillColor: fieldBackground,
                                     border: border,
                                     enabledBorder: border,
                                     focusedBorder: OutlineInputBorder(
@@ -230,6 +270,8 @@ class _LoginScreenState extends State<LoginScreen>
                                     ),
                                   ),
                                   keyboardType: TextInputType.emailAddress,
+                                  style: TextStyle(color: textPrimary),
+                                  cursorColor: fblaGold,
                                   textInputAction: TextInputAction.next,
                                   validator: _validateEmail,
                                   autofillHints: const [
@@ -260,7 +302,7 @@ class _LoginScreenState extends State<LoginScreen>
                                           setState(() => _obscure = !_obscure),
                                     ),
                                     filled: true,
-                                    fillColor: Colors.white,
+                                    fillColor: fieldBackground,
                                     border: border,
                                     enabledBorder: border,
                                     focusedBorder: OutlineInputBorder(
@@ -281,6 +323,8 @@ class _LoginScreenState extends State<LoginScreen>
                                     ),
                                   ),
                                   obscureText: _obscure,
+                                  style: TextStyle(color: textPrimary),
+                                  cursorColor: fblaGold,
                                   textInputAction: TextInputAction.done,
                                   onFieldSubmitted: (_) => _submit(),
                                   validator: _validatePassword,
@@ -297,7 +341,7 @@ class _LoginScreenState extends State<LoginScreen>
                                     child: Text(
                                       'Forgot Password?',
                                       style: TextStyle(
-                                        color: fblaBlue,
+                                        color: textSecondary,
                                         fontWeight: FontWeight.w600,
                                         fontSize: 13,
                                       ),
@@ -341,37 +385,36 @@ class _LoginScreenState extends State<LoginScreen>
                                           ),
                                   ),
                                 ),
-                                const SizedBox(height: 24),
+                                const SizedBox(height: 12),
 
-                                /// Divider with "or"
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Divider(
-                                        color: Colors.grey.shade400,
-                                        thickness: 1,
+                                SizedBox(
+                                  height: 52,
+                                  child: OutlinedButton.icon(
+                                    onPressed:
+                                        _isLoading ? null : _signInDeveloperMode,
+                                    icon: const Icon(Icons.developer_mode),
+                                    label: const Text(
+                                      'Developer Mode',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
                                       ),
                                     ),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 16.0),
-                                      child: Text(
-                                        'OR',
-                                        style: TextStyle(
-                                          color: Colors.grey.shade600,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13,
-                                        ),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: fblaGold,
+                                      side: BorderSide(
+                                        color: fblaGold.withOpacity(0.7),
+                                        width: 1.3,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
                                       ),
                                     ),
-                                    Expanded(
-                                      child: Divider(
-                                        color: Colors.grey.shade400,
-                                        thickness: 1,
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
+
+                                const SizedBox(height: 20),
+
                                 const SizedBox(height: 24),
 
                                 const SizedBox(height: 28),
@@ -383,7 +426,7 @@ class _LoginScreenState extends State<LoginScreen>
                                     Text(
                                       "Don't have an account? ",
                                       style: TextStyle(
-                                        color: Colors.grey.shade700,
+                                        color: textSecondary,
                                         fontSize: 15,
                                       ),
                                     ),
@@ -407,41 +450,9 @@ class _LoginScreenState extends State<LoginScreen>
                                   ],
                                 ),
                                 const SizedBox(height: 16),
-
-                                /// Demo auth note
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue.shade50,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: Colors.blue.shade200,
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.info_outline,
-                                        size: 18,
-                                        color: Colors.blue.shade700,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          'Demo mode: Login validates locally. Replace with your auth provider for production.',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.blue.shade800,
-                                            height: 1.3,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
                               ],
                             ),
+                          ),
                           ),
                         ),
                       ),

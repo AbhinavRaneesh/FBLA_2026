@@ -2,6 +2,18 @@
 
 A new Flutter project.
 
+## MongoDB Atlas integration
+
+MongoDB Atlas is wired through `lib/services/mongodb_service.dart` and initialized in `lib/main.dart`.
+
+Pass your connection string at runtime (do not hardcode credentials):
+
+```bash
+flutter run --dart-define=MONGODB_URI="mongodb+srv://<user>:<password>@fbla.ig6iamr.mongodb.net/fbla?retryWrites=true&w=majority&appName=FBLA"
+```
+
+If your password contains special characters, URL-encode it first.
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

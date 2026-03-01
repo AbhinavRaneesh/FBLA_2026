@@ -39,12 +39,15 @@ dependencies:
   # WebView for social media
   webview_flutter: ^4.4.2
   youtube_player_flutter: ^9.1.1
+  syncfusion_flutter_pdfviewer: ^31.2.3
   
   # Additional utilities
   intl: ^0.19.0
   uuid: ^4.2.1
   http: ^1.2.2
   xml: ^6.5.0
+  mongo_dart: ^0.10.6
+  crypto: ^3.0.6
 
 # (add assets if you include images)
 
@@ -68,3 +71,5 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/Mobile-Application-Development.pdf

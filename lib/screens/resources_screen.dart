@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ResourcesScreen extends StatelessWidget {
@@ -36,7 +37,8 @@ class ResourcesScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Quick Access Section
-                  _buildModernSectionHeader(context, 'Quick Access', Icons.flash_on),
+                  _buildModernSectionHeader(
+                      context, 'Quick Access', Icons.flash_on),
                   const SizedBox(height: 16),
 
                   _buildResourceCard(
@@ -54,7 +56,8 @@ class ResourcesScreen extends StatelessWidget {
                     'Study guides and competition rules',
                     Icons.school,
                     Color(0xFFF6C500),
-                    () => _launchUrl('https://www.fbla-pbl.org/competitive-events/'),
+                    () => _launchUrl(
+                        'https://www.fbla-pbl.org/competitive-events/'),
                   ),
 
                   _buildResourceCard(
@@ -63,14 +66,15 @@ class ResourcesScreen extends StatelessWidget {
                     'Build your leadership skills',
                     Icons.leaderboard,
                     Color(0xFF4CAF50),
-                    () =>
-                        _launchUrl('https://www.fbla-pbl.org/leadership-development/'),
+                    () => _launchUrl(
+                        'https://www.fbla-pbl.org/leadership-development/'),
                   ),
 
                   const SizedBox(height: 28),
 
                   // Study Materials Section
-                  _buildModernSectionHeader(context, 'Study Materials', Icons.book),
+                  _buildModernSectionHeader(
+                      context, 'Study Materials', Icons.book),
                   const SizedBox(height: 16),
 
                   _buildResourceCard(
@@ -119,7 +123,8 @@ class ResourcesScreen extends StatelessWidget {
                   const SizedBox(height: 28),
 
                   // Downloads Section
-                  _buildModernSectionHeader(context, 'Downloads', Icons.download),
+                  _buildModernSectionHeader(
+                      context, 'Downloads', Icons.download),
                   const SizedBox(height: 16),
 
                   _buildResourceCard(
@@ -152,7 +157,8 @@ class ResourcesScreen extends StatelessWidget {
                   const SizedBox(height: 28),
 
                   // External Links Section
-                  _buildModernSectionHeader(context, 'External Links', Icons.link),
+                  _buildModernSectionHeader(
+                      context, 'External Links', Icons.link),
                   const SizedBox(height: 16),
 
                   _buildResourceCard(
@@ -181,11 +187,12 @@ class ResourcesScreen extends StatelessWidget {
                     Color(0xFF00BCD4),
                     () => _launchUrl('https://www.fbla-pbl.org/career-center/'),
                   ),
-                  
+
                   const SizedBox(height: 28),
-                  
+
                   // Social Media Section
-                  _buildModernSectionHeader(context, 'Connect With Us', Icons.share),
+                  _buildModernSectionHeader(
+                      context, 'Connect With Us', Icons.share),
                   const SizedBox(height: 16),
                   _buildSocialMediaRow(context),
                   const SizedBox(height: 24),
@@ -269,7 +276,8 @@ class ResourcesScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildModernSectionHeader(BuildContext context, String title, IconData icon) {
+  Widget _buildModernSectionHeader(
+      BuildContext context, String title, IconData icon) {
     final Color fblaBlue = const Color(0xFF1D4E89);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -413,7 +421,8 @@ class CompetitiveEventsScreen extends StatefulWidget {
   const CompetitiveEventsScreen({super.key});
 
   @override
-  State<CompetitiveEventsScreen> createState() => _CompetitiveEventsScreenState();
+  State<CompetitiveEventsScreen> createState() =>
+      _CompetitiveEventsScreenState();
 }
 
 class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
@@ -436,22 +445,28 @@ class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
     _CompetitiveEventItem('Business Ethics', 'Presentation Events'),
     _CompetitiveEventItem('Business Plan', 'Presentation Events'),
     _CompetitiveEventItem('Coding & Programming', 'Presentation Events'),
-    _CompetitiveEventItem('Computer Game & Simulation Programming', 'Presentation Events'),
+    _CompetitiveEventItem(
+        'Computer Game & Simulation Programming', 'Presentation Events'),
     _CompetitiveEventItem('Data Analysis', 'Presentation Events'),
     _CompetitiveEventItem('Digital Animation', 'Presentation Events'),
     _CompetitiveEventItem('Digital Video Production', 'Presentation Events'),
     _CompetitiveEventItem('Electronic Career Portfolio', 'Presentation Events'),
     _CompetitiveEventItem('Financial Planning', 'Presentation Events'),
-    _CompetitiveEventItem('Financial Statement Analysis', 'Presentation Events'),
+    _CompetitiveEventItem(
+        'Financial Statement Analysis', 'Presentation Events'),
     _CompetitiveEventItem('Future Business Educator', 'Presentation Events'),
     _CompetitiveEventItem('Future Business Leader', 'Presentation Events'),
     _CompetitiveEventItem('Graphic Design', 'Presentation Events'),
     _CompetitiveEventItem('Impromptu Speaking', 'Presentation Events'),
-    _CompetitiveEventItem('Introduction to Business Presentation', 'Presentation Events'),
-    _CompetitiveEventItem('Introduction to Public Speaking', 'Presentation Events'),
-    _CompetitiveEventItem('Introduction to Social Media Strategy', 'Presentation Events'),
+    _CompetitiveEventItem(
+        'Introduction to Business Presentation', 'Presentation Events'),
+    _CompetitiveEventItem(
+        'Introduction to Public Speaking', 'Presentation Events'),
+    _CompetitiveEventItem(
+        'Introduction to Social Media Strategy', 'Presentation Events'),
     _CompetitiveEventItem('Job Interview', 'Presentation Events'),
-    _CompetitiveEventItem('Mobile Application Development', 'Presentation Events'),
+    _CompetitiveEventItem(
+        'Mobile Application Development', 'Presentation Events'),
     _CompetitiveEventItem('Public Service Announcement', 'Presentation Events'),
     _CompetitiveEventItem('Public Speaking', 'Presentation Events'),
     _CompetitiveEventItem('Sales Presentation', 'Presentation Events'),
@@ -468,7 +483,8 @@ class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
     _CompetitiveEventItem('Marketing', 'Roleplay Events'),
     _CompetitiveEventItem('Network Design', 'Roleplay Events'),
     _CompetitiveEventItem('Parliamentary Procedure', 'Roleplay Events'),
-    _CompetitiveEventItem('Sports & Entertainment Management', 'Roleplay Events'),
+    _CompetitiveEventItem(
+        'Sports & Entertainment Management', 'Roleplay Events'),
     _CompetitiveEventItem('Accounting I & II', 'Objective Test Events'),
     _CompetitiveEventItem('Advertising', 'Objective Test Events'),
     _CompetitiveEventItem('Agribusiness', 'Objective Test Events'),
@@ -479,9 +495,12 @@ class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
     _CompetitiveEventItem('Economics', 'Objective Test Events'),
     _CompetitiveEventItem('Financial Planning', 'Objective Test Events'),
     _CompetitiveEventItem('Healthcare Administration', 'Objective Test Events'),
-    _CompetitiveEventItem('Insurance & Risk Management', 'Objective Test Events'),
-    _CompetitiveEventItem('Introduction to Business Communication', 'Objective Test Events'),
-    _CompetitiveEventItem('Introduction to Business Concepts', 'Objective Test Events'),
+    _CompetitiveEventItem(
+        'Insurance & Risk Management', 'Objective Test Events'),
+    _CompetitiveEventItem(
+        'Introduction to Business Communication', 'Objective Test Events'),
+    _CompetitiveEventItem(
+        'Introduction to Business Concepts', 'Objective Test Events'),
     _CompetitiveEventItem('Introduction to FBLA', 'Objective Test Events'),
     _CompetitiveEventItem('Journalism', 'Objective Test Events'),
     _CompetitiveEventItem('Organizational Leadership', 'Objective Test Events'),
@@ -490,14 +509,19 @@ class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
     _CompetitiveEventItem('Computer Applications', 'Production Events'),
     _CompetitiveEventItem('Spreadsheet Applications', 'Production Events'),
     _CompetitiveEventItem('Word Processing', 'Production Events'),
-    _CompetitiveEventItem('Virtual Business Finance Challenge', 'Virtual & Partner Challenges'),
-    _CompetitiveEventItem('Virtual Business Management Challenge', 'Virtual & Partner Challenges'),
-    _CompetitiveEventItem('FBLA Stock Market Game', 'Virtual & Partner Challenges'),
+    _CompetitiveEventItem(
+        'Virtual Business Finance Challenge', 'Virtual & Partner Challenges'),
+    _CompetitiveEventItem('Virtual Business Management Challenge',
+        'Virtual & Partner Challenges'),
+    _CompetitiveEventItem(
+        'FBLA Stock Market Game', 'Virtual & Partner Challenges'),
     _CompetitiveEventItem('LifeSmarts', 'Virtual & Partner Challenges'),
     _CompetitiveEventItem('American Enterprise Project', 'Chapter Events'),
     _CompetitiveEventItem('Community Service Project', 'Chapter Events'),
-    _CompetitiveEventItem('Local Chapter Annual Business Report', 'Chapter Events'),
-    _CompetitiveEventItem('Partnership with Business Project', 'Chapter Events'),
+    _CompetitiveEventItem(
+        'Local Chapter Annual Business Report', 'Chapter Events'),
+    _CompetitiveEventItem(
+        'Partnership with Business Project', 'Chapter Events'),
   ];
 
   @override
@@ -518,7 +542,8 @@ class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
       return categoryMatch && queryMatch;
     }).toList();
 
-    filtered.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    filtered
+        .sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     return filtered;
   }
 
@@ -577,8 +602,8 @@ class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
                     side: BorderSide(color: fblaBlue.withOpacity(0.7)),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 16),
                   ),
                 ),
               ],
@@ -767,7 +792,8 @@ class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
                       style: const TextStyle(color: Colors.white),
                     ),
                     trailing: _selectedCategory == category
-                        ? const Icon(Icons.check_circle, color: Color(0xFF1D4E89))
+                        ? const Icon(Icons.check_circle,
+                            color: Color(0xFF1D4E89))
                         : const SizedBox.shrink(),
                     onTap: () {
                       setState(() => _selectedCategory = category);
@@ -801,7 +827,6 @@ class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
         return const Color(0xFF90A4AE);
     }
   }
-
 }
 
 class _CompetitiveEventItem {
@@ -820,6 +845,7 @@ class CompetitiveEventDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     const fblaBlue = Color(0xFF1D4E89);
     final resources = _resourcesForEvent(event);
+    final isMobileAppDev = event.name == 'Mobile Application Development';
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -862,8 +888,56 @@ class CompetitiveEventDetailScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
+          if (isMobileAppDev) ...[
+            _buildMobileAppGuidelinesTile(context),
+            const SizedBox(height: 10),
+          ],
           ...resources.map((resource) => _buildResourceTile(resource)).toList(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMobileAppGuidelinesTile(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const MobileAppDevGuidelinesScreen(),
+            ),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF111111),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF64B5F6).withOpacity(0.7)),
+          ),
+          child: Row(
+            children: const [
+              Expanded(
+                child: Text(
+                  'Mobile Application Development Guidless',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios,
+                color: Color(0xFF64B5F6),
+                size: 16,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -925,7 +999,8 @@ class CompetitiveEventDetailScreen extends StatelessWidget {
           _StudyPackResource(
             title: '${event.name} Daily Practice',
             description: '10–15 sample multiple-choice questions each day.',
-            url: 'https://quizlet.com/search?query=FBLA%20${Uri.encodeComponent(event.name)}',
+            url:
+                'https://quizlet.com/search?query=FBLA%20${Uri.encodeComponent(event.name)}',
             linkLabel: 'Open Quizlet Sets',
           ),
           _StudyPackResource(
@@ -937,8 +1012,10 @@ class CompetitiveEventDetailScreen extends StatelessWidget {
           ),
           _StudyPackResource(
             title: '${event.name} Study Links',
-            description: 'Quick links to Quizlet and relevant Investopedia topics.',
-            url: 'https://www.investopedia.com/search?q=${Uri.encodeComponent(event.name)}',
+            description:
+                'Quick links to Quizlet and relevant Investopedia topics.',
+            url:
+                'https://www.investopedia.com/search?q=${Uri.encodeComponent(event.name)}',
             linkLabel: 'Investopedia Search',
           ),
         ];
@@ -965,8 +1042,10 @@ class CompetitiveEventDetailScreen extends StatelessWidget {
           ),
           _StudyPackResource(
             title: '${event.name} Objective Test Sample',
-            description: '100-question practice exam for the objective test portion.',
-            url: 'https://quizlet.com/search?query=FBLA%20${Uri.encodeComponent(event.name)}%20test',
+            description:
+                '100-question practice exam for the objective test portion.',
+            url:
+                'https://quizlet.com/search?query=FBLA%20${Uri.encodeComponent(event.name)}%20test',
             linkLabel: 'Practice Exams',
           ),
         ];
@@ -1085,6 +1164,26 @@ class CompetitiveEventDetailScreen extends StatelessWidget {
   }
 }
 
+class MobileAppDevGuidelinesScreen extends StatelessWidget {
+  const MobileAppDevGuidelinesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    const fblaBlue = Color(0xFF1D4E89);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Mobile App Dev Guidelines'),
+        backgroundColor: fblaBlue,
+        foregroundColor: Colors.white,
+      ),
+      body: SfPdfViewer.asset(
+        'assets/Mobile-Application-Development.pdf',
+      ),
+    );
+  }
+}
+
 class CompetitiveEventStudyPacksScreen extends StatelessWidget {
   const CompetitiveEventStudyPacksScreen({super.key});
 
@@ -1151,7 +1250,8 @@ class CompetitiveEventStudyPacksScreen extends StatelessWidget {
           title: 'Objective Test Sample',
           description:
               '100-question practice exam for the objective test portion before roleplay.',
-          url: 'https://quizlet.com/search?query=FBLA%20roleplay%20objective%20test',
+          url:
+              'https://quizlet.com/search?query=FBLA%20roleplay%20objective%20test',
           linkLabel: 'Practice Question Sets',
         ),
       ],
@@ -1183,7 +1283,8 @@ class CompetitiveEventStudyPacksScreen extends StatelessWidget {
           title: 'Sample Video',
           description:
               'Watch national-winning style performances to benchmark quality expectations.',
-          url: 'https://www.youtube.com/results?search_query=FBLA+national+winning+presentation',
+          url:
+              'https://www.youtube.com/results?search_query=FBLA+national+winning+presentation',
           linkLabel: 'YouTube Samples',
         ),
       ],
@@ -1219,7 +1320,8 @@ class CompetitiveEventStudyPacksScreen extends StatelessWidget {
           title: 'Login Gateway',
           description:
               'Direct launch point for competition simulation access and participation.',
-          url: 'https://knowledgematters.com/high-school/virtual-business-challenge/',
+          url:
+              'https://knowledgematters.com/high-school/virtual-business-challenge/',
           linkLabel: 'Knowledge Matters Portal',
         ),
         _StudyPackResource(

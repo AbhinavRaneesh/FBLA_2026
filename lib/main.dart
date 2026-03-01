@@ -22,6 +22,7 @@ import 'screens/chatbot_screen.dart';
 import 'ai/bloc/chat_bloc.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'services/firebase_service.dart';
+import 'services/mongodb_service.dart';
 import 'models/fbla_models.dart';
 import 'models/video_model.dart';
 import 'screens/video_player_screen.dart';
@@ -31,12 +32,31 @@ import 'services/youtube_service.dart';
 const fblaNavy = Color(0xFF00274D);
 const fblaGold = Color(0xFFFDB913);
 
+// Optional fallback URI for local testing only.
+// Leave empty to require --dart-define=MONGODB_URI=...
+const hardcodedMongoUri = 'mongodb+srv://kushal:KushalNarkhede@fbla.ig6iamr.mongodb.net/?appName=FBLA';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize timezone
   tz.initializeTimeZones();
   tz.setLocalLocation(tz.getLocation('America/Denver'));
+
+  const defineMongoUri = String.fromEnvironment('MONGODB_URI');
+  final resolvedMongoUri = defineMongoUri.trim().isNotEmpty
+      ? defineMongoUri.trim()
+      : hardcodedMongoUri.trim();
+
+  if (resolvedMongoUri.isNotEmpty) {
+    MongoDbService.configureUri(resolvedMongoUri);
+    print('🍃 MongoDB URI configured (no startup Mongo init)');
+  } else {
+    print(
+      '🍃 MongoDB URI not set at startup. '
+      'Set --dart-define=MONGODB_URI=... or hardcodedMongoUri in main.dart',
+    );
+  }
   
   final prefs = await SharedPreferences.getInstance();
   runApp(MyApp(prefs: prefs));
@@ -46,6 +66,8 @@ class AppState extends ChangeNotifier {
   final SharedPreferences prefs;
   String userEmail;
   String displayName;
+  String signupRole;
+  String gradeLevel;
   List<Event> events;
   List<NewsItem> news;
   List<Competition> competitions;
@@ -62,8 +84,10 @@ class AppState extends ChangeNotifier {
   bool _firebaseInitialized = false;
 
   AppState({required this.prefs})
-      : userEmail = prefs.getString('userEmail') ?? '',
-        displayName = prefs.getString('displayName') ?? '',
+      : userEmail = '',
+        displayName = '',
+        signupRole = '',
+        gradeLevel = '',
         events = sampleEvents,
         news = sampleNews,
         competitions = sampleCompetitions,
@@ -307,14 +331,59 @@ class AppState extends ChangeNotifier {
         .toList(growable: false);
   }
 
-  bool get loggedIn => firebaseUser != null || userEmail.isNotEmpty;
+  bool get loggedIn => userEmail.isNotEmpty;
 
-  Future<void> login(String email, String name) async {
+  Future<void> login(String email, String name,
+      {String role = '', String grade = ''}) async {
     userEmail = email;
     displayName = name;
+    signupRole = role;
+    gradeLevel = grade;
     await prefs.setString('userEmail', userEmail);
     await prefs.setString('displayName', displayName);
+    await prefs.setString('signupRole', signupRole);
+    await prefs.setString('gradeLevel', gradeLevel);
     notifyListeners();
+  }
+
+  Future<void> signUpWithMongo({
+    required String email,
+    required String password,
+    required String name,
+    required String role,
+    required String grade,
+  }) async {
+    final account = await MongoDbService.createUser(
+      email: email,
+      password: password,
+      name: name,
+      role: role,
+      gradeLevel: grade,
+    );
+
+    await login(
+      (account['email'] ?? email).toString(),
+      (account['name'] ?? name).toString(),
+      role: (account['role'] ?? role).toString(),
+      grade: (account['gradeLevel'] ?? grade).toString(),
+    );
+  }
+
+  Future<void> signInWithMongo({
+    required String email,
+    required String password,
+  }) async {
+    final account = await MongoDbService.loginUser(
+      email: email,
+      password: password,
+    );
+
+    await login(
+      (account['email'] ?? email).toString(),
+      (account['name'] ?? '').toString(),
+      role: (account['role'] ?? '').toString(),
+      grade: (account['gradeLevel'] ?? '').toString(),
+    );
   }
 
   Future<void> logout() async {
@@ -323,12 +392,16 @@ class AppState extends ChangeNotifier {
     }
     userEmail = '';
     displayName = '';
+    signupRole = '';
+    gradeLevel = '';
     firebaseUser = null;
     userProfile = null;
     userChapter = null;
     localProfileImageBytes = null;
     await prefs.remove('userEmail');
     await prefs.remove('displayName');
+    await prefs.remove('signupRole');
+    await prefs.remove('gradeLevel');
     notifyListeners();
   }
 
@@ -371,6 +444,8 @@ class AppState extends ChangeNotifier {
     firebaseUser = user;
     userEmail = user.email ?? '';
     displayName = user.displayName ?? '';
+    signupRole = '';
+    gradeLevel = '';
     await _loadUserProfile(user.uid);
     notifyListeners();
   }
@@ -909,10 +984,7 @@ class AuthGate extends StatelessWidget {
     if (app.loggedIn) {
       return RootScreen();
     }
-    if (!app.hasSeenOnboarding) {
-      return const OnboardingScreen();
-    }
-    return RootScreen();
+    return const LoginScreen();
   }
 }
 
@@ -3188,14 +3260,23 @@ class ProfileScreen extends StatelessWidget {
                     width: double.infinity,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.red.shade400, Colors.red.shade600],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          const Color(0xFF7A1D1D),
+                          const Color(0xFF4A0F0F),
+                        ],
                       ),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: const Color(0xFFFF6B6B).withOpacity(0.55),
+                        width: 1.2,
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.red.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: Offset(0, 4),
+                          color: const Color(0xFFB71C1C).withOpacity(0.35),
+                          blurRadius: 14,
+                          offset: const Offset(0, 6),
                         ),
                       ],
                     ),
@@ -3205,20 +3286,36 @@ class ProfileScreen extends StatelessWidget {
                         onTap: () {
                           app.logout();
                         },
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(18),
                         child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 16),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 15,
+                            horizontal: 18,
+                          ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.logout, color: Colors.white),
-                              SizedBox(width: 8),
+                              Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.14),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(
+                                  Icons.logout_rounded,
+                                  color: Colors.white,
+                                  size: 19,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
                               Text(
                                 'Log Out',
-                                style: TextStyle(
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.3,
                                 ),
                               ),
                             ],
@@ -3826,20 +3923,22 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context);
     final Color fblaBlue = const Color(0xFF1D4E89);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
         title: Text('Settings'),
-        backgroundColor: fblaBlue,
+        backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
-      body: ListView(
-        padding: EdgeInsets.all(16),
-        children: [
+      body: Container(
+        color: Colors.black,
+        child: ListView(
+          padding: EdgeInsets.all(16),
+          children: [
           // General Settings Section
-          _buildSectionHeader('General Settings', Icons.settings_outlined, isDark, fblaBlue),
+          _buildSectionHeader('General Settings', Icons.settings_outlined, fblaBlue),
           SizedBox(height: 16),
           
           // Dark Mode Toggle
@@ -3884,7 +3983,7 @@ class SettingsScreen extends StatelessWidget {
           SizedBox(height: 32),
           
           // Privacy & Security Section
-          _buildSectionHeader('Privacy & Security', Icons.security_outlined, isDark, fblaBlue),
+          _buildSectionHeader('Privacy & Security', Icons.security_outlined, fblaBlue),
           SizedBox(height: 16),
           
           _buildSettingsCard(
@@ -3908,7 +4007,7 @@ class SettingsScreen extends StatelessWidget {
           SizedBox(height: 32),
           
           // App Information Section
-          _buildSectionHeader('App Information', Icons.info_outline, isDark, fblaBlue),
+          _buildSectionHeader('App Information', Icons.info_outline, fblaBlue),
           SizedBox(height: 16),
           
           _buildSettingsCard(
@@ -3963,12 +4062,13 @@ class SettingsScreen extends StatelessWidget {
           ),
           
           SizedBox(height: 24),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildSectionHeader(String title, IconData icon, bool isDark, Color fblaBlue) {
+  Widget _buildSectionHeader(String title, IconData icon, Color fblaBlue) {
     return Row(
       children: [
         Container(
@@ -3985,7 +4085,7 @@ class SettingsScreen extends StatelessWidget {
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: isDark ? Colors.white : fblaBlue,
+            color: Colors.white,
           ),
         ),
       ],
@@ -4012,9 +4112,9 @@ class SettingsScreen extends StatelessWidget {
           child: Container(
             padding: EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: fblaBlue.withOpacity(0.05),
+              color: const Color(0xFF0F0F0F),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: fblaBlue.withOpacity(0.2), width: 1.5),
+              border: Border.all(color: fblaBlue.withOpacity(0.35), width: 1.5),
             ),
             child: Row(
               children: [
@@ -4043,6 +4143,7 @@ class SettingsScreen extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -4052,7 +4153,7 @@ class SettingsScreen extends StatelessWidget {
                         subtitle,
                         style: TextStyle(
                           fontSize: 13,
-                          color: Colors.grey.shade600,
+                          color: Colors.white70,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
