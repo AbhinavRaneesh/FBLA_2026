@@ -542,6 +542,12 @@ class AppState extends ChangeNotifier {
 
     notifyListeners();
   }
+
+  void addUserEvent(Event event) {
+    events.add(event);
+    events.sort((a, b) => a.start.compareTo(b.start));
+    notifyListeners();
+  }
 }
 
 /* ------------------------
@@ -736,16 +742,41 @@ final sampleThreads = [
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
+bool _localNotificationsReady = false;
+
+Future<void> ensureLocalNotificationsReady() async {
+  if (!_localNotificationsReady) {
+    await initLocalNotifications();
+  }
+
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.requestNotificationsPermission();
+}
 
 Future<void> initLocalNotifications() async {
   const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-  const ios = DarwinInitializationSettings();
+  const ios = DarwinInitializationSettings(
+    requestAlertPermission: true,
+    requestBadgePermission: true,
+    requestSoundPermission: true,
+  );
   await flutterLocalNotificationsPlugin.initialize(
     const InitializationSettings(android: android, iOS: ios),
   );
+
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.requestNotificationsPermission();
+
+  _localNotificationsReady = true;
 }
 
 Future<void> scheduleEventReminder(Event e) async {
+  await ensureLocalNotificationsReady();
+
   final androidDetails = AndroidNotificationDetails(
     'events',
     'Event reminders',
@@ -767,6 +798,87 @@ Future<void> scheduleEventReminder(Event e) async {
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
   }
+}
+
+DateTime? _nearEventReminderTime(DateTime eventStart) {
+  final now = DateTime.now();
+
+  final oneDayBefore = eventStart.subtract(const Duration(days: 1));
+  final oneDayBeforeEvening = DateTime(
+    oneDayBefore.year,
+    oneDayBefore.month,
+    oneDayBefore.day,
+    18,
+    0,
+  );
+
+  if (oneDayBeforeEvening.isAfter(now)) {
+    return oneDayBeforeEvening;
+  }
+
+  final oneHourBefore = eventStart.subtract(const Duration(hours: 1));
+  if (oneHourBefore.isAfter(now)) {
+    return oneHourBefore;
+  }
+
+  return null;
+}
+
+int _autoReminderIdForEvent(Event e) {
+  return e.id.hashCode ^ 0x5F3759DF;
+}
+
+Future<void> scheduleNearEventReminder(Event e) async {
+  await ensureLocalNotificationsReady();
+
+  final androidDetails = AndroidNotificationDetails(
+    'events_near',
+    'Upcoming event alerts',
+    channelDescription: 'Alerts when event days are near',
+    importance: Importance.max,
+    priority: Priority.high,
+  );
+  const iOSDetails = DarwinNotificationDetails();
+  final details = NotificationDetails(android: androidDetails, iOS: iOSDetails);
+
+  final scheduled = _nearEventReminderTime(e.start);
+  final id = _autoReminderIdForEvent(e);
+
+  await flutterLocalNotificationsPlugin.cancel(id);
+
+  if (scheduled == null) {
+    return;
+  }
+
+  await flutterLocalNotificationsPlugin.zonedSchedule(
+    id,
+    'Event coming up: ${e.title}',
+    '${e.location} • ${_shortDateTime(e.start)}',
+    tz.TZDateTime.from(scheduled, tz.local),
+    details,
+    androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+  );
+}
+
+Future<void> sendDeveloperTestNotification() async {
+  await ensureLocalNotificationsReady();
+
+  const androidDetails = AndroidNotificationDetails(
+    'developer_tools',
+    'Developer tools',
+    channelDescription: 'Developer test notifications',
+    importance: Importance.max,
+    priority: Priority.high,
+  );
+  const iOSDetails = DarwinNotificationDetails();
+  const details = NotificationDetails(android: androidDetails, iOS: iOSDetails);
+
+  await flutterLocalNotificationsPlugin.show(
+    DateTime.now().millisecondsSinceEpoch ~/ 1000,
+    'FBLA',
+    'Hi this is FBLA',
+    details,
+  );
 }
 
 /* ------------------------
@@ -871,6 +983,9 @@ class RootScreen extends StatefulWidget {
 class _RootScreenState extends State<RootScreen> {
   int _index = 0;
   DateTime? _lastBackPressedAt;
+  AppState? _appState;
+  bool _notificationsInitialized = false;
+  String _eventsScheduleSignature = '';
 
   final _pages = [
     HomeScreen(),
@@ -883,7 +998,59 @@ class _RootScreenState extends State<RootScreen> {
   @override
   void initState() {
     super.initState();
-    initLocalNotifications();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final app = Provider.of<AppState>(context);
+
+    if (!identical(_appState, app)) {
+      _appState?.removeListener(_onAppStateChanged);
+      _appState = app;
+      _appState?.addListener(_onAppStateChanged);
+    }
+
+    if (!_notificationsInitialized) {
+      _notificationsInitialized = true;
+      _initializeAndScheduleNotifications();
+    }
+  }
+
+  @override
+  void dispose() {
+    _appState?.removeListener(_onAppStateChanged);
+    super.dispose();
+  }
+
+  Future<void> _initializeAndScheduleNotifications() async {
+    await initLocalNotifications();
+    await _scheduleNearEventRemindersForCurrentEvents();
+  }
+
+  void _onAppStateChanged() {
+    _scheduleNearEventRemindersForCurrentEvents();
+  }
+
+  Future<void> _scheduleNearEventRemindersForCurrentEvents() async {
+    final app = _appState;
+    if (app == null) return;
+
+    final sortedEvents = [...app.events]
+      ..sort((a, b) => a.start.compareTo(b.start));
+    final signature = sortedEvents
+        .map((e) => '${e.id}|${e.start.millisecondsSinceEpoch}')
+        .join(';');
+
+    if (signature == _eventsScheduleSignature) {
+      return;
+    }
+
+    _eventsScheduleSignature = signature;
+
+    for (final event in sortedEvents) {
+      await scheduleNearEventReminder(event);
+    }
   }
 
   @override
@@ -2010,6 +2177,17 @@ class _EventsScreenState extends State<EventsScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
       ),
+      floatingActionButton: _showWeekCalendar
+          ? null
+          : FloatingActionButton(
+              heroTag: 'events_add_button',
+              onPressed: _showAddEventDialog,
+              backgroundColor: const Color(0xFF1D4E89),
+              foregroundColor: Colors.white,
+              tooltip: 'Add event',
+              child: const Icon(Icons.add, size: 28),
+            ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       body: Column(
         children: [
           if (_showWeekCalendar)
@@ -2201,6 +2379,40 @@ class _EventsScreenState extends State<EventsScreen> {
     );
   }
 
+  Future<void> _showAddEventDialog() async {
+    final app = Provider.of<AppState>(context, listen: false);
+    final initialDate = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+    );
+    final createdEvent = await Navigator.push<Event>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddEventScreen(initialDate: initialDate),
+      ),
+    );
+
+    if (createdEvent == null) {
+      return;
+    }
+
+    app.addUserEvent(createdEvent);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _selectedDate = DateTime(
+        createdEvent.start.year,
+        createdEvent.start.month,
+        createdEvent.start.day,
+      );
+      _showWeekCalendar = true;
+    });
+  }
+
   IconData _filterIcon(String filter) {
     switch (filter) {
       case 'Meetings':
@@ -2264,15 +2476,18 @@ class _EventsScreenState extends State<EventsScreen> {
                   },
                 ),
               ),
-              Text(
-                _monthYearLabel(_selectedDate),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
+              Expanded(
+                child: Center(
+                  child: Text(
+                    _monthYearLabel(_selectedDate),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
               ),
-              const Spacer(),
               Container(
                 decoration: BoxDecoration(
                   color: const Color(0xFF1A1A1A),
@@ -2756,6 +2971,452 @@ class _EventsScreenState extends State<EventsScreen> {
     if (title.toLowerCase().contains('workshop')) return 'Workshop';
     if (title.toLowerCase().contains('social')) return 'Social';
     return 'Event';
+  }
+}
+
+class AddEventScreen extends StatefulWidget {
+  final DateTime initialDate;
+
+  const AddEventScreen({super.key, required this.initialDate});
+
+  @override
+  State<AddEventScreen> createState() => _AddEventScreenState();
+}
+
+class _AddEventScreenState extends State<AddEventScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _titleController = TextEditingController();
+  final _locationController = TextEditingController();
+  final _descriptionController = TextEditingController();
+
+  late DateTime _pickedDate;
+  bool _includeTime = false;
+  TimeOfDay? _startTime;
+  TimeOfDay? _endTime;
+
+  @override
+  void initState() {
+    super.initState();
+    _pickedDate = DateTime(
+      widget.initialDate.year,
+      widget.initialDate.month,
+      widget.initialDate.day,
+    );
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _locationController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final date = await _showStyledDatePicker();
+    if (date == null) return;
+    setState(() => _pickedDate = date);
+  }
+
+  Future<DateTime?> _showStyledDatePicker() {
+    return showDatePicker(
+      context: context,
+      initialDate: _pickedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Colors.white,
+              onPrimary: Colors.black,
+              surface: Colors.black,
+              onSurface: Colors.white,
+            ),
+            datePickerTheme: DatePickerThemeData(
+              backgroundColor: Colors.black,
+              headerBackgroundColor: Colors.black,
+              headerForegroundColor: Colors.white,
+              dayStyle: const TextStyle(color: Colors.white),
+              weekdayStyle: const TextStyle(color: Colors.white70),
+              yearStyle: const TextStyle(color: Colors.white),
+              todayBorder: BorderSide(color: Colors.white.withOpacity(0.7)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: Colors.white.withOpacity(0.35), width: 1.4),
+              ),
+            ),
+            dialogTheme: DialogThemeData(
+              backgroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: Colors.white.withOpacity(0.35), width: 1.4),
+              ),
+            ),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
+    );
+  }
+
+  Future<TimeOfDay?> _showStyledTimePicker(TimeOfDay initialTime) async {
+    return showTimePicker(
+      context: context,
+      initialTime: initialTime,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Colors.white,
+              onPrimary: Colors.black,
+              surface: Colors.black,
+              onSurface: Colors.white,
+            ),
+            timePickerTheme: TimePickerThemeData(
+              backgroundColor: Colors.black,
+              hourMinuteShape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Colors.white.withOpacity(0.3)),
+              ),
+              dayPeriodShape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Colors.white.withOpacity(0.3)),
+              ),
+              dialHandColor: Colors.white,
+              dialBackgroundColor: const Color(0xFF090909),
+              hourMinuteColor: Colors.black,
+              hourMinuteTextColor: MaterialStateColor.resolveWith((states) {
+                if (states.contains(MaterialState.selected)) {
+                  return Colors.black;
+                }
+                return Colors.white;
+              }),
+              dayPeriodTextColor: MaterialStateColor.resolveWith((states) {
+                if (states.contains(MaterialState.selected)) {
+                  return Colors.black;
+                }
+                return Colors.white;
+              }),
+              dayPeriodColor: MaterialStateColor.resolveWith((states) {
+                if (states.contains(MaterialState.selected)) {
+                  return Colors.white;
+                }
+                return Colors.black;
+              }),
+              entryModeIconColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: Colors.white.withOpacity(0.35), width: 1.4),
+              ),
+            ),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickStartTime() async {
+    final selected = await _showStyledTimePicker(
+      _startTime ?? const TimeOfDay(hour: 9, minute: 0),
+    );
+    if (selected == null) return;
+    setState(() => _startTime = selected);
+  }
+
+  Future<void> _pickEndTime() async {
+    final selected = await _showStyledTimePicker(
+      _endTime ?? const TimeOfDay(hour: 10, minute: 0),
+    );
+    if (selected == null) return;
+    setState(() => _endTime = selected);
+  }
+
+  void _submit() {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+
+    DateTime startDateTime;
+    DateTime endDateTime;
+
+    if (_includeTime && _startTime != null) {
+      startDateTime = DateTime(
+        _pickedDate.year,
+        _pickedDate.month,
+        _pickedDate.day,
+        _startTime!.hour,
+        _startTime!.minute,
+      );
+
+      if (_endTime != null) {
+        endDateTime = DateTime(
+          _pickedDate.year,
+          _pickedDate.month,
+          _pickedDate.day,
+          _endTime!.hour,
+          _endTime!.minute,
+        );
+
+        if (!endDateTime.isAfter(startDateTime)) {
+          endDateTime = startDateTime.add(const Duration(hours: 1));
+        }
+      } else {
+        endDateTime = startDateTime.add(const Duration(hours: 1));
+      }
+    } else {
+      startDateTime =
+          DateTime(_pickedDate.year, _pickedDate.month, _pickedDate.day, 9, 0);
+      endDateTime = startDateTime.add(const Duration(hours: 1));
+    }
+
+    final event = Event(
+      id: 'custom_${DateTime.now().microsecondsSinceEpoch}',
+      title: _titleController.text.trim(),
+      start: startDateTime,
+      end: endDateTime,
+      location: _locationController.text.trim().isEmpty
+          ? 'TBD'
+          : _locationController.text.trim(),
+      description: _descriptionController.text.trim().isEmpty
+          ? 'User-created event'
+          : _descriptionController.text.trim(),
+    );
+
+    Navigator.pop(context, event);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fblaBlue = const Color(0xFF1D4E89);
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: const Text('Add Event'),
+        backgroundColor: fblaBlue,
+        foregroundColor: Colors.white,
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          children: [
+            TextFormField(
+              controller: _titleController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Event name',
+                labelStyle: const TextStyle(color: Colors.white70),
+                filled: true,
+                fillColor: const Color(0xFF1A1A1A),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Event name is required';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 14),
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: _pickDate,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withOpacity(0.36), width: 1.2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.06),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today_outlined,
+                        color: Colors.white, size: 18),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Date: ${_pickedDate.month}/${_pickedDate.day}/${_pickedDate.year}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _includeTime,
+              activeThumbColor: fblaBlue,
+              title: const Text(
+                'Include time (optional)',
+                style: TextStyle(color: Colors.white),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _includeTime = value;
+                  if (!_includeTime) {
+                    _startTime = null;
+                    _endTime = null;
+                  }
+                });
+              },
+            ),
+            if (_includeTime)
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: _pickStartTime,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 13),
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.36),
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.white.withOpacity(0.06),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.schedule, color: Colors.white70, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _startTime == null
+                                    ? 'Start time'
+                                    : 'Start: ${_startTime!.format(context)}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: _pickEndTime,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 13),
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.36),
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.white.withOpacity(0.06),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.av_timer, color: Colors.white70, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _endTime == null
+                                    ? 'End time'
+                                    : 'End: ${_endTime!.format(context)}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            if (_includeTime) const SizedBox(height: 12),
+            TextFormField(
+              controller: _locationController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Location (optional)',
+                labelStyle: const TextStyle(color: Colors.white70),
+                filled: true,
+                fillColor: const Color(0xFF1A1A1A),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _descriptionController,
+              style: const TextStyle(color: Colors.white),
+              maxLines: 4,
+              decoration: InputDecoration(
+                labelText: 'Description (optional)',
+                labelStyle: const TextStyle(color: Colors.white70),
+                filled: true,
+                fillColor: const Color(0xFF1A1A1A),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 22),
+            SizedBox(
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: _submit,
+                icon: const Icon(Icons.add),
+                label: const Text('Add Event'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: fblaBlue,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -3325,18 +3986,6 @@ class ProfileScreen extends StatelessWidget {
                     ),
                   ),
                   SizedBox(height: 16),
-
-                  // App Info
-                  Center(
-                    child: Text(
-                      'FBLA Member App v1.0.0',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 16),
                 ],
               ),
             ),
@@ -3556,6 +4205,10 @@ class MoreScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color fblaBlue = const Color(0xFF1D4E89);
+    final app = context.watch<AppState>();
+    final isDeveloperMode =
+        app.signupRole.trim().toLowerCase() == 'developer' ||
+        app.userEmail.trim().toLowerCase() == 'demo@fbla.app';
     final bottomSafe = MediaQuery.of(context).viewPadding.bottom;
 
     return Scaffold(
@@ -3663,6 +4316,28 @@ class MoreScreen extends StatelessWidget {
               );
             },
           ),
+          if (isDeveloperMode) ...[
+            const SizedBox(height: 20),
+            _buildGroupHeader(
+              context,
+              'Extra Developer Options',
+              Icons.developer_mode_outlined,
+            ),
+            _buildMoreTile(
+              context,
+              title: 'Extra Developer Options',
+              subtitle: 'Developer-only testing utilities',
+              icon: Icons.build_outlined,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ExtraDeveloperOptionsScreen(),
+                  ),
+                );
+              },
+            ),
+          ],
         ],
       ),
     );
@@ -3761,6 +4436,61 @@ class MoreScreen extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class ExtraDeveloperOptionsScreen extends StatelessWidget {
+  const ExtraDeveloperOptionsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color fblaBlue = const Color(0xFF1D4E89);
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: const Text('Extra Developer Options'),
+        backgroundColor: fblaBlue,
+        foregroundColor: Colors.white,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Notification Tests',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: () async {
+                await sendDeveloperTestNotification();
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Test notification sent.')),
+                );
+              },
+              icon: const Icon(Icons.notifications_active_outlined),
+              label: const Text('Test Notification'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: fblaBlue,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

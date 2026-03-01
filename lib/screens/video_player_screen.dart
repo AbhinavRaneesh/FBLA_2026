@@ -49,6 +49,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       ),
       builder: (context, player) {
         return Scaffold(
+          backgroundColor: Colors.black,
           appBar: AppBar(
             title: const Text('Video Player'),
             backgroundColor: fblaBlue,
@@ -66,13 +67,14 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                 widget.video.title,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w700,
+                      color: Colors.white,
                     ),
               ),
               const SizedBox(height: 8),
               Text(
                 _formatDate(widget.video.publishedAt),
                 style: TextStyle(
-                  color: Colors.grey.shade600,
+                  color: Colors.white70,
                   fontSize: 12,
                 ),
               ),
@@ -83,6 +85,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                     : widget.video.description,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       height: 1.4,
+                      color: Colors.white,
                     ),
               ),
             ],
