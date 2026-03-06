@@ -12,7 +12,7 @@ class ResourcesScreen extends StatelessWidget {
     final Color fblaGold = const Color(0xFFF6C500);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.transparent,
       body: CustomScrollView(
         slivers: [
           // Modern App Bar
@@ -20,7 +20,8 @@ class ResourcesScreen extends StatelessWidget {
             expandedHeight: 56,
             floating: false,
             pinned: true,
-            backgroundColor: fblaBlue,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
             title: const Text(
               'Resources',
               style: TextStyle(

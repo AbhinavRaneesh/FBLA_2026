@@ -32,6 +32,18 @@ import 'services/youtube_service.dart';
 const fblaNavy = Color(0xFF00274D);
 const fblaGold = Color(0xFFFDB913);
 
+// Shared app background (matches home screen)
+const Color appBackgroundColor = Color(0xFF07111F);
+const LinearGradient appBackgroundGradient = LinearGradient(
+  begin: Alignment.topCenter,
+  end: Alignment.bottomCenter,
+  colors: [
+    Color(0xFF07111F),
+    Color(0xFF0A1830),
+    Color(0xFF07111F),
+  ],
+);
+
 // Optional fallback URI for local testing only.
 // Leave empty to require --dart-define=MONGODB_URI=...
 const hardcodedMongoUri = 'mongodb+srv://kushal:KushalNarkhede@fbla.ig6iamr.mongodb.net/?appName=FBLA';
@@ -1072,7 +1084,10 @@ class _RootScreenState extends State<RootScreen> {
         return true;
       },
       child: Scaffold(
-        body: _pages[_index],
+        body: Container(
+          decoration: const BoxDecoration(gradient: appBackgroundGradient),
+          child: _pages[_index],
+        ),
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: _index,
           onTap: (i) => setState(() => _index = i),
@@ -1272,9 +1287,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final nextEvent = nextEvents.isNotEmpty ? nextEvents.first : null;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF07111F),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         titleSpacing: 20,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1295,9 +1312,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF07111F),
         foregroundColor: Colors.white,
-        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.search, size: 26),
@@ -1357,19 +1372,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: _refreshYouTubeVideos,
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFF07111F),
-                Color(0xFF0A1830),
-                Color(0xFF07111F),
-              ],
-            ),
-          ),
-          child: ListView(
+        child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
             children: [
@@ -1426,7 +1429,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-      ),
     );
   }
 
@@ -2826,7 +2828,7 @@ class _EventsScreenState extends State<EventsScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.transparent,
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
         leading: _showWeekCalendar
@@ -2839,9 +2841,9 @@ class _EventsScreenState extends State<EventsScreen> {
               )
             : null,
         title: Text('Events & Schedule'),
-        backgroundColor: fblaBlue,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        foregroundColor: Colors.white,
       ),
       floatingActionButton: _showWeekCalendar
           ? null
@@ -2863,7 +2865,7 @@ class _EventsScreenState extends State<EventsScreen> {
           Container(
             padding: EdgeInsets.fromLTRB(12, 12, 12, 10),
             decoration: BoxDecoration(
-              color: Colors.black,
+              color: Colors.transparent,
               border: Border(
                 bottom: BorderSide(
                   color: Colors.white12,
@@ -3858,13 +3860,16 @@ class _AddEventScreenState extends State<AddEventScreen> {
     final fblaBlue = const Color(0xFF1D4E89);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: appBackgroundColor,
       appBar: AppBar(
         title: const Text('Add Event'),
-        backgroundColor: fblaBlue,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         foregroundColor: Colors.white,
       ),
-      body: Form(
+      body: Container(
+        decoration: const BoxDecoration(gradient: appBackgroundGradient),
+        child: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -4080,6 +4085,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -4312,16 +4318,19 @@ class ProfileScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: CustomScrollView(
-        slivers: [
-          // Compact top bar
-          SliverAppBar(
-            expandedHeight: 56,
-            floating: false,
-            pinned: true,
-            backgroundColor: fblaBlue,
-            title: const Text('Profile'),
+      backgroundColor: appBackgroundColor,
+      body: Container(
+        decoration: const BoxDecoration(gradient: appBackgroundGradient),
+        child: CustomScrollView(
+          slivers: [
+            // Compact top bar
+            SliverAppBar(
+              expandedHeight: 56,
+              floating: false,
+              pinned: true,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              title: const Text('Profile'),
             actions: [
               IconButton(
                 icon: Icon(Icons.settings_outlined, color: Colors.white),
@@ -4337,9 +4346,7 @@ class ProfileScreen extends StatelessWidget {
 
           SliverToBoxAdapter(
             child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black,
-              ),
+              decoration: const BoxDecoration(color: Colors.transparent),
               child: SafeArea(
                 top: false,
                 child: Column(
@@ -4657,6 +4664,7 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -4878,12 +4886,12 @@ class MoreScreen extends StatelessWidget {
     final bottomSafe = MediaQuery.of(context).viewPadding.bottom;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('More'),
-        backgroundColor: fblaBlue,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        foregroundColor: Colors.white,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -5255,14 +5263,16 @@ class FaqScreen extends StatelessWidget {
     final bottomSafe = MediaQuery.of(context).viewPadding.bottom;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: appBackgroundColor,
       appBar: AppBar(
         title: const Text('Help / FAQ'),
-        backgroundColor: fblaBlue,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        foregroundColor: Colors.white,
       ),
-      body: ListView.separated(
+      body: Container(
+        decoration: const BoxDecoration(gradient: appBackgroundGradient),
+        child: ListView.separated(
         padding: EdgeInsets.fromLTRB(14, 14, 14, 20 + bottomSafe + 16),
         itemCount: _faqItems.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -5304,6 +5314,7 @@ class FaqScreen extends StatelessWidget {
           );
         },
       ),
+      ),
     );
   }
 }
@@ -5321,15 +5332,15 @@ class SettingsScreen extends StatelessWidget {
     final Color fblaBlue = const Color(0xFF1D4E89);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: appBackgroundColor,
       appBar: AppBar(
         title: Text('Settings'),
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        foregroundColor: Colors.white,
       ),
       body: Container(
-        color: Colors.black,
+        decoration: const BoxDecoration(gradient: appBackgroundGradient),
         child: ListView(
           padding: EdgeInsets.all(16),
           children: [

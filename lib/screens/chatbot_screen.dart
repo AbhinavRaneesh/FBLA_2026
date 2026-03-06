@@ -12,6 +12,17 @@ const chatBlueGlow = Color(0xFF1D4E89);
 const chatSurfaceDark = Color(0xFF0D1117);
 const chatSurfaceDarker = Color(0xFF090C12);
 
+// Match home screen background
+const _appBackgroundGradient = LinearGradient(
+  begin: Alignment.topCenter,
+  end: Alignment.bottomCenter,
+  colors: [
+    Color(0xFF07111F),
+    Color(0xFF0A1830),
+    Color(0xFF07111F),
+  ],
+);
+
 class ChatbotScreen extends StatefulWidget {
   @override
   _ChatbotScreenState createState() => _ChatbotScreenState();
@@ -79,7 +90,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     final bottomSafeInset = mediaQuery.viewPadding.bottom;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF07111F),
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Text(
@@ -89,7 +100,10 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: Colors.black,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(gradient: _appBackgroundGradient),
+        ),
+        backgroundColor: Colors.transparent,
         elevation: 0,
         surfaceTintColor: Colors.black,
         shape: Border(
@@ -106,12 +120,14 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
           ),
         ],
       ),
-      body: SafeArea(
-        top: false,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.black,
-            border: Border(
+      body: Container(
+        decoration: const BoxDecoration(gradient: _appBackgroundGradient),
+        child: SafeArea(
+          top: false,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              border: Border(
               left: BorderSide(color: chatBlueGlow.withOpacity(0.22), width: 1),
               right: BorderSide(color: chatBlueGlow.withOpacity(0.22), width: 1),
             ),
@@ -157,6 +173,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
