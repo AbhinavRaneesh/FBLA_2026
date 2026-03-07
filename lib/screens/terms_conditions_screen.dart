@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:webview_flutter/webview_flutter.dart';
@@ -49,7 +51,10 @@ class _TermsHtmlViewState extends State<_TermsHtmlView> {
   }
 
   Future<void> _loadTermsHtml() async {
-    final html = await rootBundle.loadString('assets/legal/terms_conditions.html');
+    const assetPath = 'assets/legal/terms_conditions.html';
+    rootBundle.evict(assetPath);
+    final data = await rootBundle.load(assetPath);
+    final html = utf8.decode(data.buffer.asUint8List());
     await _controller.loadHtmlString(html);
   }
 
