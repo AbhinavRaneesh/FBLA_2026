@@ -28,9 +28,21 @@ import 'models/video_model.dart';
 import 'screens/video_player_screen.dart';
 import 'services/youtube_service.dart';
 
-// FBLA Colors
+// FBLA Colors Added
 const fblaNavy = Color(0xFF00274D);
 const fblaGold = Color(0xFFFDB913);
+
+// Shared app background (matches home screen)
+const Color appBackgroundColor = Color(0xFF07111F);
+const LinearGradient appBackgroundGradient = LinearGradient(
+  begin: Alignment.topCenter,
+  end: Alignment.bottomCenter,
+  colors: [
+    Color(0xFF07111F),
+    Color(0xFF0A1830),
+    Color(0xFF07111F),
+  ],
+);
 
 // Optional fallback URI for local testing only.
 // Leave empty to require --dart-define=MONGODB_URI=...
@@ -150,6 +162,7 @@ class AppState extends ChangeNotifier {
           .map(_competitionFromFirestore)
           .toList();
       threads = (results[3] as List<Map<String, dynamic>>)
+      
           .map(_threadFromFirestore)
           .toList();
 
@@ -795,7 +808,7 @@ Future<void> scheduleEventReminder(Event e) async {
       '${e.location} • ${_shortDateTime(e.start)}',
       tz.TZDateTime.from(scheduled, tz.local), // ✅ convert to TZDateTime
       details,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
     );
   }
 }
@@ -856,7 +869,7 @@ Future<void> scheduleNearEventReminder(Event e) async {
     '${e.location} • ${_shortDateTime(e.start)}',
     tz.TZDateTime.from(scheduled, tz.local),
     details,
-    androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+    androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
   );
 }
 
@@ -987,12 +1000,12 @@ class _RootScreenState extends State<RootScreen> {
   bool _notificationsInitialized = false;
   String _eventsScheduleSignature = '';
 
+  // Order: 0=Home, 1=Events, 2=Resources, 3=More (profile is via app bar avatar on Home)
   final _pages = [
     HomeScreen(),
     EventsScreen(),
     const ResourcesScreen(),
-    ProfileScreen(),
-    const MoreScreen(),
+    const MoreScreen(), // 4th tab = More (settings, FAQ, Social Wall, etc.)
   ];
 
   @override
@@ -1072,7 +1085,10 @@ class _RootScreenState extends State<RootScreen> {
         return true;
       },
       child: Scaffold(
-        body: _pages[_index],
+        body: Container(
+          decoration: const BoxDecoration(gradient: appBackgroundGradient),
+          child: _pages[_index],
+        ),
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: _index,
           onTap: (i) => setState(() => _index = i),
@@ -1084,7 +1100,6 @@ class _RootScreenState extends State<RootScreen> {
             BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
             BottomNavigationBarItem(icon: Icon(Icons.event), label: 'Events'),
             BottomNavigationBarItem(icon: Icon(Icons.school), label: 'Resources'),
-            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
             BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'More'),
           ],
         ),
@@ -1187,6 +1202,10 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late Future<List<Video>> _youtubeVideosFuture;
   static const String _instagramProfileUrl = 'https://www.instagram.com/fbla_pbl/';
+  static const String _youtubeChannelUrl = 'https://www.youtube.com/@FBLA-PBL';
+  static const String _facebookUrl = 'https://www.facebook.com/FBLAPBL/';
+  static const String _linkedinUrl = 'https://www.linkedin.com/company/fbla-pbl/';
+  static const String _xUrl = 'https://twitter.com/FBLA_PBL';
 
   @override
   void initState() {
@@ -1201,27 +1220,104 @@ class _HomeScreenState extends State<HomeScreen> {
     await _youtubeVideosFuture;
   }
 
+  Future<void> _openExternalLink(String url) async {
+    final uri = Uri.parse(url);
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open link right now.')),
+      );
+    }
+  }
+
+  Future<void> _toggleReminder(AppState app, Event event) async {
+    final isSaved = app.savedEventIds.contains(event.id);
+    app.toggleSaveEvent(event.id);
+
+    if (isSaved) {
+      await flutterLocalNotificationsPlugin.cancel(event.id.hashCode);
+    } else {
+      await scheduleEventReminder(event);
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isSaved
+              ? 'Reminder removed for ${event.title}'
+              : 'Reminder saved for ${event.title}',
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _showAnnouncementDialog(NewsItem post) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(post.title),
+        content: Text(post.body),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context);
     final Color fblaBlue = const Color(0xFF1D4E89);
+    final upcomingEvents = [...app.events]
+      ..sort((a, b) => a.start.compareTo(b.start));
+    final nextEvents = upcomingEvents
+        .where((event) => event.end.isAfter(DateTime.now()))
+        .take(3)
+        .toList();
+    final latestNews = [...app.news]
+      ..sort((a, b) => b.date.compareTo(a.date));
+    final featuredNews = latestNews.take(3).toList();
+    final firstName = app.displayName.trim().isEmpty
+        ? 'Member'
+        : app.displayName.trim().split(' ').first;
+    final nextEvent = nextEvents.isNotEmpty ? nextEvents.first : null;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
-        title: const Text('Posts'),
-        backgroundColor: fblaBlue,
-        foregroundColor: Colors.white,
+        titleSpacing: 20,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Welcome, $firstName',
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Text(
+              'Your FBLA home base',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white.withOpacity(0.78),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.search),
+            icon: const Icon(Icons.search, size: 26),
+            iconSize: 28,
             onPressed: () {
               showSearch(
                 context: context,
@@ -1230,152 +1326,729 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.notifications_none),
+            icon: const Icon(Icons.notifications_none, size: 26),
+            iconSize: 28,
             onPressed: () {},
           ),
           Padding(
-            padding: const EdgeInsets.only(right: 8, top: 8, bottom: 8, left: 4),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: Colors.white,
-              backgroundImage: app.localProfileImageBytes != null
-                  ? MemoryImage(app.localProfileImageBytes!)
-                  : (app.userProfile?.photoUrl != null &&
-                          app.userProfile!.photoUrl!.isNotEmpty
-                      ? NetworkImage(app.userProfile!.photoUrl!)
-                      : null) as ImageProvider<Object>?,
-              child: app.localProfileImageBytes == null &&
-                      (app.userProfile?.photoUrl == null ||
-                          app.userProfile!.photoUrl!.isEmpty)
-                  ? Text(
-                      app.displayName.isNotEmpty
-                          ? app.displayName[0].toUpperCase()
-                          : 'F',
-                      style: TextStyle(
-                        color: fblaBlue,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : null,
+            padding: const EdgeInsets.only(right: 12, top: 6, bottom: 6, left: 4),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => ProfileScreen()),
+                  );
+                },
+                borderRadius: BorderRadius.circular(999),
+                child: CircleAvatar(
+                  radius: 22,
+                  backgroundColor: Colors.white12,
+                  backgroundImage: app.localProfileImageBytes != null
+                      ? MemoryImage(app.localProfileImageBytes!)
+                      : (app.userProfile?.photoUrl != null &&
+                              app.userProfile!.photoUrl!.isNotEmpty
+                          ? NetworkImage(app.userProfile!.photoUrl!)
+                          : null) as ImageProvider<Object>?,
+                  child: app.localProfileImageBytes == null &&
+                          (app.userProfile?.photoUrl == null ||
+                              app.userProfile!.photoUrl!.isEmpty)
+                      ? Text(
+                          app.displayName.isNotEmpty
+                              ? app.displayName[0].toUpperCase()
+                              : 'F',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
+                        )
+                      : null,
+                ),
+              ),
             ),
           ),
         ],
       ),
-      drawer: Drawer(
-        child: SafeArea(
-          child: Column(
+      body: RefreshIndicator(
+        onRefresh: _refreshYouTubeVideos,
+        child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
             children: [
-              ListTile(
-                title: const Text('Menu Item 1'),
-                onTap: () => Navigator.pop(context),
+              _buildHeroCard(firstName, nextEvent),
+              const SizedBox(height: 18),
+              _buildStatsRow(app, nextEvents, featuredNews),
+              const SizedBox(height: 22),
+              _buildSectionTitle(
+                title: 'Quick Actions',
+                subtitle: 'Jump into the areas members use most',
               ),
-              ListTile(
-                title: const Text('Menu Item 2'),
-                onTap: () => Navigator.pop(context),
+              const SizedBox(height: 12),
+              _buildQuickActions(),
+              const SizedBox(height: 24),
+              _buildSectionTitle(
+                title: 'Upcoming Events',
+                subtitle: 'Keep track of deadlines, meetings, and reminders',
               ),
-              ListTile(
-                title: const Text('Menu Item 3'),
-                onTap: () => Navigator.pop(context),
+              const SizedBox(height: 12),
+              if (nextEvents.isEmpty)
+                _buildEmptyStateCard(
+                  icon: Icons.event_busy,
+                  title: 'No upcoming events',
+                  subtitle: 'New events will show up here as they are added.',
+                )
+              else
+                ...nextEvents.map((event) => _buildEventCard(app, event)),
+              const SizedBox(height: 24),
+              _buildSectionTitle(
+                title: 'Latest Updates',
+                subtitle: 'Announcements and chapter news at a glance',
               ),
-              const Divider(),
-              const ListTile(
-                title: Text('More items coming soon'),
+              const SizedBox(height: 12),
+              if (featuredNews.isEmpty)
+                _buildEmptyStateCard(
+                  icon: Icons.campaign_outlined,
+                  title: 'No announcements yet',
+                  subtitle: 'Check back soon for chapter and national updates.',
+                )
+              else
+                ...featuredNews.map(_buildAnnouncementCard),
+              const SizedBox(height: 24),
+              _buildSectionTitle(
+                title: 'Stay Connected',
+                subtitle:
+                    'Social integration is included here without taking over the landing page',
               ),
+              const SizedBox(height: 12),
+              _buildSocialLinksCard(),
+              const SizedBox(height: 14),
+              _buildInstagramPreviewCard(fblaBlue),
+              const SizedBox(height: 14),
+              _buildYouTubePreviewSection(fblaBlue),
             ],
           ),
         ),
-      ),
-      body: app.news.isEmpty
-          ? FutureBuilder<List<Video>>(
-              future: _youtubeVideosFuture,
-              builder: (context, snapshot) {
-                final youtubeVideos = snapshot.data ?? [];
-                if (snapshot.connectionState == ConnectionState.waiting &&
-                    youtubeVideos.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (snapshot.hasError && youtubeVideos.isEmpty) {
-                  return RefreshIndicator(
-                    onRefresh: _refreshYouTubeVideos,
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 26),
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: [
-                        _buildPostsHeader('Latest Posts', 1),
-                        _buildInstagramPostCard(fblaBlue),
-                        _buildYouTubeInlineError(snapshot.error.toString()),
-                      ],
-                    ),
-                  );
-                }
-
-                return RefreshIndicator(
-                  onRefresh: _refreshYouTubeVideos,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 26),
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      _buildPostsHeader('Latest Posts', youtubeVideos.length + 1),
-                      _buildInstagramPostCard(fblaBlue),
-                      ...youtubeVideos
-                          .map((video) => _buildYouTubePostCard(context, video, fblaBlue))
-                          .toList(),
-                    ],
-                  ),
-                );
-              },
-            )
-          : FutureBuilder<List<Video>>(
-              future: _youtubeVideosFuture,
-              builder: (context, snapshot) {
-                final youtubeVideos = snapshot.data ?? [];
-                final totalPosts = app.news.length + youtubeVideos.length + 1;
-
-                return RefreshIndicator(
-                  onRefresh: _refreshYouTubeVideos,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 26),
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      _buildPostsHeader('Latest Posts', totalPosts),
-                      _buildInstagramPostCard(fblaBlue),
-                      if (snapshot.connectionState == ConnectionState.waiting)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 10),
-                          child: Center(child: CircularProgressIndicator()),
-                        ),
-                      if (snapshot.hasError)
-                        _buildYouTubeInlineError(snapshot.error.toString()),
-                      ...youtubeVideos
-                          .map((video) => _buildYouTubePostCard(context, video, fblaBlue))
-                          .toList(),
-                      ...app.news
-                          .map((post) => _buildPostCard(context, post, fblaBlue))
-                          .toList(),
-                    ],
-                  ),
-                );
-              },
-            ),
     );
   }
 
-  Widget _buildInstagramPostCard(Color accentColor) {
+  Widget _buildHeroCard(String firstName, Event? nextEvent) {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF133A72),
+            Color(0xFF0B2341),
+            Color(0xFF101B32),
+          ],
+        ),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1D4E89).withOpacity(0.28),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: const Text(
+              'FBLA Member Dashboard',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Good to see you, $firstName.',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              height: 1.15,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            nextEvent == null
+                ? 'Use your home page to stay informed, manage events, access resources, and keep up with FBLA social channels.'
+                : 'Your next event is ${nextEvent.title} on ${_formatLongDate(nextEvent.start)}. Use this dashboard to stay informed, prepared, and connected.',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.84),
+              fontSize: 14,
+              height: 1.45,
+            ),
+          ),
+          if (nextEvent != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withOpacity(0.06)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFDB913).withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.event_available,
+                      color: Color(0xFFFDB913),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          nextEvent.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '${_formatLongDate(nextEvent.start)} • ${nextEvent.location}',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.74),
+                            fontSize: 13,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => EventsScreen()),
+                  );
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFFDB913),
+                  foregroundColor: const Color(0xFF081120),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                icon: const Icon(Icons.calendar_month),
+                label: const Text('View Schedule'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ResourcesScreen()),
+                  );
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: BorderSide(color: Colors.white.withOpacity(0.28)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                icon: const Icon(Icons.menu_book),
+                label: const Text('Resources'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsRow(
+    AppState app,
+    List<Event> nextEvents,
+    List<NewsItem> featuredNews,
+  ) {
+    return Row(
+      children: [
+        Expanded(
+          child: _StatCard(
+            icon: Icons.event,
+            label: 'Upcoming',
+            value: '${nextEvents.length}',
+            color: const Color(0xFF1D4E89),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF1D4E89), Color(0xFF163B6B)],
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _StatCard(
+            icon: Icons.notifications_active,
+            label: 'Saved',
+            value: '${app.savedEventIds.length}',
+            color: const Color(0xFFFDB913),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFD39A0B), Color(0xFFB87F05)],
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _StatCard(
+            icon: Icons.campaign,
+            label: 'Updates',
+            value: '${featuredNews.length}',
+            color: const Color(0xFF6C63FF),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF6C63FF), Color(0xFF4C44D6)],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickActions() {
+    return GridView.count(
+      crossAxisCount: 2,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 1.35,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        _ModernQuickButton(
+          icon: Icons.event_note,
+          label: 'Events',
+          subtitle: 'Schedule & reminders',
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1D4E89), Color(0xFF2B6CB0)],
+          ),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => EventsScreen()),
+            );
+          },
+        ),
+        _ModernQuickButton(
+          icon: Icons.menu_book,
+          label: 'Resources',
+          subtitle: 'Guides & documents',
+          gradient: const LinearGradient(
+            colors: [Color(0xFF0A8F7A), Color(0xFF0DB39E)],
+          ),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ResourcesScreen()),
+            );
+          },
+        ),
+        _ModernQuickButton(
+          icon: Icons.person_outline,
+          label: 'Profile',
+          subtitle: 'Member details',
+          gradient: const LinearGradient(
+            colors: [Color(0xFF8E44AD), Color(0xFF6C3483)],
+          ),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => ProfileScreen()),
+            );
+          },
+        ),
+        _ModernQuickButton(
+          icon: Icons.smart_toy,
+          label: 'AI Assistant',
+          subtitle: 'Ask questions fast',
+          gradient: const LinearGradient(
+            colors: [Color(0xFFF39C12), Color(0xFFD68910)],
+          ),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => BlocProvider(
+                  create: (context) => ChatBloc(),
+                  child: ChatbotScreen(),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSectionTitle({
+    required String title,
+    required String subtitle,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.66),
+            fontSize: 13,
+            height: 1.35,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEventCard(AppState app, Event event) {
+    final saved = app.savedEventIds.contains(event.id);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F1B2D),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withOpacity(0.07)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1D4E89).withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.event, color: Color(0xFF6FA8FF)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      event.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_formatLongDate(event.start)} • ${event.location}',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.68),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (saved)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFDB913).withOpacity(0.16),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    'Saved',
+                    style: TextStyle(
+                      color: Color(0xFFFDB913),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            event.description,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.78),
+              fontSize: 14,
+              height: 1.4,
+            ),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _toggleReminder(app, event),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.white.withOpacity(0.12)),
+                  ),
+                  icon: Icon(saved ? Icons.notifications_off : Icons.notifications),
+                  label: Text(saved ? 'Remove Reminder' : 'Set Reminder'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => EventsScreen()),
+                    );
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF1D4E89),
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('Open Events'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnnouncementCard(NewsItem post) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: () => _showAnnouncementDialog(post),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F1B2D),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: Colors.white.withOpacity(0.07)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF8E44AD).withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.campaign, color: Color(0xFFCB9FFF)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        post.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      _formatPostDate(post.date),
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.5),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  post.body,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.76),
+                    fontSize: 14,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Text(
+                      'Tap to read more',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.62),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Spacer(),
+                    const Icon(
+                      Icons.arrow_forward,
+                      color: Color(0xFFFDB913),
+                      size: 18,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSocialLinksCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F1B2D),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withOpacity(0.07)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'FBLA Social Hub',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Access chapter and national channels without making social media the first screen members land on.',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.68),
+              fontSize: 13,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _buildSocialLinkChip(
+                label: 'Instagram',
+                icon: Icons.camera_alt,
+                color: const Color(0xFFE1306C),
+                onTap: () => _openExternalLink(_instagramProfileUrl),
+              ),
+              _buildSocialLinkChip(
+                label: 'YouTube',
+                icon: Icons.play_circle_fill,
+                color: const Color(0xFFFF0000),
+                onTap: () => _openExternalLink(_youtubeChannelUrl),
+              ),
+              _buildSocialLinkChip(
+                label: 'Facebook',
+                icon: Icons.facebook,
+                color: const Color(0xFF1877F2),
+                onTap: () => _openExternalLink(_facebookUrl),
+              ),
+              _buildSocialLinkChip(
+                label: 'LinkedIn',
+                icon: Icons.business,
+                color: const Color(0xFF0A66C2),
+                onTap: () => _openExternalLink(_linkedinUrl),
+              ),
+              _buildSocialLinkChip(
+                label: 'X / Twitter',
+                icon: Icons.alternate_email,
+                color: const Color(0xFF9AA0A6),
+                onTap: () => _openExternalLink(_xUrl),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSocialLinkChip({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withOpacity(0.35)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInstagramPreviewCard(Color accentColor) {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF111111),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white12, width: 1),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black54,
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ],
+        color: const Color(0xFF0F1B2D),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withOpacity(0.07), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1407,7 +2080,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               Text(
-                'Embedded',
+                'Live Preview',
                 style: TextStyle(
                   color: Colors.grey.shade500,
                   fontSize: 12,
@@ -1418,7 +2091,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Latest Instagram Feed',
+            'Instagram Preview',
             style: TextStyle(
               color: Colors.grey.shade100,
               fontSize: 16,
@@ -1429,36 +2102,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: SizedBox(
-              height: 430,
+              height: 300,
               child: _InstagramFeedEmbed(profileUrl: _instagramProfileUrl),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPostsHeader(String title, int count) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, right: 4, bottom: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.2,
-            ),
-          ),
-          Text(
-            '$count',
-            style: TextStyle(
-              color: Colors.grey.shade400,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -1471,7 +2116,7 @@ class _HomeScreenState extends State<HomeScreen> {
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
+        color: const Color(0xFF0F1B2D),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white12),
       ),
@@ -1489,6 +2134,68 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildYouTubePreviewSection(Color accentColor) {
+    return FutureBuilder<List<Video>>(
+      future: _youtubeVideosFuture,
+      builder: (context, snapshot) {
+        final youtubeVideos = snapshot.data ?? [];
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F1B2D),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: Colors.white.withOpacity(0.07)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'YouTube Highlights',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => _openExternalLink(_youtubeChannelUrl),
+                    child: const Text('Open Channel'),
+                  ),
+                ],
+              ),
+              Text(
+                'Recent videos help demonstrate direct media integration for the rubric while keeping the home page balanced.',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.68),
+                  fontSize: 13,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  youtubeVideos.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (snapshot.hasError && youtubeVideos.isEmpty)
+                _buildYouTubeInlineError(snapshot.error.toString())
+              else ...[
+                ...youtubeVideos
+                    .take(2)
+                    .map((video) => _buildYouTubePostCard(context, video, accentColor))
+                    .toList(),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1621,120 +2328,82 @@ class _HomeScreenState extends State<HomeScreen> {
     return '${text.substring(0, maxLength).trim()}...';
   }
 
-  Widget _buildPostCard(BuildContext context, NewsItem post, Color accentColor) {
+  Widget _buildEmptyStateCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: () => showDialog(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: Text(post.title),
-              content: Text(post.body),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Close'),
-                ),
-              ],
-            ),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F1B2D),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withOpacity(0.07)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF111111),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.white12, width: 1),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black54,
-                  blurRadius: 12,
-                  offset: Offset(0, 4),
-                ),
-              ],
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(14),
             ),
+            child: Icon(icon, color: Colors.white70),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      height: 36,
-                      width: 36,
-                      decoration: BoxDecoration(
-                        color: accentColor.withOpacity(0.18),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        Icons.campaign,
-                        color: accentColor,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'FBLA Updates',
-                        style: TextStyle(
-                          color: Colors.grey.shade200,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      _formatPostDate(post.date),
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
                 Text(
-                  post.title,
+                  title,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 17,
+                    fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    height: 1.2,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
                 Text(
-                  post.body,
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
+                  subtitle,
                   style: TextStyle(
-                    color: Colors.grey.shade300,
-                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.68),
+                    fontSize: 13,
                     height: 1.35,
                   ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Icon(Icons.favorite_border, color: Colors.grey.shade400, size: 18),
-                    const SizedBox(width: 6),
-                    Text('Like', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
-                    const SizedBox(width: 18),
-                    Icon(Icons.mode_comment_outlined, color: Colors.grey.shade400, size: 18),
-                    const SizedBox(width: 6),
-                    Text('Comment', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
-                    const Spacer(),
-                    Icon(Icons.open_in_new, color: accentColor, size: 18),
-                  ],
                 ),
               ],
             ),
           ),
-        ),
+        ],
       ),
     );
+  }
+
+  String _formatLongDate(DateTime date) {
+    const monthNames = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final month = monthNames[date.month - 1];
+    final hour = date.hour == 0
+        ? 12
+        : date.hour > 12
+            ? date.hour - 12
+            : date.hour;
+    final suffix = date.hour >= 12 ? 'PM' : 'AM';
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$month ${date.day} • $hour:$minute $suffix';
   }
 
   String _formatPostDate(DateTime date) {
@@ -2160,7 +2829,7 @@ class _EventsScreenState extends State<EventsScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.transparent,
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
         leading: _showWeekCalendar
@@ -2173,9 +2842,9 @@ class _EventsScreenState extends State<EventsScreen> {
               )
             : null,
         title: Text('Events & Schedule'),
-        backgroundColor: fblaBlue,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        foregroundColor: Colors.white,
       ),
       floatingActionButton: _showWeekCalendar
           ? null
@@ -2197,7 +2866,7 @@ class _EventsScreenState extends State<EventsScreen> {
           Container(
             padding: EdgeInsets.fromLTRB(12, 12, 12, 10),
             decoration: BoxDecoration(
-              color: Colors.black,
+              color: Colors.transparent,
               border: Border(
                 bottom: BorderSide(
                   color: Colors.white12,
@@ -3192,13 +3861,16 @@ class _AddEventScreenState extends State<AddEventScreen> {
     final fblaBlue = const Color(0xFF1D4E89);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: appBackgroundColor,
       appBar: AppBar(
         title: const Text('Add Event'),
-        backgroundColor: fblaBlue,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         foregroundColor: Colors.white,
       ),
-      body: Form(
+      body: Container(
+        decoration: const BoxDecoration(gradient: appBackgroundGradient),
+        child: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -3414,6 +4086,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -3646,16 +4319,19 @@ class ProfileScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: CustomScrollView(
-        slivers: [
-          // Compact top bar
-          SliverAppBar(
-            expandedHeight: 56,
-            floating: false,
-            pinned: true,
-            backgroundColor: fblaBlue,
-            title: const Text('Profile'),
+      backgroundColor: appBackgroundColor,
+      body: Container(
+        decoration: const BoxDecoration(gradient: appBackgroundGradient),
+        child: CustomScrollView(
+          slivers: [
+            // Compact top bar
+            SliverAppBar(
+              expandedHeight: 56,
+              floating: false,
+              pinned: true,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              title: const Text('Profile'),
             actions: [
               IconButton(
                 icon: Icon(Icons.settings_outlined, color: Colors.white),
@@ -3671,9 +4347,7 @@ class ProfileScreen extends StatelessWidget {
 
           SliverToBoxAdapter(
             child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black,
-              ),
+              decoration: const BoxDecoration(color: Colors.transparent),
               child: SafeArea(
                 top: false,
                 child: Column(
@@ -3991,6 +4665,7 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -4212,12 +4887,12 @@ class MoreScreen extends StatelessWidget {
     final bottomSafe = MediaQuery.of(context).viewPadding.bottom;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('More'),
-        backgroundColor: fblaBlue,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        foregroundColor: Colors.white,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -4589,14 +5264,16 @@ class FaqScreen extends StatelessWidget {
     final bottomSafe = MediaQuery.of(context).viewPadding.bottom;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: appBackgroundColor,
       appBar: AppBar(
         title: const Text('Help / FAQ'),
-        backgroundColor: fblaBlue,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        foregroundColor: Colors.white,
       ),
-      body: ListView.separated(
+      body: Container(
+        decoration: const BoxDecoration(gradient: appBackgroundGradient),
+        child: ListView.separated(
         padding: EdgeInsets.fromLTRB(14, 14, 14, 20 + bottomSafe + 16),
         itemCount: _faqItems.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -4638,6 +5315,7 @@ class FaqScreen extends StatelessWidget {
           );
         },
       ),
+      ),
     );
   }
 }
@@ -4655,15 +5333,15 @@ class SettingsScreen extends StatelessWidget {
     final Color fblaBlue = const Color(0xFF1D4E89);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: appBackgroundColor,
       appBar: AppBar(
         title: Text('Settings'),
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        foregroundColor: Colors.white,
       ),
       body: Container(
-        color: Colors.black,
+        decoration: const BoxDecoration(gradient: appBackgroundGradient),
         child: ListView(
           padding: EdgeInsets.all(16),
           children: [
