@@ -227,7 +227,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
     }
 
     late final DateTime startDateTime;
-    late final DateTime endDateTime;
+    late DateTime endDateTime;
 
     if (_includeTime && _startTime != null) {
       startDateTime = DateTime(

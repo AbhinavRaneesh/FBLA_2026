@@ -15,7 +15,7 @@ class NewsFeedScreen extends StatefulWidget {
 class _NewsFeedScreenState extends State<NewsFeedScreen> {
   String _selectedFilter = 'All';
   final List<String> _filters = ['All', 'My Chapter', 'State', 'National'];
-  static const String _youtubeChannelId = 'UC_x5XG1OV2P6uZZ5FSM9Ttw';
+  static const String _youtubeChannelId = 'UClTLJbrfgMceh1n58XJfArg';
   late Future<List<YouTubeVideo>> _youtubeVideosFuture;
 
   @override
@@ -158,7 +158,7 @@ class _NewsFeedScreenState extends State<NewsFeedScreen> {
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  'YouTube Feed',
+                  'Official FBLA Videos',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),

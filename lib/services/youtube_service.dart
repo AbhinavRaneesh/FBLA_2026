@@ -13,7 +13,7 @@ class YouTubeService {
   );
   static const String channelId = String.fromEnvironment(
     'YOUTUBE_CHANNEL_ID',
-    defaultValue: 'UCt2JXOLNxqry7B_4rRZME3Q',
+    defaultValue: 'UClTLJbrfgMceh1n58XJfArg',
   );
 
   final http.Client _client;

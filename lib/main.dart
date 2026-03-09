@@ -25,7 +25,7 @@ import 'services/firebase_service.dart';
 import 'services/mongodb_service.dart';
 import 'models/fbla_models.dart';
 import 'models/video_model.dart';
-import 'screens/video_player_screen.dart';
+import 'screens/video_player_screen.dart ';
 import 'services/youtube_service.dart';
 
 // FBLA Colors Added
@@ -400,8 +400,10 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    if (firebaseUser != null) {
+    try {
       await FirebaseService.signOut();
+    } catch (_) {
+      // Proceed with local logout even if remote sign-out fails.
     }
     userEmail = '';
     displayName = '';
@@ -993,6 +995,66 @@ class RootScreen extends StatefulWidget {
   State<RootScreen> createState() => _RootScreenState();
 }
 
+class AiAssistantFab extends StatelessWidget {
+  final String heroTag;
+  final bool mini;
+
+  const AiAssistantFab({
+    super.key,
+    this.heroTag = 'ai_assistant_fab',
+    this.mini = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FloatingActionButton(
+      heroTag: heroTag,
+      mini: mini,
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => BlocProvider(
+              create: (context) => ChatBloc(),
+              child: ChatbotScreen(),
+            ),
+          ),
+        );
+      },
+      backgroundColor: const Color(0xFF0F1623),
+      foregroundColor: Colors.white,
+      elevation: 0,
+      highlightElevation: 0,
+      shape: const CircleBorder(),
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF1D4E89), Color(0xFF0B223E)],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF1D4E89).withOpacity(0.45),
+              blurRadius: 12,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Center(
+          child: Icon(
+            Icons.smart_toy,
+            color: Colors.white,
+            size: mini ? 22 : 26,
+          ),
+        ),
+      ),
+      tooltip: 'AI Assistant',
+    );
+  }
+}
+
 class _RootScreenState extends State<RootScreen> {
   int _index = 0;
   DateTime? _lastBackPressedAt;
@@ -1103,54 +1165,7 @@ class _RootScreenState extends State<RootScreen> {
             BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'More'),
           ],
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => BlocProvider(
-                  create: (context) => ChatBloc(),
-                  child: ChatbotScreen(),
-                ),
-              ),
-            );
-          },
-          backgroundColor: const Color(0xFF0F1623),
-          elevation: 0,
-          highlightElevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
-            side: const BorderSide(
-              color: Color(0xFF1D4E89),
-              width: 1.7,
-            ),
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF1D4E89), Color(0xFF0B223E)],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF1D4E89).withOpacity(0.45),
-                  blurRadius: 12,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-            child: const Center(
-              child: Icon(
-                Icons.smart_toy,
-                color: Colors.white,
-                size: 26,
-              ),
-            ),
-          ),
-          tooltip: 'AI Assistant',
-        ),
+        floatingActionButton: const AiAssistantFab(),
         floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       ),
     );
@@ -1201,11 +1216,12 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late Future<List<Video>> _youtubeVideosFuture;
-  static const String _instagramProfileUrl = 'https://www.instagram.com/fbla_pbl/';
-  static const String _youtubeChannelUrl = 'https://www.youtube.com/@FBLA-PBL';
+  static const String _instagramProfileUrl = 'https://www.instagram.com/fbla_national/';
+  static const String _youtubeChannelUrl = 'https://www.youtube.com/@fbla_national';
   static const String _facebookUrl = 'https://www.facebook.com/FBLAPBL/';
   static const String _linkedinUrl = 'https://www.linkedin.com/company/fbla-pbl/';
-  static const String _xUrl = 'https://twitter.com/FBLA_PBL';
+  static const String _xUrl = 'https://x.com/FBLA_National';
+  static const String _linktreeUrl = 'https://linktr.ee/FBLA_National';
 
   @override
   void initState() {
@@ -1419,7 +1435,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildSectionTitle(
                 title: 'Stay Connected',
                 subtitle:
-                    'Social integration is included here without taking over the landing page',
+                    'Official FBLA social channels',
               ),
               const SizedBox(height: 12),
               _buildSocialLinksCard(),
@@ -1548,39 +1564,48 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
           const SizedBox(height: 18),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
+          Row(
             children: [
-              FilledButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => EventsScreen()),
-                  );
-                },
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFFDB913),
-                  foregroundColor: const Color(0xFF081120),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => EventsScreen()),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.white.withOpacity(0.30)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  icon: const Icon(Icons.calendar_month, size: 18),
+                  label: const Text('View Schedule'),
                 ),
-                icon: const Icon(Icons.calendar_month),
-                label: const Text('View Schedule'),
               ),
-              OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ResourcesScreen()),
-                  );
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: BorderSide(color: Colors.white.withOpacity(0.28)),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ResourcesScreen()),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.white.withOpacity(0.30)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  icon: const Icon(Icons.menu_book, size: 18),
+                  label: const Text('Resources'),
                 ),
-                icon: const Icon(Icons.menu_book),
-                label: const Text('Resources'),
               ),
             ],
           ),
@@ -1640,7 +1665,7 @@ class _HomeScreenState extends State<HomeScreen> {
       crossAxisCount: 2,
       crossAxisSpacing: 12,
       mainAxisSpacing: 12,
-      childAspectRatio: 1.35,
+      childAspectRatio: 2.0,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       children: [
@@ -1949,7 +1974,7 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'FBLA Social Hub',
+            'Official Channels',
             style: TextStyle(
               color: Colors.white,
               fontSize: 17,
@@ -1958,7 +1983,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Access chapter and national channels without making social media the first screen members land on.',
+            'Follow official FBLA channels to catch announcements, leadership content, event highlights, and national updates.',
             style: TextStyle(
               color: Colors.white.withOpacity(0.68),
               fontSize: 13,
@@ -1966,39 +1991,55 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
+          GridView.count(
+            crossAxisCount: 2,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 1.8,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
             children: [
-              _buildSocialLinkChip(
+              _buildSocialLinkTile(
                 label: 'Instagram',
+                handle: '@fbla_national',
                 icon: Icons.camera_alt,
                 color: const Color(0xFFE1306C),
                 onTap: () => _openExternalLink(_instagramProfileUrl),
               ),
-              _buildSocialLinkChip(
+              _buildSocialLinkTile(
                 label: 'YouTube',
+                handle: '@fbla_national',
                 icon: Icons.play_circle_fill,
                 color: const Color(0xFFFF0000),
                 onTap: () => _openExternalLink(_youtubeChannelUrl),
               ),
-              _buildSocialLinkChip(
+              _buildSocialLinkTile(
                 label: 'Facebook',
+                handle: 'FBLA-PBL',
                 icon: Icons.facebook,
                 color: const Color(0xFF1877F2),
                 onTap: () => _openExternalLink(_facebookUrl),
               ),
-              _buildSocialLinkChip(
+              _buildSocialLinkTile(
                 label: 'LinkedIn',
+                handle: 'FBLA-PBL',
                 icon: Icons.business,
                 color: const Color(0xFF0A66C2),
                 onTap: () => _openExternalLink(_linkedinUrl),
               ),
-              _buildSocialLinkChip(
-                label: 'X / Twitter',
+              _buildSocialLinkTile(
+                label: 'X',
+                handle: '@FBLA_National',
                 icon: Icons.alternate_email,
                 color: const Color(0xFF9AA0A6),
                 onTap: () => _openExternalLink(_xUrl),
+              ),
+              _buildSocialLinkTile(
+                label: 'Link Hub',
+                handle: '@FBLA_National',
+                icon: Icons.hub_outlined,
+                color: const Color(0xFFFDB913),
+                onTap: () => _openExternalLink(_linktreeUrl),
               ),
             ],
           ),
@@ -2007,32 +2048,43 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSocialLinkChip({
+  Widget _buildSocialLinkTile({
     required String label,
+    required String handle,
     required IconData icon,
     required Color color,
     required VoidCallback onTap,
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
+      borderRadius: BorderRadius.circular(18),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: color.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: color.withOpacity(0.35)),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(width: 8),
+            Icon(icon, color: color, size: 20),
+            const Spacer(),
             Text(
               label,
               style: TextStyle(
                 color: color,
+                fontSize: 15,
                 fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              handle,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.76),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
@@ -2043,12 +2095,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildInstagramPreviewCard(Color accentColor) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF0F1B2D),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withOpacity(0.07), width: 1),
+        border: Border.all(color: Colors.white.withOpacity(0.07)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2056,11 +2107,11 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(
             children: [
               Container(
-                height: 36,
-                width: 36,
+                height: 38,
+                width: 38,
                 decoration: BoxDecoration(
                   color: accentColor.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   Icons.photo_camera,
@@ -2068,41 +2119,37 @@ class _HomeScreenState extends State<HomeScreen> {
                   size: 20,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
+              const SizedBox(width: 12),
+              const Expanded(
                 child: Text(
-                  'Instagram',
+                  'Instagram Preview',
                   style: TextStyle(
-                    color: Colors.grey.shade200,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
-              Text(
-                'Live Preview',
-                style: TextStyle(
-                  color: Colors.grey.shade500,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
+              TextButton(
+                onPressed: () => _openExternalLink(_instagramProfileUrl),
+                child: const Text('Open Profile'),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(
-            'Instagram Preview',
+            'Embedded preview of the official national FBLA Instagram page.',
             style: TextStyle(
-              color: Colors.grey.shade100,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
+              color: Colors.white.withOpacity(0.68),
+              fontSize: 13,
+              height: 1.35,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(18),
             child: SizedBox(
-              height: 300,
+              height: 340,
               child: _InstagramFeedEmbed(profileUrl: _instagramProfileUrl),
             ),
           ),
@@ -2155,7 +2202,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 children: [
                   const Text(
-                    'YouTube Highlights',
+                    'Official FBLA Videos',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 17,
@@ -2170,7 +2217,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               Text(
-                'Recent videos help demonstrate direct media integration for the rubric while keeping the home page balanced.',
+                'Recent uploads from the official FBLA channel keep the media feed relevant to conferences, leadership, and member engagement.',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.68),
                   fontSize: 13,
@@ -2186,9 +2233,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 )
               else if (snapshot.hasError && youtubeVideos.isEmpty)
                 _buildYouTubeInlineError(snapshot.error.toString())
+              else if (youtubeVideos.isEmpty)
+                _buildEmptyStateCard(
+                  icon: Icons.ondemand_video_outlined,
+                  title: 'No official videos available',
+                  subtitle:
+                      'Open the FBLA YouTube channel directly to view the latest uploads.',
+                )
               else ...[
                 ...youtubeVideos
-                    .take(2)
+                    .take(4)
                     .map((video) => _buildYouTubePostCard(context, video, accentColor))
                     .toList(),
               ],
@@ -2421,7 +2475,7 @@ class _InstagramFeedEmbed extends StatefulWidget {
 }
 
 class _InstagramFeedEmbedState extends State<_InstagramFeedEmbed> {
-  static const List<String> _allowedHandles = ['fbla_pbl', 'fbla'];
+  static const List<String> _allowedHandles = ['fbla_national', 'fbla'];
   late final WebViewController _controller;
   bool _isLoading = true;
   bool _hasError = false;
@@ -2490,7 +2544,7 @@ class _InstagramFeedEmbedState extends State<_InstagramFeedEmbed> {
         })();
       ''');
     } catch (_) {
-      // Ignore JS failures from CSP or DOM changes.
+      // Ignore JavaScript failures if Instagram changes its DOM.
     }
   }
 
@@ -2526,11 +2580,18 @@ class _InstagramFeedEmbedState extends State<_InstagramFeedEmbed> {
       return Container(
         color: const Color(0xFF0F0F0F),
         alignment: Alignment.center,
-        padding: const EdgeInsets.all(12),
-        child: Text(
-          'Instagram feed could not be loaded right now.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey.shade400),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, color: Colors.grey.shade400),
+            const SizedBox(height: 8),
+            Text(
+              'Instagram preview could not be loaded right now.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade400),
+            ),
+          ],
         ),
       );
     }
@@ -2719,13 +2780,12 @@ class _ModernQuickButton extends StatelessWidget {
               width: 1.5,
             ),
           ),
-          padding: EdgeInsets.all(12),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                padding: EdgeInsets.all(8),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   gradient: gradient,
                   borderRadius: BorderRadius.circular(12),
@@ -2740,29 +2800,37 @@ class _ModernQuickButton extends StatelessWidget {
                 child: Icon(
                   icon,
                   color: Colors.white,
-                  size: 20,
+                  size: 18,
                 ),
               ),
-              SizedBox(height: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: primaryColor,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.bold,
+                        color: primaryColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: Colors.grey.shade600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.grey.shade600,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -2784,266 +2852,574 @@ class EventsScreen extends StatefulWidget {
 }
 
 class _EventsScreenState extends State<EventsScreen> {
-  String _selectedFilter = 'All';
   DateTime _selectedDate = DateTime.now();
-  bool _showWeekCalendar = false;
-  bool _didScrollToCurrentMonth = false;
-  final GlobalKey _currentMonthKey = GlobalKey();
-  final TextEditingController _eventSearchController = TextEditingController();
-  String _eventSearchQuery = '';
-  final List<String> _filters = [
-    'All',
-    'Meetings',
-    'Competitions',
-    'Social',
-    'Workshops'
-  ];
+  late int _selectedYear;
+  bool _showDayEvents = false;
 
   @override
-  void dispose() {
-    _eventSearchController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _selectedYear = DateTime.now().year;
   }
 
   @override
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context);
     final upcoming = app.events..sort((a, b) => a.start.compareTo(b.start));
-    final searchMatches = _eventSearchQuery.trim().isEmpty
-      ? <Event>[]
-      : upcoming
-        .where((event) {
-          final query = _eventSearchQuery.toLowerCase();
-          return event.title.toLowerCase().contains(query) ||
-            event.description.toLowerCase().contains(query) ||
-            event.location.toLowerCase().contains(query);
-        })
-        .toList();
     final dateFilteredEvents = upcoming.where((event) {
       return event.start.year == _selectedDate.year &&
           event.start.month == _selectedDate.month &&
           event.start.day == _selectedDate.day;
     }).toList();
     final Color fblaBlue = const Color(0xFF1D4E89);
-    final Color fblaGold = const Color(0xFFF6C500);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
-        leading: _showWeekCalendar
+        leading: _showDayEvents
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
-                tooltip: 'Back to monthly calendar',
+                tooltip: 'Back to calendar',
                 onPressed: () {
-                  setState(() => _showWeekCalendar = false);
+                  setState(() => _showDayEvents = false);
                 },
               )
             : null,
-        title: Text('Events & Schedule'),
+        title: Text(_showDayEvents 
+            ? 'Events on ${_selectedDate.month}/${_selectedDate.day}/${_selectedDate.year}'
+            : 'Events & Schedule'),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: Colors.white,
       ),
-      floatingActionButton: _showWeekCalendar
-          ? null
-          : FloatingActionButton(
-              heroTag: 'events_add_button',
-              onPressed: _showAddEventDialog,
-              backgroundColor: const Color(0xFF1D4E89),
-              foregroundColor: Colors.white,
-              tooltip: 'Add event',
-              child: const Icon(Icons.add, size: 28),
-            ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
-      body: Column(
-        children: [
-          if (_showWeekCalendar)
-            _buildWeekCalendarStrip(context, upcoming),
+      floatingActionButton: const AiAssistantFab(heroTag: 'events_ai_assistant_fab'),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      body: _showDayEvents
+          ? _buildDayEventsView(context, dateFilteredEvents)
+          : _buildCalendarView(context, upcoming, fblaBlue),
+    );
+  }
 
-          // Filter chips
-          Container(
-            padding: EdgeInsets.fromLTRB(12, 12, 12, 10),
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              border: Border(
-                bottom: BorderSide(
-                  color: Colors.white12,
-                  width: 0.8,
+  Widget _buildCalendarView(BuildContext context, List<Event> allEvents, Color fblaBlue) {
+    final selectedCount = _eventsForDay(allEvents, _selectedDate).length;
+    return Column(
+      children: [
+        Container(
+          margin: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0F1C31), Color(0xFF0A1628)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: _showYearPicker,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: BorderSide(color: fblaBlue.withOpacity(0.8)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.calendar_month, size: 16),
+                label: Text('$_selectedYear'),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '${selectedCount} event${selectedCount == 1 ? '' : 's'} on ${_selectedDate.month}/${_selectedDate.day}',
+                  style: TextStyle(
+                    color: Colors.grey.shade200,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-            ),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: _filters.map((filter) {
-                  final isSelected = _selectedFilter == filter;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(24),
-                      onTap: () => setState(() => _selectedFilter = filter),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        curve: Curves.easeOut,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 10),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(24),
-                          gradient: isSelected
-                              ? LinearGradient(
-                                  colors: [fblaBlue, fblaBlue.withOpacity(0.8)],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                )
-                              : null,
-                          color: isSelected ? null : const Color(0xFF141414),
-                          border: Border.all(
-                            color: isSelected
-                                ? fblaBlue.withOpacity(0.9)
-                                : Colors.white24,
-                            width: isSelected ? 1.2 : 1,
-                          ),
-                          boxShadow: isSelected
-                              ? [
-                                  BoxShadow(
-                                    color: fblaBlue.withOpacity(0.35),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ]
-                              : const [],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _filterIcon(filter),
-                              size: 15,
-                              color: isSelected ? Colors.white : Colors.grey.shade300,
-                            ),
-                            const SizedBox(width: 7),
-                            Text(
-                              filter,
-                              style: TextStyle(
-                                color: isSelected ? Colors.white : Colors.grey.shade200,
-                                fontWeight:
-                                    isSelected ? FontWeight.w700 : FontWeight.w500,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
+              IconButton(
+                onPressed: _showAddEventDialog,
+                tooltip: 'Add event',
+                icon: const Icon(Icons.add_circle, color: Color(0xFFF6C500)),
               ),
-            ),
+            ],
           ),
+        ),
+        Expanded(
+          child: _buildScrollableYearMonths(allEvents, fblaBlue),
+        ),
+      ],
+    );
+  }
 
-          Container(
-            margin: const EdgeInsets.fromLTRB(12, 4, 12, 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF111111),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white12),
-            ),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
-                  child: TextField(
-                    controller: _eventSearchController,
-                    onChanged: (value) {
-                      setState(() => _eventSearchQuery = value);
-                    },
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Search events and jump to date',
-                      hintStyle: TextStyle(color: Colors.grey.shade500),
-                      prefixIcon:
-                          Icon(Icons.search, color: Colors.grey.shade400),
-                      suffixIcon: _eventSearchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: Icon(Icons.clear,
-                                  color: Colors.grey.shade400),
-                              onPressed: () {
-                                _eventSearchController.clear();
-                                setState(() => _eventSearchQuery = '');
-                              },
-                            )
-                          : null,
-                      filled: true,
-                      fillColor: const Color(0xFF1A1A1A),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                    ),
-                  ),
-                ),
-                if (_showWeekCalendar && searchMatches.isNotEmpty)
-                  Container(
-                    constraints: const BoxConstraints(maxHeight: 150),
-                    margin: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF161616),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white10),
-                    ),
-                    child: ListView.builder(
-                      itemCount: searchMatches.length > 6
-                          ? 6
-                          : searchMatches.length,
-                      itemBuilder: (context, index) {
-                        final event = searchMatches[index];
-                        return ListTile(
-                          dense: true,
-                          title: Text(
-                            event.title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          subtitle: Text(
-                            _shortDateTime(event.start),
-                            style: TextStyle(
-                              color: Colors.grey.shade400,
-                              fontSize: 12,
-                            ),
-                          ),
-                          onTap: () {
-                            setState(() {
-                              _selectedDate = DateTime(
-                                event.start.year,
-                                event.start.month,
-                                event.start.day,
-                              );
-                              _showWeekCalendar = true;
-                              _eventSearchQuery = '';
-                              _eventSearchController.clear();
-                            });
-                          },
-                        );
-                      },
-                    ),
-                  ),
-              ],
-            ),
-          ),
+  Widget _buildScrollableYearMonths(List<Event> allEvents, Color fblaBlue) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
+      itemCount: 12,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final month = index + 1;
+        return _buildMonthCard(_selectedYear, month, allEvents, fblaBlue);
+      },
+    );
+  }
 
-          // List content
-          Expanded(
-            child: _showWeekCalendar
-                ? _buildListView(context, dateFilteredEvents)
-                : _buildVerticalMonthlyCalendar(context, upcoming),
+  Widget _buildMonthCard(int year, int month, List<Event> allEvents, Color fblaBlue) {
+    final monthDate = DateTime(year, month, 1);
+    final daysInMonth = DateTime(year, month + 1, 0).day;
+    final firstWeekdayOffset = monthDate.weekday - DateTime.monday;
+    final totalCells = (((firstWeekdayOffset + daysInMonth) / 7).ceil()) * 7;
+    final now = DateTime.now();
+    const weekdayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F1B2D), Color(0xFF152744)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white12),
+        boxShadow: [
+          BoxShadow(
+            color: fblaBlue.withOpacity(0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 5,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF6C500),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _monthYearLabel(monthDate),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: weekdayLabels
+                .map((label) => Expanded(
+                      child: Center(
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            color: Colors.grey.shade400,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ))
+                .toList(),
+          ),
+          const SizedBox(height: 7),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 7,
+              crossAxisSpacing: 6,
+              mainAxisSpacing: 6,
+              childAspectRatio: 1.04,
+            ),
+            itemCount: totalCells,
+            itemBuilder: (context, cellIndex) {
+              final dayNumber = cellIndex - firstWeekdayOffset + 1;
+              final isInMonth = dayNumber >= 1 && dayNumber <= daysInMonth;
+              if (!isInMonth) return const SizedBox.shrink();
+
+              final dayDate = DateTime(year, month, dayNumber);
+              final isSelected = _isSameDate(dayDate, _selectedDate);
+              final isToday = _isSameDate(dayDate, now);
+              final dayEvents = _eventsForDay(allEvents, dayDate);
+              final hasEvents = dayEvents.isNotEmpty;
+
+              return InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () {
+                  setState(() {
+                    _selectedDate = dayDate;
+                    _showDayEvents = true;
+                  });
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? fblaBlue
+                        : (isToday ? fblaBlue.withOpacity(0.2) : const Color(0xFF1A2943)),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isSelected
+                          ? fblaBlue
+                          : (isToday ? fblaBlue.withOpacity(0.9) : Colors.white10),
+                      width: isToday ? 1.4 : 1,
+                    ),
+                  ),
+                  child: Stack(
+                    children: [
+                      Center(
+                        child: Text(
+                          '$dayNumber',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (hasEvents)
+                        Positioned(
+                          right: 3,
+                          top: 3,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF6C500),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '${dayEvents.length}',
+                              style: const TextStyle(
+                                color: Color(0xFF0A1422),
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showYearPicker() {
+    final currentYear = DateTime.now().year;
+    final years = List<int>.generate(16, (i) => currentYear - 5 + i);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0F1623),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 18),
+          child: GridView.builder(
+            shrinkWrap: true,
+            itemCount: years.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 2,
+            ),
+            itemBuilder: (context, i) {
+              final y = years[i];
+              final selected = y == _selectedYear;
+              return InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () {
+                  setState(() => _selectedYear = y);
+                  Navigator.pop(context);
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: selected ? const Color(0xFF1D4E89) : const Color(0xFF1A2640),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: selected ? const Color(0xFFF6C500) : Colors.white10,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '$y',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDayEventsView(BuildContext context, List<Event> events) {
+    final Color fblaBlue = const Color(0xFF1D4E89);
+    final Color fblaGold = const Color(0xFFF6C500);
+
+    if (events.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 86,
+                height: 86,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF13243D),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: Icon(Icons.event_busy, size: 42, color: Colors.grey.shade400),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No events on this day',
+                style: TextStyle(
+                  color: Colors.grey.shade200,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Create one now and set a reminder in seconds.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.grey.shade500,
+                  fontSize: 13.5,
+                ),
+              ),
+              const SizedBox(height: 18),
+              ElevatedButton.icon(
+                onPressed: _showAddEventDialog,
+                icon: const Icon(Icons.add),
+                label: const Text('Add New Event'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: fblaBlue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+      itemCount: events.length,
+      itemBuilder: (context, idx) {
+        final e = events[idx];
+        final eventType = _getEventType(e.title);
+        final typeColor = _eventTypeColor(eventType);
+        final saved = Provider.of<AppState>(context, listen: false)
+            .savedEventIds
+            .contains(e.id);
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [const Color(0xFF0F1B2D), const Color(0xFF162236)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: fblaBlue.withOpacity(0.3)),
+            boxShadow: [
+              BoxShadow(
+                color: fblaBlue.withOpacity(0.15),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header with type badge and save button
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 14, 12, 0),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: typeColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: typeColor.withOpacity(0.5)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(_filterIcon(eventType), size: 14, color: typeColor),
+                          const SizedBox(width: 6),
+                          Text(
+                            eventType,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: typeColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: Icon(
+                        saved ? Icons.bookmark : Icons.bookmark_outline,
+                        color: fblaGold,
+                      ),
+                      onPressed: () {
+                        Provider.of<AppState>(context, listen: false).toggleSaveEvent(e.id);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Event Title
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Text(
+                  e.title,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              
+              // Time and Location
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Row(
+                  children: [
+                    _buildEventInfoChip(
+                      icon: Icons.schedule,
+                      text: '${_shortDateTime(e.start)} - ${_shortDateTime(e.end)}',
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Row(
+                  children: [
+                    _buildEventInfoChip(
+                      icon: Icons.location_on_outlined,
+                      text: e.location,
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Description
+              if (e.description.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Text(
+                    e.description,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.grey.shade300,
+                      fontSize: 14,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              
+              // Action Button
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      await scheduleEventReminder(e);
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Reminder set for ${e.title}'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.notifications_active_outlined, size: 18),
+                    label: const Text('Set Reminder'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: fblaBlue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEventInfoChip({required IconData icon, required String text}) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: Colors.grey.shade400),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                text,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.grey.shade300,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -3078,7 +3454,8 @@ class _EventsScreenState extends State<EventsScreen> {
         createdEvent.start.month,
         createdEvent.start.day,
       );
-      _showWeekCalendar = true;
+      _selectedYear = createdEvent.start.year;
+      _showDayEvents = true;
     });
   }
 
@@ -3095,155 +3472,6 @@ class _EventsScreenState extends State<EventsScreen> {
       default:
         return Icons.grid_view_rounded;
     }
-  }
-
-  Widget _buildWeekCalendarStrip(BuildContext context, List<Event> allEvents) {
-    final Color fblaBlue = const Color(0xFF1D4E89);
-    final weekStart = _startOfWeek(_selectedDate);
-    final weekDays = List<DateTime>.generate(
-      7,
-      (index) => DateTime(
-        weekStart.year,
-        weekStart.month,
-        weekStart.day + index,
-      ),
-    );
-    const weekdayShort = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF101010),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: fblaBlue.withOpacity(0.5)),
-        boxShadow: [
-          BoxShadow(
-            color: fblaBlue.withOpacity(0.18),
-            blurRadius: 10,
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A1A),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white12),
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.chevron_left, size: 20),
-                  color: Colors.white,
-                  tooltip: 'Previous week',
-                  onPressed: () {
-                    setState(() {
-                      _selectedDate = _selectedDate.subtract(const Duration(days: 7));
-                    });
-                  },
-                ),
-              ),
-              Expanded(
-                child: Center(
-                  child: Text(
-                    _monthYearLabel(_selectedDate),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A1A),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white12),
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.chevron_right, size: 20),
-                  color: Colors.white,
-                  tooltip: 'Next week',
-                  onPressed: () {
-                    setState(() {
-                      _selectedDate = _selectedDate.add(const Duration(days: 7));
-                    });
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: weekDays.asMap().entries.map((entry) {
-              final index = entry.key;
-              final day = entry.value;
-              final isSelected = _isSameDate(day, _selectedDate);
-              final hasEvents = allEvents.any((event) => _isSameDate(event.start, day));
-
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _selectedDate = day),
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 3),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isSelected ? fblaBlue : const Color(0xFF1A1A1A),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: isSelected
-                            ? fblaBlue.withOpacity(0.9)
-                            : Colors.white12,
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          weekdayShort[index],
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: isSelected ? Colors.white : Colors.grey.shade400,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${day.day}',
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: isSelected ? Colors.white : Colors.grey.shade200,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: hasEvents
-                                ? (isSelected ? Colors.white : const Color(0xFFF6C500))
-                                : Colors.transparent,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  DateTime _startOfWeek(DateTime date) {
-    final diff = date.weekday - DateTime.monday;
-    return DateTime(date.year, date.month, date.day - diff);
   }
 
   String _monthYearLabel(DateTime date) {
@@ -3270,353 +3498,6 @@ class _EventsScreenState extends State<EventsScreen> {
 
   List<Event> _eventsForDay(List<Event> allEvents, DateTime day) {
     return allEvents.where((event) => _isSameDate(event.start, day)).toList();
-  }
-
-  Widget _buildVerticalMonthlyCalendar(BuildContext context, List<Event> allEvents) {
-    final Color fblaBlue = const Color(0xFF1D4E89);
-    final now = DateTime.now();
-    final startMonth = DateTime(2020, 1);
-    final endMonth = DateTime(2035, 12);
-    final monthCount =
-        ((endMonth.year - startMonth.year) * 12) + (endMonth.month - startMonth.month) + 1;
-    const weekdayShort = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-    if (!_didScrollToCurrentMonth) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final ctx = _currentMonthKey.currentContext;
-        if (!mounted || ctx == null) return;
-        Scrollable.ensureVisible(
-          ctx,
-          duration: const Duration(milliseconds: 350),
-          curve: Curves.easeOut,
-          alignment: 0.1,
-        );
-        _didScrollToCurrentMonth = true;
-      });
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
-      cacheExtent: 200000,
-      itemCount: monthCount,
-      itemBuilder: (context, index) {
-        final monthDate = DateTime(startMonth.year, startMonth.month + index, 1);
-        final isCurrentMonth =
-            monthDate.year == now.year && monthDate.month == now.month;
-        final daysInMonth = DateTime(monthDate.year, monthDate.month + 1, 0).day;
-        final firstWeekdayOffset = monthDate.weekday - DateTime.monday;
-        final totalCells = (((firstWeekdayOffset + daysInMonth) / 7).ceil()) * 7;
-
-        return Container(
-          key: isCurrentMonth ? _currentMonthKey : null,
-          margin: const EdgeInsets.only(top: 10),
-          padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF101010),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white12),
-          ),
-          child: Column(
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 8, left: 2),
-                  child: Text(
-                    _monthYearLabel(monthDate),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                    ),
-                  ),
-                ),
-              ),
-              Row(
-                children: weekdayShort
-                    .map(
-                      (label) => Expanded(
-                        child: Center(
-                          child: Text(
-                            label,
-                            style: TextStyle(
-                              color: Colors.grey.shade400,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    )
-                    .toList(),
-              ),
-              const SizedBox(height: 6),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 7,
-                  mainAxisSpacing: 6,
-                  crossAxisSpacing: 4,
-                  childAspectRatio: 0.88,
-                ),
-                itemCount: totalCells,
-                itemBuilder: (context, cellIndex) {
-                  final dayNumber = cellIndex - firstWeekdayOffset + 1;
-                  final isInMonth = dayNumber >= 1 && dayNumber <= daysInMonth;
-                  if (!isInMonth) {
-                    return const SizedBox.shrink();
-                  }
-
-                  final dayDate = DateTime(monthDate.year, monthDate.month, dayNumber);
-                  final isSelected = _isSameDate(dayDate, _selectedDate);
-                  final hasEvents = _eventsForDay(allEvents, dayDate).isNotEmpty;
-
-                  return InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () {
-                      setState(() {
-                        _selectedDate = dayDate;
-                        _showWeekCalendar = true;
-                      });
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: isSelected ? fblaBlue : const Color(0xFF181818),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: isSelected ? fblaBlue.withOpacity(0.85) : Colors.white10,
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            '$dayNumber',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            width: 5,
-                            height: 5,
-                            decoration: BoxDecoration(
-                              color: hasEvents
-                                  ? (isSelected ? Colors.white : const Color(0xFFF6C500))
-                                  : Colors.transparent,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildListView(BuildContext context, List<Event> events) {
-    final Color fblaBlue = const Color(0xFF1D4E89);
-    final Color fblaGold = const Color(0xFFF6C500);
-
-    if (events.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(14, 6, 14, 20),
-      itemCount: events.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, idx) {
-        final e = events[idx];
-        final eventType = _getEventType(e.title);
-        final typeColor = _eventTypeColor(eventType);
-        final saved = Provider.of<AppState>(context, listen: false)
-            .savedEventIds
-            .contains(e.id);
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: const Color(0xFF121212),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: fblaBlue.withOpacity(0.35), width: 1.2),
-            boxShadow: [
-              BoxShadow(
-                color: fblaBlue.withOpacity(0.18),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: typeColor.withOpacity(0.16),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: typeColor.withOpacity(0.45)),
-                    ),
-                    child: Text(
-                      eventType,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: typeColor,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A1A1A),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white12),
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        saved ? Icons.bookmark : Icons.bookmark_outline,
-                        color: fblaGold,
-                        size: 20,
-                      ),
-                      onPressed: () {
-                        final app =
-                            Provider.of<AppState>(context, listen: false);
-                        app.toggleSaveEvent(e.id);
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                e.title,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                  height: 1.2,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _eventMetaPill(
-                    icon: Icons.schedule,
-                    text:
-                        '${_shortDateTime(e.start)} — ${_shortDateTime(e.end)}',
-                  ),
-                  _eventMetaPill(
-                    icon: Icons.location_on_outlined,
-                    text: e.location,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                e.description,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.grey.shade300,
-                  height: 1.35,
-                  fontSize: 13.5,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        showModalBottomSheet(
-                          context: context,
-                            useSafeArea: true,
-                          builder: (_) => _RsvpSheet(event: e),
-                        );
-                      },
-                      icon: const Icon(Icons.rsvp, size: 16),
-                      label: const Text('RSVP'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: BorderSide(color: fblaBlue.withOpacity(0.7)),
-                        padding: const EdgeInsets.symmetric(vertical: 11),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        await scheduleEventReminder(e);
-                      },
-                      icon: const Icon(Icons.notifications_active_outlined,
-                          size: 16),
-                      label: const Text('Remind'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: fblaBlue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 11),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _eventMetaPill({required IconData icon, required String text}) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 320),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1B1B1B),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: Colors.grey.shade300),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              text,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.grey.shade300,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   Color _eventTypeColor(String eventType) {
@@ -3856,280 +3737,519 @@ class _AddEventScreenState extends State<AddEventScreen> {
     Navigator.pop(context, event);
   }
 
+  String _formatDate(DateTime date) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return '${weekdays[date.weekday - 1]}, ${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final fblaBlue = const Color(0xFF1D4E89);
+    final fblaGold = const Color(0xFFF6C500);
 
     return Scaffold(
       backgroundColor: appBackgroundColor,
       appBar: AppBar(
-        title: const Text('Add Event'),
+        title: const Text('Create Event'),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: Colors.white,
+        actions: [
+          TextButton(
+            onPressed: _submit,
+            child: Text(
+              'Save',
+              style: TextStyle(
+                color: fblaGold,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ],
       ),
       body: Container(
         decoration: const BoxDecoration(gradient: appBackgroundGradient),
         child: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-          children: [
-            TextFormField(
-              controller: _titleController,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                labelText: 'Event name',
-                labelStyle: const TextStyle(color: Colors.white70),
-                filled: true,
-                fillColor: const Color(0xFF1A1A1A),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+            children: [
+              // Header Icon
+              Center(
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [fblaBlue, fblaBlue.withOpacity(0.6)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: fblaBlue.withOpacity(0.4),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.event_note, color: Colors.white, size: 40),
                 ),
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Event name is required';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 14),
-            InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: _pickDate,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              const SizedBox(height: 24),
+              
+              // Event Name Section
+              _buildSectionLabel('Event Details', Icons.edit_note),
+              const SizedBox(height: 12),
+              _buildStyledTextField(
+                controller: _titleController,
+                label: 'Event Name',
+                hint: 'Enter event name',
+                icon: Icons.title,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Event name is required';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              _buildStyledTextField(
+                controller: _locationController,
+                label: 'Location',
+                hint: 'Where will this take place?',
+                icon: Icons.location_on_outlined,
+              ),
+              const SizedBox(height: 16),
+              _buildStyledTextField(
+                controller: _descriptionController,
+                label: 'Description',
+                hint: 'Add event details...',
+                icon: Icons.notes,
+                maxLines: 3,
+              ),
+              
+              const SizedBox(height: 28),
+              
+              // Date & Time Section
+              _buildSectionLabel('Date & Time', Icons.schedule),
+              const SizedBox(height: 12),
+              
+              // Date Picker Card
+              _buildDateTimeCard(
+                icon: Icons.calendar_today,
+                label: 'Date',
+                value: _formatDate(_pickedDate),
+                onTap: _pickDate,
+                color: fblaBlue,
+              ),
+              
+              const SizedBox(height: 12),
+              
+              // Time Toggle
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withOpacity(0.36), width: 1.2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.white.withOpacity(0.06),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  color: const Color(0xFF1A2640),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white.withOpacity(0.1)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.calendar_today_outlined,
-                        color: Colors.white, size: 18),
-                    const SizedBox(width: 10),
+                    Icon(Icons.access_time, color: Colors.grey.shade400, size: 22),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Set specific time',
+                        style: TextStyle(
+                          color: Colors.grey.shade300,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    Switch(
+                      value: _includeTime,
+                      activeColor: fblaBlue,
+                      activeTrackColor: fblaBlue.withOpacity(0.4),
+                      onChanged: (value) {
+                        setState(() {
+                          _includeTime = value;
+                          if (!_includeTime) {
+                            _startTime = null;
+                            _endTime = null;
+                          }
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Time Pickers (animated)
+              AnimatedSize(
+                duration: const Duration(milliseconds: 200),
+                child: _includeTime
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _buildDateTimeCard(
+                                icon: Icons.play_arrow_rounded,
+                                label: 'Start',
+                                value: _startTime?.format(context) ?? 'Set time',
+                                onTap: _pickStartTime,
+                                color: const Color(0xFF4CAF50),
+                                compact: true,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildDateTimeCard(
+                                icon: Icons.stop_rounded,
+                                label: 'End',
+                                value: _endTime?.format(context) ?? 'Set time',
+                                onTap: _pickEndTime,
+                                color: const Color(0xFFFF5722),
+                                compact: true,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+              
+              const SizedBox(height: 32),
+              
+              // Create Button
+              Container(
+                height: 56,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [fblaBlue, fblaBlue.withOpacity(0.8)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: fblaBlue.withOpacity(0.4),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton.icon(
+                  onPressed: _submit,
+                  icon: const Icon(Icons.add_circle_outline, size: 24),
+                  label: const Text(
+                    'Create Event',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionLabel(String text, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, color: const Color(0xFFF6C500), size: 20),
+        const SizedBox(width: 8),
+        Text(
+          text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStyledTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    int maxLines = 1,
+    String? Function(String?)? validator,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A2640),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: TextFormField(
+        controller: controller,
+        style: const TextStyle(color: Colors.white, fontSize: 15),
+        maxLines: maxLines,
+        validator: validator,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          labelStyle: TextStyle(color: Colors.grey.shade400),
+          hintStyle: TextStyle(color: Colors.grey.shade600),
+          prefixIcon: Icon(icon, color: Colors.grey.shade400, size: 22),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateTimeCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required VoidCallback onTap,
+    required Color color,
+    bool compact = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 12 : 16,
+            vertical: compact ? 14 : 16,
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A2640),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withOpacity(0.3)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: compact ? 18 : 22),
+              ),
+              SizedBox(width: compact ? 10 : 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      'Date: ${_pickedDate.month}/${_pickedDate.day}/${_pickedDate.year}',
-                      style: const TextStyle(
+                      label,
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: compact ? 11 : 12,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      value,
+                      style: TextStyle(
                         color: Colors.white,
+                        fontSize: compact ? 14 : 15,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _includeTime,
-              activeThumbColor: fblaBlue,
-              title: const Text(
-                'Include time (optional)',
-                style: TextStyle(color: Colors.white),
+              Icon(
+                Icons.chevron_right,
+                color: Colors.grey.shade500,
+                size: compact ? 20 : 24,
               ),
-              onChanged: (value) {
-                setState(() {
-                  _includeTime = value;
-                  if (!_includeTime) {
-                    _startTime = null;
-                    _endTime = null;
-                  }
-                });
-              },
-            ),
-            if (_includeTime)
-              Row(
-                children: [
-                  Expanded(
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: _pickStartTime,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 13),
-                        decoration: BoxDecoration(
-                          color: Colors.black,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.36),
-                            width: 1.2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.white.withOpacity(0.06),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.schedule, color: Colors.white70, size: 18),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _startTime == null
-                                    ? 'Start time'
-                                    : 'Start: ${_startTime!.format(context)}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: _pickEndTime,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 13),
-                        decoration: BoxDecoration(
-                          color: Colors.black,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.36),
-                            width: 1.2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.white.withOpacity(0.06),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.av_timer, color: Colors.white70, size: 18),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _endTime == null
-                                    ? 'End time'
-                                    : 'End: ${_endTime!.format(context)}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            if (_includeTime) const SizedBox(height: 12),
-            TextFormField(
-              controller: _locationController,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                labelText: 'Location (optional)',
-                labelStyle: const TextStyle(color: Colors.white70),
-                filled: true,
-                fillColor: const Color(0xFF1A1A1A),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _descriptionController,
-              style: const TextStyle(color: Colors.white),
-              maxLines: 4,
-              decoration: InputDecoration(
-                labelText: 'Description (optional)',
-                labelStyle: const TextStyle(color: Colors.white70),
-                filled: true,
-                fillColor: const Color(0xFF1A1A1A),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-            const SizedBox(height: 22),
-            SizedBox(
-              height: 50,
-              child: ElevatedButton.icon(
-                onPressed: _submit,
-                icon: const Icon(Icons.add),
-                label: const Text('Add Event'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: fblaBlue,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _RsvpSheet extends StatelessWidget {
-  final Event event;
-  const _RsvpSheet({required this.event});
+class _MonthYearPickerSheet extends StatefulWidget {
+  final DateTime initialDate;
+  final Function(DateTime) onDateSelected;
+
+  const _MonthYearPickerSheet({
+    required this.initialDate,
+    required this.onDateSelected,
+  });
+
+  @override
+  State<_MonthYearPickerSheet> createState() => _MonthYearPickerSheetState();
+}
+
+class _MonthYearPickerSheetState extends State<_MonthYearPickerSheet> {
+  late int _selectedYear;
+  late int _selectedMonth;
+  final Color fblaBlue = const Color(0xFF1D4E89);
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedYear = widget.initialDate.year;
+    _selectedMonth = widget.initialDate.month;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final app = Provider.of<AppState>(context, listen: false);
-    final bottomSafe = MediaQuery.of(context).viewPadding.bottom;
+    final currentYear = DateTime.now().year;
+    final years = List.generate(11, (i) => currentYear - 2 + i);
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
 
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(12, 12, 12, 12 + bottomSafe),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('RSVP for "${event.title}"',
-              style: TextStyle(fontWeight: FontWeight.bold)),
-          SizedBox(height: 8),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-            ElevatedButton(
-                onPressed: () {
-                  app.rsvpEvent(event.id, 'Yes');
-                  Navigator.pop(context);
-                },
-                child: Text('Yes')),
-            ElevatedButton(
-                onPressed: () {
-                  app.rsvpEvent(event.id, 'Maybe');
-                  Navigator.pop(context);
-                },
-                child: Text('Maybe')),
-            ElevatedButton(
-                onPressed: () {
-                  app.rsvpEvent(event.id, 'No');
-                  Navigator.pop(context);
-                },
-                child: Text('No')),
-          ]),
-        ]),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade600,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Select Month & Year',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 20),
+          
+          // Year Selector
+          SizedBox(
+            height: 50,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: years.length,
+              itemBuilder: (context, index) {
+                final year = years[index];
+                final isSelected = year == _selectedYear;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedYear = year),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    decoration: BoxDecoration(
+                      gradient: isSelected
+                          ? LinearGradient(colors: [fblaBlue, fblaBlue.withOpacity(0.7)])
+                          : null,
+                      color: isSelected ? null : const Color(0xFF1A2640),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected ? fblaBlue : Colors.white12,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$year',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 20),
+          
+          // Month Grid
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 2.0,
+            ),
+            itemCount: 12,
+            itemBuilder: (context, index) {
+              final month = index + 1;
+              final isSelected = month == _selectedMonth;
+              return GestureDetector(
+                onTap: () => setState(() => _selectedMonth = month),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: isSelected
+                        ? LinearGradient(colors: [fblaBlue, fblaBlue.withOpacity(0.7)])
+                        : null,
+                    color: isSelected ? null : const Color(0xFF1A2640),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isSelected ? fblaBlue : Colors.white12,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      months[index],
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 24),
+          
+          // Confirm Button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                widget.onDateSelected(DateTime(_selectedYear, _selectedMonth, 1));
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: fblaBlue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'Go to Month',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          SizedBox(height: MediaQuery.of(context).viewPadding.bottom + 10),
+        ],
       ),
     );
   }
@@ -4618,8 +4738,11 @@ class ProfileScreen extends StatelessWidget {
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: () {
-                          app.logout();
+                        onTap: () async {
+                          await app.logout();
+                          if (!context.mounted) return;
+                          Navigator.of(context, rootNavigator: true)
+                              .popUntil((route) => route.isFirst);
                         },
                         borderRadius: BorderRadius.circular(18),
                         child: Padding(
@@ -4879,12 +5002,10 @@ class MoreScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color fblaBlue = const Color(0xFF1D4E89);
     final app = context.watch<AppState>();
     final isDeveloperMode =
         app.signupRole.trim().toLowerCase() == 'developer' ||
         app.userEmail.trim().toLowerCase() == 'demo@fbla.app';
-    final bottomSafe = MediaQuery.of(context).viewPadding.bottom;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -4900,7 +5021,7 @@ class MoreScreen extends StatelessWidget {
           _buildGroupHeader(context, 'Community & Connection', Icons.groups_outlined),
           _buildMoreTile(
             context,
-            title: 'Chapter Directory',
+            title: 'Find Members',
             subtitle: 'Search local members and officers',
             icon: Icons.badge_outlined,
           ),

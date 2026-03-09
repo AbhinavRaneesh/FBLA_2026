@@ -2,40 +2,41 @@ import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../main.dart';
+
 class ResourcesScreen extends StatelessWidget {
   const ResourcesScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final Color fblaBlue = const Color(0xFF1D4E89);
-    final bottomSafe = MediaQuery.of(context).viewPadding.bottom;
-    final Color fblaGold = const Color(0xFFF6C500);
-
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: CustomScrollView(
-        slivers: [
-          // Modern App Bar
-          SliverAppBar(
-            expandedHeight: 56,
-            floating: false,
-            pinned: true,
-            backgroundColor: fblaBlue,
-            title: const Text(
-              'Resources',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+      backgroundColor: appBackgroundColor,
+      body: Container(
+        decoration: const BoxDecoration(gradient: appBackgroundGradient),
+        child: CustomScrollView(
+          slivers: [
+            // Modern App Bar
+            SliverAppBar(
+              expandedHeight: 56,
+              floating: false,
+              pinned: true,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              title: const Text(
+                'Resources',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
             ),
-          ),
 
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   // Quick Access Section
                   _buildModernSectionHeader(
                       context, 'Quick Access', Icons.flash_on),
@@ -195,12 +196,13 @@ class ResourcesScreen extends StatelessWidget {
                       context, 'Connect With Us', Icons.share),
                   const SizedBox(height: 16),
                   _buildSocialMediaRow(context),
-                  const SizedBox(height: 24),
-                ],
+                    const SizedBox(height: 24),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -214,14 +216,14 @@ class ResourcesScreen extends StatelessWidget {
           'Instagram',
           Icons.camera_alt,
           Color(0xFFE1306C),
-          () => _launchUrl('https://www.instagram.com/fbla_pbl/'),
+          () => _launchUrl('https://www.instagram.com/fbla_national/'),
         ),
         _buildSocialButton(
           context,
-          'Twitter',
+          'X',
           Icons.flutter_dash,
           Color(0xFF1DA1F2),
-          () => _launchUrl('https://twitter.com/FBLA_PBL'),
+          () => _launchUrl('https://x.com/FBLA_National'),
         ),
         _buildSocialButton(
           context,
