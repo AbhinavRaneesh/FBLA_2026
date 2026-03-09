@@ -20,7 +20,6 @@ class _SignupScreenState extends State<SignupScreen>
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmController = TextEditingController();
-  final TextEditingController _gradeLevelController = TextEditingController();
   static const List<String> _roleOptions = [
     'Chapter Member',
     'Advisor',
@@ -53,11 +52,6 @@ class _SignupScreenState extends State<SignupScreen>
 
   String? _validateName(String? value) {
     if (value == null || value.trim().isEmpty) return 'Name is required';
-    return null;
-  }
-
-  String? _validateGradeLevel(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Grade level is required';
     return null;
   }
 
@@ -98,7 +92,6 @@ class _SignupScreenState extends State<SignupScreen>
     _emailController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
-    _gradeLevelController.dispose();
     super.dispose();
   }
 
@@ -129,7 +122,7 @@ class _SignupScreenState extends State<SignupScreen>
         password: _passwordController.text,
         name: _nameController.text.trim(),
         role: _selectedRole!.trim(),
-        grade: _gradeLevelController.text.trim(),
+        grade: '',
       );
       if (!mounted) return;
       Navigator.popUntil(context, (route) => route.isFirst);
@@ -242,8 +235,7 @@ class _SignupScreenState extends State<SignupScreen>
                                             ),
                                             boxShadow: [
                                               BoxShadow(
-                                                color:
-                                                    fblaGold.withOpacity(0.4),
+                                                color: fblaGold.withOpacity(0.4),
                                                 blurRadius: 20,
                                                 offset: const Offset(0, 10),
                                               ),
@@ -277,79 +269,9 @@ class _SignupScreenState extends State<SignupScreen>
                                           letterSpacing: 0.2,
                                         ),
                                       ),
-                                      const SizedBox(height: 18),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      vertical: 10),
-                                              decoration: BoxDecoration(
-                                                color:
-                                                    fblaBlue.withOpacity(0.2),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                                border: Border.all(
-                                                  color: fblaBlue
-                                                      .withOpacity(0.45),
-                                                ),
-                                              ),
-                                              child: Center(
-                                                child: Text(
-                                                  'Step 1: Profile Details',
-                                                  style: TextStyle(
-                                                    color: textPrimary,
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      vertical: 10),
-                                              decoration: BoxDecoration(
-                                                color:
-                                                    fblaGold.withOpacity(0.2),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                                border: Border.all(
-                                                  color: fblaGold
-                                                      .withOpacity(0.55),
-                                                ),
-                                              ),
-                                              child: Center(
-                                                child: Text(
-                                                  'Step 2: Security & Terms',
-                                                  style: TextStyle(
-                                                    color: textPrimary,
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
                                     ],
                                   ),
                                   const SizedBox(height: 36),
-
-                                  Text(
-                                    'Step 1 of 2 · Profile Details',
-                                    style: TextStyle(
-                                      color: fblaGold,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.2,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 14),
 
                                   /// Email field
                                   TextFormField(
@@ -427,7 +349,7 @@ class _SignupScreenState extends State<SignupScreen>
                                     validator: _validateEmail,
                                     autofillHints: const [
                                       AutofillHints.username,
-                                      AutofillHints.email
+                                      AutofillHints.email,
                                     ],
                                   ),
                                   const SizedBox(height: 20),
@@ -473,58 +395,6 @@ class _SignupScreenState extends State<SignupScreen>
                                   ),
                                   const SizedBox(height: 20),
 
-                                  /// Grade level
-                                  TextFormField(
-                                    controller: _gradeLevelController,
-                                    decoration: InputDecoration(
-                                      labelText: 'Grade Level',
-                                      hintText: '9, 10, 11, 12, College, etc.',
-                                      prefixIcon: Icon(
-                                        Icons.school_outlined,
-                                        color: fblaBlue.withOpacity(0.7),
-                                      ),
-                                      filled: true,
-                                      fillColor: fieldBackground,
-                                      border: border,
-                                      enabledBorder: border,
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                        borderSide: BorderSide(
-                                            color: fblaBlue, width: 2),
-                                      ),
-                                      errorBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                        borderSide: BorderSide(
-                                            color: Colors.red.shade300,
-                                            width: 1.5),
-                                      ),
-                                      focusedErrorBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                        borderSide: BorderSide(
-                                            color: Colors.red, width: 2),
-                                      ),
-                                    ),
-                                    textInputAction: TextInputAction.next,
-                                    style: TextStyle(color: textPrimary),
-                                    cursorColor: fblaGold,
-                                    validator: _validateGradeLevel,
-                                  ),
-                                  const SizedBox(height: 20),
-
-                                  Divider(
-                                    color: fblaBlue.withOpacity(0.35),
-                                    thickness: 1,
-                                    height: 30,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Step 2 of 2 · Security & Terms',
-                                    style: TextStyle(
-                                      color: fblaGold,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.2,
-                                    ),
-                                  ),
                                   const SizedBox(height: 14),
 
                                   /// Password field

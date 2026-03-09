@@ -7,7 +7,12 @@ const String defaultModel = "llama3.2:1b";
 
 const String ollamaBaseUrl = String.fromEnvironment(
   'OLLAMA_BASE_URL',
-  defaultValue: 'http://192.168.0.105:11434',
+  defaultValue: '',
+);
+
+const String ollamaHostIp = String.fromEnvironment(
+  'OLLAMA_HOST_IP',
+  defaultValue: '',
 );
 
 final List<String> apiEndpoints = [

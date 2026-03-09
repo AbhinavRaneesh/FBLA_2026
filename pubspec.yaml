@@ -73,4 +73,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/Mobile-Application-Development.pdf
+    - assets/fbla_logo.png
+    - assets/fbla_header.png
+    - assets/logo.png
     - assets/legal/

@@ -111,8 +111,13 @@ class MongoDbService {
     return email.trim().toLowerCase();
   }
 
+  static String _normalizeUsername(String username) {
+    return username.trim().toLowerCase();
+  }
+
   static Future<Map<String, dynamic>> createUser({
-    required String email,
+    String? username,
+    String? email,
     required String password,
     required String name,
     required String role,
@@ -120,16 +125,25 @@ class MongoDbService {
   }) async {
     await _ensureConnectedOrThrow();
 
-    final normalizedEmail = _normalizeEmail(email);
+    final rawIdentifier = (username != null && username.trim().isNotEmpty)
+        ? username.trim()
+        : (email ?? '').trim();
+    final normalizedUsername = _normalizeUsername(rawIdentifier);
+    if (normalizedUsername.isEmpty) {
+      throw Exception('Username is required.');
+    }
+
+    final generatedEmail = _normalizeEmail('$normalizedUsername@fbla.local');
     final users = collection('users');
-    final existing = await users.findOne(where.eq('email', normalizedEmail));
+    final existing = await users.findOne(where.eq('username', normalizedUsername));
     if (existing != null) {
-      throw Exception('An account with this email already exists.');
+      throw Exception('That username is already taken.');
     }
 
     final nowIso = DateTime.now().toUtc().toIso8601String();
     final Map<String, dynamic> userDoc = {
-      'email': normalizedEmail,
+      'email': generatedEmail,
+      'username': normalizedUsername,
       'name': name.trim(),
       'role': role.trim(),
       'gradeLevel': gradeLevel.trim(),
@@ -141,7 +155,8 @@ class MongoDbService {
     await users.insertOne(userDoc);
 
     return {
-      'email': normalizedEmail,
+      'email': generatedEmail,
+      'username': normalizedUsername,
       'name': name.trim(),
       'role': role.trim(),
       'gradeLevel': gradeLevel.trim(),
@@ -149,16 +164,28 @@ class MongoDbService {
   }
 
   static Future<Map<String, dynamic>> loginUser({
-    required String email,
+    String? username,
+    String? email,
     required String password,
   }) async {
     await _ensureConnectedOrThrow();
 
-    final normalizedEmail = _normalizeEmail(email);
+    final rawIdentifier = (username != null && username.trim().isNotEmpty)
+        ? username.trim()
+        : (email ?? '').trim();
+    if (rawIdentifier.isEmpty) {
+      throw Exception('Username is required.');
+    }
+
+    final normalizedUsername = _normalizeUsername(rawIdentifier);
     final users = collection('users');
-    final userDoc = await users.findOne(where.eq('email', normalizedEmail));
+    Map<String, dynamic>? userDoc =
+        await users.findOne(where.eq('username', normalizedUsername));
+    userDoc ??= await users.findOne(where.eq('name', rawIdentifier));
+    userDoc ??= await users.findOne(where.eq('email', _normalizeEmail(rawIdentifier)));
+
     if (userDoc == null) {
-      throw Exception('No account found for this email.');
+      throw Exception('No account found for this username.');
     }
 
     final storedHash = (userDoc['passwordHash'] ?? '').toString();
@@ -168,7 +195,8 @@ class MongoDbService {
     }
 
     return {
-      'email': normalizedEmail,
+      'email': (userDoc['email'] ?? '').toString(),
+      'username': (userDoc['username'] ?? normalizedUsername).toString(),
       'name': (userDoc['name'] ?? '').toString(),
       'role': (userDoc['role'] ?? '').toString(),
       'gradeLevel': (userDoc['gradeLevel'] ?? '').toString(),
