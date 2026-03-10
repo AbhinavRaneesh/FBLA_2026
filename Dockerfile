@@ -1,18 +1,20 @@
 FROM ghcr.io/cirruslabs/flutter:3.41.1 AS build
 
-WORKDIR /app
+USER cirrus
 
-COPY pubspec.yaml pubspec.lock* ./
+WORKDIR /home/cirrus/app
+
+COPY --chown=cirrus:cirrus pubspec.yaml pubspec.lock* ./
 RUN flutter pub get
 
-COPY . .
-RUN flutter config --enable-web && flutter build web --release --no-wasm-dry-run
+COPY --chown=cirrus:cirrus . .
+RUN flutter build web --release --no-wasm-dry-run --no-pub -v
 
 FROM python:3.12-alpine
 
 WORKDIR /app
 
-COPY --from=build /app/build/web ./build/web
+COPY --from=build /home/cirrus/app/build/web ./build/web
 
 ENV PORT=10000
 EXPOSE 10000
