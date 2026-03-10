@@ -4,6 +4,16 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart';
 
+const Color appBackgroundColor = Color(0xFF0F1623);
+const LinearGradient appBackgroundGradient = LinearGradient(
+  begin: Alignment.topCenter,
+  end: Alignment.bottomCenter,
+  colors: [
+    Color(0xFF0F1623),
+    Color(0xFF0A1220),
+  ],
+);
+
 class ResourcesScreen extends StatelessWidget {
   const ResourcesScreen({super.key});
 
@@ -37,165 +47,166 @@ class ResourcesScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                  // Quick Access Section
-                  _buildModernSectionHeader(
-                      context, 'Quick Access', Icons.flash_on),
-                  const SizedBox(height: 16),
+                    // Quick Access Section
+                    _buildModernSectionHeader(
+                        context, 'Quick Access', Icons.flash_on),
+                    const SizedBox(height: 16),
 
-                  _buildResourceCard(
-                    context,
-                    'FBLA Connect',
-                    'Access your FBLA Connect account',
-                    Icons.account_circle,
-                    Color(0xFF1D4E89),
-                    () => _launchUrl('https://connect.fbla.org/'),
-                  ),
+                    _buildResourceCard(
+                      context,
+                      'FBLA Connect',
+                      'Access your FBLA Connect account',
+                      Icons.account_circle,
+                      Color(0xFF1D4E89),
+                      () => _launchUrl('https://connect.fbla.org/'),
+                    ),
 
-                  _buildResourceCard(
-                    context,
-                    'Competition Guidelines',
-                    'Study guides and competition rules',
-                    Icons.school,
-                    Color(0xFFF6C500),
-                    () => _launchUrl(
-                        'https://www.fbla-pbl.org/competitive-events/'),
-                  ),
+                    _buildResourceCard(
+                      context,
+                      'Competition Guidelines',
+                      'Study guides and competition rules',
+                      Icons.school,
+                      Color(0xFFF6C500),
+                      () => _launchUrl(
+                          'https://www.fbla-pbl.org/competitive-events/'),
+                    ),
 
-                  _buildResourceCard(
-                    context,
-                    'Leadership Development',
-                    'Build your leadership skills',
-                    Icons.leaderboard,
-                    Color(0xFF4CAF50),
-                    () => _launchUrl(
-                        'https://www.fbla-pbl.org/leadership-development/'),
-                  ),
+                    _buildResourceCard(
+                      context,
+                      'Leadership Development',
+                      'Build your leadership skills',
+                      Icons.leaderboard,
+                      Color(0xFF4CAF50),
+                      () => _launchUrl(
+                          'https://www.fbla-pbl.org/leadership-development/'),
+                    ),
 
-                  const SizedBox(height: 28),
+                    const SizedBox(height: 28),
 
-                  // Study Materials Section
-                  _buildModernSectionHeader(
-                      context, 'Study Materials', Icons.book),
-                  const SizedBox(height: 16),
+                    // Study Materials Section
+                    _buildModernSectionHeader(
+                        context, 'Study Materials', Icons.book),
+                    const SizedBox(height: 16),
 
-                  _buildResourceCard(
-                    context,
-                    'FBLA Competitive Events',
-                    'Browse all FBLA events with search and filters',
-                    Icons.emoji_events,
-                    Color(0xFF1D4E89),
-                    () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const CompetitiveEventsScreen(),
-                        ),
-                      );
-                    },
-                  ),
+                    _buildResourceCard(
+                      context,
+                      'FBLA Competitive Events',
+                      'Browse all FBLA events with search and filters',
+                      Icons.emoji_events,
+                      Color(0xFF1D4E89),
+                      () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const CompetitiveEventsScreen(),
+                          ),
+                        );
+                      },
+                    ),
 
-                  _buildResourceCard(
-                    context,
-                    'Business Skills',
-                    'Fundamentals of business and entrepreneurship',
-                    Icons.business,
-                    Color(0xFFFF9800),
-                    () => _showComingSoon(context),
-                  ),
+                    _buildResourceCard(
+                      context,
+                      'Business Skills',
+                      'Fundamentals of business and entrepreneurship',
+                      Icons.business,
+                      Color(0xFFFF9800),
+                      () => _showComingSoon(context),
+                    ),
 
-                  _buildResourceCard(
-                    context,
-                    'Technology & Innovation',
-                    'Latest trends in business technology',
-                    Icons.computer,
-                    Color(0xFF2196F3),
-                    () => _showComingSoon(context),
-                  ),
+                    _buildResourceCard(
+                      context,
+                      'Technology & Innovation',
+                      'Latest trends in business technology',
+                      Icons.computer,
+                      Color(0xFF2196F3),
+                      () => _showComingSoon(context),
+                    ),
 
-                  _buildResourceCard(
-                    context,
-                    'Career Preparation',
-                    'Resume building and interview skills',
-                    Icons.work,
-                    Color(0xFF9C27B0),
-                    () => _showComingSoon(context),
-                  ),
+                    _buildResourceCard(
+                      context,
+                      'Career Preparation',
+                      'Resume building and interview skills',
+                      Icons.work,
+                      Color(0xFF9C27B0),
+                      () => _showComingSoon(context),
+                    ),
 
-                  const SizedBox(height: 28),
+                    const SizedBox(height: 28),
 
-                  // Downloads Section
-                  _buildModernSectionHeader(
-                      context, 'Downloads', Icons.download),
-                  const SizedBox(height: 16),
+                    // Downloads Section
+                    _buildModernSectionHeader(
+                        context, 'Downloads', Icons.download),
+                    const SizedBox(height: 16),
 
-                  _buildResourceCard(
-                    context,
-                    'FBLA Handbook',
-                    'Complete guide to FBLA programs',
-                    Icons.book,
-                    Color(0xFFFF5722),
-                    () => _showComingSoon(context),
-                  ),
+                    _buildResourceCard(
+                      context,
+                      'FBLA Handbook',
+                      'Complete guide to FBLA programs',
+                      Icons.book,
+                      Color(0xFFFF5722),
+                      () => _showComingSoon(context),
+                    ),
 
-                  _buildResourceCard(
-                    context,
-                    'Chapter Resources',
-                    'Templates and guides for chapter activities',
-                    Icons.group,
-                    Color(0xFF607D8B),
-                    () => _showComingSoon(context),
-                  ),
+                    _buildResourceCard(
+                      context,
+                      'Chapter Resources',
+                      'Templates and guides for chapter activities',
+                      Icons.group,
+                      Color(0xFF607D8B),
+                      () => _showComingSoon(context),
+                    ),
 
-                  _buildResourceCard(
-                    context,
-                    'Competition Materials',
-                    'Practice tests and study guides',
-                    Icons.quiz,
-                    Colors.deepPurple,
-                    () => _showComingSoon(context),
-                  ),
+                    _buildResourceCard(
+                      context,
+                      'Competition Materials',
+                      'Practice tests and study guides',
+                      Icons.quiz,
+                      Colors.deepPurple,
+                      () => _showComingSoon(context),
+                    ),
 
-                  const SizedBox(height: 28),
+                    const SizedBox(height: 28),
 
-                  // External Links Section
-                  _buildModernSectionHeader(
-                      context, 'External Links', Icons.link),
-                  const SizedBox(height: 16),
+                    // External Links Section
+                    _buildModernSectionHeader(
+                        context, 'External Links', Icons.link),
+                    const SizedBox(height: 16),
 
-                  _buildResourceCard(
-                    context,
-                    'FBLA-PBL Official Website',
-                    'Visit the national FBLA website',
-                    Icons.language,
-                    Color(0xFF1D4E89),
-                    () => _launchUrl('https://www.fbla-pbl.org/'),
-                  ),
+                    _buildResourceCard(
+                      context,
+                      'FBLA-PBL Official Website',
+                      'Visit the national FBLA website',
+                      Icons.language,
+                      Color(0xFF1D4E89),
+                      () => _launchUrl('https://www.fbla-pbl.org/'),
+                    ),
 
-                  _buildResourceCard(
-                    context,
-                    'State FBLA',
-                    'Connect with your state organization',
-                    Icons.location_on,
-                    Color(0xFFE91E63),
-                    () => _showComingSoon(context),
-                  ),
+                    _buildResourceCard(
+                      context,
+                      'State FBLA',
+                      'Connect with your state organization',
+                      Icons.location_on,
+                      Color(0xFFE91E63),
+                      () => _showComingSoon(context),
+                    ),
 
-                  _buildResourceCard(
-                    context,
-                    'Career Center',
-                    'Explore career opportunities',
-                    Icons.explore,
-                    Color(0xFF00BCD4),
-                    () => _launchUrl('https://www.fbla-pbl.org/career-center/'),
-                  ),
+                    _buildResourceCard(
+                      context,
+                      'Career Center',
+                      'Explore career opportunities',
+                      Icons.explore,
+                      Color(0xFF00BCD4),
+                      () =>
+                          _launchUrl('https://www.fbla-pbl.org/career-center/'),
+                    ),
 
-                  const SizedBox(height: 28),
+                    const SizedBox(height: 28),
 
-                  // Social Media Section
-                  _buildModernSectionHeader(
-                      context, 'Connect With Us', Icons.share),
-                  const SizedBox(height: 16),
-                  _buildSocialMediaRow(context),
+                    // Social Media Section
+                    _buildModernSectionHeader(
+                        context, 'Connect With Us', Icons.share),
+                    const SizedBox(height: 16),
+                    _buildSocialMediaRow(context),
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -208,38 +219,52 @@ class ResourcesScreen extends StatelessWidget {
   }
 
   Widget _buildSocialMediaRow(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _buildSocialButton(
-          context,
-          'Instagram',
-          Icons.camera_alt,
-          Color(0xFFE1306C),
-          () => _launchUrl('https://www.instagram.com/fbla_national/'),
-        ),
-        _buildSocialButton(
-          context,
-          'X',
-          Icons.flutter_dash,
-          Color(0xFF1DA1F2),
-          () => _launchUrl('https://x.com/FBLA_National'),
-        ),
-        _buildSocialButton(
-          context,
-          'Facebook',
-          Icons.facebook,
-          Color(0xFF1877F2),
-          () => _launchUrl('https://www.facebook.com/FBLAPBL/'),
-        ),
-        _buildSocialButton(
-          context,
-          'LinkedIn',
-          Icons.business,
-          Color(0xFF0A66C2),
-          () => _launchUrl('https://www.linkedin.com/company/fbla-pbl/'),
-        ),
-      ],
+    final buttons = [
+      _buildSocialButton(
+        context,
+        'Instagram',
+        Icons.camera_alt,
+        Color(0xFFE1306C),
+        () => _launchUrl('https://www.instagram.com/fbla_national/'),
+      ),
+      _buildSocialButton(
+        context,
+        'X',
+        Icons.flutter_dash,
+        Color(0xFF1DA1F2),
+        () => _launchUrl('https://x.com/FBLA_National'),
+      ),
+      _buildSocialButton(
+        context,
+        'Facebook',
+        Icons.facebook,
+        Color(0xFF1877F2),
+        () => _launchUrl('https://www.facebook.com/FBLAPBL/'),
+      ),
+      _buildSocialButton(
+        context,
+        'LinkedIn',
+        Icons.business,
+        Color(0xFF0A66C2),
+        () => _launchUrl('https://www.linkedin.com/company/fbla-pbl/'),
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 10.0;
+        const columns = 3;
+        final buttonWidth =
+            (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: buttons
+              .map((button) => SizedBox(width: buttonWidth, child: button))
+              .toList(),
+        );
+      },
     );
   }
 
@@ -254,18 +279,22 @@ class ResourcesScreen extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: color.withOpacity(0.3), width: 1.5),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 28),
-            SizedBox(height: 6),
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 4),
             Text(
               label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,

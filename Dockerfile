@@ -1,4 +1,4 @@
-FROM ghcr.io/cirruslabs/flutter:stable AS build
+FROM ghcr.io/cirruslabs/flutter:3.41.1 AS build
 
 WORKDIR /app
 
@@ -6,7 +6,7 @@ COPY pubspec.yaml pubspec.lock* ./
 RUN flutter pub get
 
 COPY . .
-RUN flutter config --enable-web && flutter build web --release
+RUN flutter build web --release --no-wasm-dry-run --no-pub --dart2js-optimization O2 --no-source-maps
 
 FROM python:3.12-alpine
 

@@ -40,7 +40,8 @@ class MongoDbService {
     }
 
     if (kIsWeb) {
-      _lastInitError = 'MongoDB is not supported on Flutter web via mongo_dart.';
+      _lastInitError =
+          'MongoDB is not supported on Flutter web via mongo_dart.';
       debugPrint(_lastInitError);
       return false;
     }
@@ -51,9 +52,9 @@ class MongoDbService {
     }
 
     final uri = (_configuredUri ??
-        connectionString ??
-        const String.fromEnvironment('MONGODB_URI'))
-      .trim();
+            connectionString ??
+            const String.fromEnvironment('MONGODB_URI'))
+        .trim();
     if (uri.isEmpty) {
       _lastInitError = 'MongoDB init skipped: MONGODB_URI not provided.';
       debugPrint(_lastInitError);
@@ -91,7 +92,8 @@ class MongoDbService {
   static DbCollection collection(String name) {
     final db = _db;
     if (db == null || !db.isConnected) {
-      throw StateError('MongoDB is not connected. Call MongoDbService.initialize() first.');
+      throw StateError(
+          'MongoDB is not connected. Call MongoDbService.initialize() first.');
     }
     return db.collection(name);
   }
@@ -99,7 +101,8 @@ class MongoDbService {
   static Future<void> _ensureIndexes() async {
     if (_indexesEnsured || !isConnected) return;
     final users = collection('users');
-    await users.createIndex(keys: {'email': 1}, unique: true, name: 'email_unique');
+    await users
+        .createIndex(keys: {'email': 1}, unique: true, name: 'email_unique');
     _indexesEnsured = true;
   }
 
@@ -135,7 +138,8 @@ class MongoDbService {
 
     final generatedEmail = _normalizeEmail('$normalizedUsername@fbla.local');
     final users = collection('users');
-    final existing = await users.findOne(where.eq('username', normalizedUsername));
+    final existing =
+        await users.findOne(where.eq('username', normalizedUsername));
     if (existing != null) {
       throw Exception('That username is already taken.');
     }
@@ -182,7 +186,8 @@ class MongoDbService {
     Map<String, dynamic>? userDoc =
         await users.findOne(where.eq('username', normalizedUsername));
     userDoc ??= await users.findOne(where.eq('name', rawIdentifier));
-    userDoc ??= await users.findOne(where.eq('email', _normalizeEmail(rawIdentifier)));
+    userDoc ??=
+        await users.findOne(where.eq('email', _normalizeEmail(rawIdentifier)));
 
     if (userDoc == null) {
       throw Exception('No account found for this username.');
@@ -201,6 +206,25 @@ class MongoDbService {
       'role': (userDoc['role'] ?? '').toString(),
       'gradeLevel': (userDoc['gradeLevel'] ?? '').toString(),
     };
+  }
+
+  static Future<List<Map<String, String>>> listUsers() async {
+    await _ensureConnectedOrThrow();
+
+    final users = collection('users');
+    final docs = await users.find(where.sortBy('name')).toList();
+
+    return docs
+        .map(
+          (doc) => {
+            'name': (doc['name'] ?? '').toString(),
+            'username': (doc['username'] ?? '').toString(),
+            'email': (doc['email'] ?? '').toString(),
+            'role': (doc['role'] ?? '').toString(),
+            'gradeLevel': (doc['gradeLevel'] ?? '').toString(),
+          },
+        )
+        .toList(growable: false);
   }
 
   static Future<void> close() async {
