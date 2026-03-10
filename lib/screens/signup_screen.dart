@@ -21,11 +21,9 @@ class _SignupScreenState extends State<SignupScreen>
   final PageController _pageController = PageController();
   
   static const List<String> _roleOptions = [
-    'Chapter Member',
-    'Advisor',
     'Student',
+    'Advisor',
     'Officer',
-    'Other',
   ];
   
   String? _selectedRole;
@@ -161,7 +159,10 @@ class _SignupScreenState extends State<SignupScreen>
         grade: '',
       );
       if (!mounted) return;
-      Navigator.popUntil(context, (route) => route.isFirst);
+      Navigator.pop(context, {
+        'email': _emailController.text.trim(),
+        'password': _passwordController.text,
+      });
     } catch (e) {
       if (!mounted) return;
       _showError(e.toString().replaceFirst('Exception: ', ''));
@@ -488,8 +489,6 @@ class _SignupScreenState extends State<SignupScreen>
 
   IconData _getRoleIcon(String role) {
     switch (role) {
-      case 'Chapter Member':
-        return Icons.groups_outlined;
       case 'Advisor':
         return Icons.school_outlined;
       case 'Student':

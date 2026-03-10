@@ -366,19 +366,12 @@ class AppState extends ChangeNotifier {
     required String role,
     required String grade,
   }) async {
-    final account = await MongoDbService.createUser(
+    await MongoDbService.createUser(
       email: email,
       password: password,
       name: name,
       role: role,
       gradeLevel: grade,
-    );
-
-    await login(
-      (account['email'] ?? email).toString(),
-      (account['name'] ?? name).toString(),
-      role: (account['role'] ?? role).toString(),
-      grade: (account['gradeLevel'] ?? grade).toString(),
     );
   }
 
@@ -1289,6 +1282,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context);
     final Color fblaBlue = const Color(0xFF1D4E89);
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isCompact = screenHeight < 720;
+    final EdgeInsets listPadding = EdgeInsets.fromLTRB(
+      16,
+      isCompact ? 6 : 8,
+      16,
+      isCompact ? 18 : 28,
+    );
+    final double blockSpacing = isCompact ? 14 : 18;
+    final double sectionSpacing = isCompact ? 18 : 24;
+    final double smallSpacing = isCompact ? 10 : 12;
     final upcomingEvents = [...app.events]
       ..sort((a, b) => a.start.compareTo(b.start));
     final nextEvents = upcomingEvents
@@ -1391,24 +1395,24 @@ class _HomeScreenState extends State<HomeScreen> {
         onRefresh: _refreshYouTubeVideos,
         child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+            padding: listPadding,
             children: [
               _buildHeroCard(firstName, nextEvent),
-              const SizedBox(height: 18),
+              SizedBox(height: blockSpacing),
               _buildStatsRow(app, nextEvents, featuredNews),
-              const SizedBox(height: 22),
+              SizedBox(height: sectionSpacing),
               _buildSectionTitle(
                 title: 'Quick Actions',
                 subtitle: 'Jump into the areas members use most',
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: smallSpacing),
               _buildQuickActions(),
-              const SizedBox(height: 24),
+              SizedBox(height: sectionSpacing),
               _buildSectionTitle(
                 title: 'Upcoming Events',
                 subtitle: 'Keep track of deadlines, meetings, and reminders',
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: smallSpacing),
               if (nextEvents.isEmpty)
                 _buildEmptyStateCard(
                   icon: Icons.event_busy,
@@ -1417,12 +1421,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 )
               else
                 ...nextEvents.map((event) => _buildEventCard(app, event)),
-              const SizedBox(height: 24),
+              SizedBox(height: sectionSpacing),
               _buildSectionTitle(
                 title: 'Latest Updates',
                 subtitle: 'Announcements and chapter news at a glance',
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: smallSpacing),
               if (featuredNews.isEmpty)
                 _buildEmptyStateCard(
                   icon: Icons.campaign_outlined,
@@ -1431,17 +1435,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 )
               else
                 ...featuredNews.map(_buildAnnouncementCard),
-              const SizedBox(height: 24),
+              SizedBox(height: sectionSpacing),
               _buildSectionTitle(
                 title: 'Stay Connected',
                 subtitle:
                     'Official FBLA social channels',
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: smallSpacing),
               _buildSocialLinksCard(),
-              const SizedBox(height: 14),
+              SizedBox(height: isCompact ? 10 : 14),
               _buildInstagramPreviewCard(fblaBlue),
-              const SizedBox(height: 14),
+              SizedBox(height: isCompact ? 10 : 14),
               _buildYouTubePreviewSection(fblaBlue),
             ],
           ),
@@ -1450,8 +1454,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHeroCard(String firstName, Event? nextEvent) {
+    final isCompact = MediaQuery.of(context).size.height < 720;
+    final heroPadding = isCompact ? 18.0 : 22.0;
+    final titleSize = isCompact ? 26.0 : 28.0;
+    final titleSpacing = isCompact ? 10.0 : 14.0;
+    final bodySpacing = isCompact ? 8.0 : 10.0;
+    final eventSpacing = isCompact ? 12.0 : 16.0;
+    final buttonSpacing = isCompact ? 14.0 : 18.0;
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(heroPadding),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
         gradient: const LinearGradient(
@@ -1490,29 +1501,29 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: titleSpacing),
           Text(
             'Good to see you, $firstName.',
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
-              fontSize: 28,
+              fontSize: titleSize,
               fontWeight: FontWeight.w800,
               height: 1.15,
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: bodySpacing),
           Text(
             nextEvent == null
                 ? 'Use your home page to stay informed, manage events, access resources, and keep up with FBLA social channels.'
                 : 'Your next event is ${nextEvent.title} on ${_formatLongDate(nextEvent.start)}. Use this dashboard to stay informed, prepared, and connected.',
             style: TextStyle(
               color: Colors.white.withOpacity(0.84),
-              fontSize: 14,
+              fontSize: isCompact ? 13 : 14,
               height: 1.45,
             ),
           ),
           if (nextEvent != null) ...[
-            const SizedBox(height: 16),
+            SizedBox(height: eventSpacing),
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -1563,7 +1574,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ],
-          const SizedBox(height: 18),
+          SizedBox(height: buttonSpacing),
           Row(
             children: [
               Expanded(
@@ -1991,57 +2002,62 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          GridView.count(
-            crossAxisCount: 2,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 1.8,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-              _buildSocialLinkTile(
-                label: 'Instagram',
-                handle: '@fbla_national',
-                icon: Icons.camera_alt,
-                color: const Color(0xFFE1306C),
-                onTap: () => _openExternalLink(_instagramProfileUrl),
-              ),
-              _buildSocialLinkTile(
-                label: 'YouTube',
-                handle: '@fbla_national',
-                icon: Icons.play_circle_fill,
-                color: const Color(0xFFFF0000),
-                onTap: () => _openExternalLink(_youtubeChannelUrl),
-              ),
-              _buildSocialLinkTile(
-                label: 'Facebook',
-                handle: 'FBLA-PBL',
-                icon: Icons.facebook,
-                color: const Color(0xFF1877F2),
-                onTap: () => _openExternalLink(_facebookUrl),
-              ),
-              _buildSocialLinkTile(
-                label: 'LinkedIn',
-                handle: 'FBLA-PBL',
-                icon: Icons.business,
-                color: const Color(0xFF0A66C2),
-                onTap: () => _openExternalLink(_linkedinUrl),
-              ),
-              _buildSocialLinkTile(
-                label: 'X',
-                handle: '@FBLA_National',
-                icon: Icons.alternate_email,
-                color: const Color(0xFF9AA0A6),
-                onTap: () => _openExternalLink(_xUrl),
-              ),
-              _buildSocialLinkTile(
-                label: 'Link Hub',
-                handle: '@FBLA_National',
-                icon: Icons.hub_outlined,
-                color: const Color(0xFFFDB913),
-                onTap: () => _openExternalLink(_linktreeUrl),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 360;
+              return GridView.count(
+                crossAxisCount: 2,
+                crossAxisSpacing: isNarrow ? 8 : 10,
+                mainAxisSpacing: isNarrow ? 8 : 10,
+                childAspectRatio: isNarrow ? 1.6 : 1.75,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  _buildSocialLinkTile(
+                    label: 'Instagram',
+                    handle: '@fbla_national',
+                    icon: Icons.camera_alt,
+                    color: const Color(0xFFE1306C),
+                    onTap: () => _openExternalLink(_instagramProfileUrl),
+                  ),
+                  _buildSocialLinkTile(
+                    label: 'YouTube',
+                    handle: '@fbla_national',
+                    icon: Icons.play_circle_fill,
+                    color: const Color(0xFFFF0000),
+                    onTap: () => _openExternalLink(_youtubeChannelUrl),
+                  ),
+                  _buildSocialLinkTile(
+                    label: 'Facebook',
+                    handle: 'FBLA-PBL',
+                    icon: Icons.facebook,
+                    color: const Color(0xFF1877F2),
+                    onTap: () => _openExternalLink(_facebookUrl),
+                  ),
+                  _buildSocialLinkTile(
+                    label: 'LinkedIn',
+                    handle: 'FBLA-PBL',
+                    icon: Icons.business,
+                    color: const Color(0xFF0A66C2),
+                    onTap: () => _openExternalLink(_linkedinUrl),
+                  ),
+                  _buildSocialLinkTile(
+                    label: 'X',
+                    handle: '@FBLA_National',
+                    icon: Icons.alternate_email,
+                    color: const Color(0xFF9AA0A6),
+                    onTap: () => _openExternalLink(_xUrl),
+                  ),
+                  _buildSocialLinkTile(
+                    label: 'Link Hub',
+                    handle: '@FBLA_National',
+                    icon: Icons.hub_outlined,
+                    color: const Color(0xFFFDB913),
+                    onTap: () => _openExternalLink(_linktreeUrl),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -2059,7 +2075,7 @@ class _HomeScreenState extends State<HomeScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(18),
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: color.withOpacity(0.12),
           borderRadius: BorderRadius.circular(18),
@@ -2068,24 +2084,28 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color, size: 20),
+            Icon(icon, color: color, size: 19),
             const Spacer(),
             Text(
               label,
               style: TextStyle(
                 color: color,
-                fontSize: 15,
+                fontSize: 14,
                 fontWeight: FontWeight.w700,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(
               handle,
               style: TextStyle(
                 color: Colors.white.withOpacity(0.76),
-                fontSize: 12,
+                fontSize: 11.5,
                 fontWeight: FontWeight.w500,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

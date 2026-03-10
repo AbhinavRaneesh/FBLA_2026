@@ -4,7 +4,9 @@ import '../main.dart';
 import '../services/firebase_service.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final String? initialEmail;
+  final String? initialPassword;
+  const LoginScreen({super.key, this.initialEmail, this.initialPassword});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -41,6 +43,12 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void initState() {
     super.initState();
+    if (widget.initialEmail != null) {
+      _emailController.text = widget.initialEmail!;
+    }
+    if (widget.initialPassword != null) {
+      _passwordController.text = widget.initialPassword!;
+    }
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
@@ -85,9 +93,14 @@ class _LoginScreenState extends State<LoginScreen>
       );
     } catch (e) {
       if (!mounted) return;
+      final rawMessage = e.toString().replaceFirst('Exception: ', '');
+      final message = rawMessage.contains('No account found') ||
+              rawMessage.contains('Incorrect password')
+          ? 'Incorrect username or password.'
+          : rawMessage;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          content: Text(message),
           behavior: SnackBarBehavior.floating,
           backgroundColor: Colors.red.shade700,
         ),
@@ -167,6 +180,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.of(context).size.height < 720;
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -189,10 +203,10 @@ class _LoginScreenState extends State<LoginScreen>
                     constraints: const BoxConstraints(maxWidth: 430),
                     child: Column(
                       children: [
-                        _buildHeader(),
-                        const SizedBox(height: 8),
+                        _buildHeader(isCompact: isCompact),
+                        SizedBox(height: isCompact ? 4 : 8),
                         _buildLoginCard(),
-                        const SizedBox(height: 16),
+                        SizedBox(height: isCompact ? 12 : 16),
                         _buildSignUpPrompt(),
                       ],
                     ),
@@ -206,7 +220,14 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader({required bool isCompact}) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final logoWidth =
+        (screenWidth * 0.9).clamp(0.0, isCompact ? 520.0 : 640.0).toDouble();
+    final logoHeight = isCompact ? 230.0 : 320.0;
+    final titleSize = isCompact ? 26.0 : 32.0;
+    final subtitleSize = isCompact ? 13.0 : 15.0;
+    final titleOffset = isCompact ? -14.0 : -24.0;
     return Column(
       children: [
         Hero(
@@ -214,41 +235,41 @@ class _LoginScreenState extends State<LoginScreen>
           child: ClipRect(
             child: Align(
               alignment: Alignment.center,
-              heightFactor: 0.62,
+              heightFactor: isCompact ? 0.54 : 0.62,
               child: Image.asset(
                 'assets/fbla_logo.png',
-                width: 720,
-                height: 352,
+                width: logoWidth,
+                height: logoHeight,
                 fit: BoxFit.contain,
               ),
             ),
           ),
         ),
         Transform.translate(
-          offset: const Offset(0, -24),
+          offset: Offset(0, titleOffset),
           child: Column(
             children: [
               ShaderMask(
                 shaderCallback: (bounds) => const LinearGradient(
                   colors: [Colors.white, Color(0xFFB8D4FF)],
                 ).createShader(bounds),
-                child: const Text(
+                child: Text(
                   'Welcome Back',
                   style: TextStyle(
-                    fontSize: 32,
+                    fontSize: titleSize,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                     letterSpacing: -0.5,
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: isCompact ? 6 : 8),
               Text(
                 'Log in to continue your FBLA journey',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.7),
-                  fontSize: 15,
+                  fontSize: subtitleSize,
                 ),
               ),
             ],
@@ -259,6 +280,7 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Widget _buildLoginCard() {
+    final isCompact = MediaQuery.of(context).size.height < 720;
     return Container(
       constraints: const BoxConstraints(maxWidth: 400),
       decoration: BoxDecoration(
@@ -291,7 +313,7 @@ class _LoginScreenState extends State<LoginScreen>
             BlendMode.overlay,
           ),
           child: Padding(
-            padding: const EdgeInsets.all(28),
+            padding: EdgeInsets.all(isCompact ? 22 : 28),
             child: Form(
               key: _formKey,
               child: Column(
@@ -307,7 +329,7 @@ class _LoginScreenState extends State<LoginScreen>
                     validator: _validateEmail,
                     autofillHints: const [AutofillHints.email],
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: isCompact ? 14 : 20),
                   
                   // Password field
                   _buildTextField(
@@ -335,7 +357,7 @@ class _LoginScreenState extends State<LoginScreen>
                     child: TextButton(
                       onPressed: () {},
                       style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        padding: EdgeInsets.symmetric(vertical: isCompact ? 4 : 8),
                       ),
                       child: Text(
                         'Forgot Password?',
@@ -346,7 +368,7 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: isCompact ? 8 : 16),
                   
                   // Login button
                   _buildPrimaryButton(
@@ -354,12 +376,11 @@ class _LoginScreenState extends State<LoginScreen>
                     label: 'Sign In',
                     isLoading: _isLoading,
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: isCompact ? 14 : 24),
                   
                   // Divider
                   _buildDivider('or continue with'),
-                  
-                  const SizedBox(height: 20),
+                  SizedBox(height: isCompact ? 12 : 20),
                   
                   // Social login buttons
                   _buildSocialButton(
@@ -601,7 +622,20 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         ),
         TextButton(
-          onPressed: () => Navigator.pushNamed(context, '/signup'),
+          onPressed: () async {
+            final result = await Navigator.pushNamed(context, '/signup');
+            if (!mounted) return;
+            if (result is Map) {
+              final email = result['email']?.toString();
+              final password = result['password']?.toString();
+              if (email != null && email.isNotEmpty) {
+                _emailController.text = email;
+              }
+              if (password != null && password.isNotEmpty) {
+                _passwordController.text = password;
+              }
+            }
+          },
           style: TextButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 4),
           ),
