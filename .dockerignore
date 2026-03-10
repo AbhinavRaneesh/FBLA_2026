@@ -1,0 +1,14 @@
+.git
+.gitignore
+.dart_tool/
+.packages
+build/
+android/build/
+ios/Flutter/ephemeral/
+ios/Pods/
+linux/flutter/ephemeral/
+macos/Flutter/ephemeral/
+windows/flutter/ephemeral/
+web/flutter_service_worker.js
+**/.DS_Store
+**/*.log

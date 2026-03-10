@@ -6,7 +6,7 @@ COPY pubspec.yaml pubspec.lock* ./
 RUN flutter pub get
 
 COPY . .
-RUN flutter config --enable-web && flutter build web --release
+RUN flutter config --enable-web && flutter build web --release --no-wasm-dry-run
 
 FROM python:3.12-alpine
 
