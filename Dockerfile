@@ -6,7 +6,7 @@ COPY pubspec.yaml pubspec.lock* ./
 RUN flutter pub get
 
 COPY . .
-RUN flutter build web --release --no-wasm-dry-run --no-pub -v
+RUN flutter build web --release --no-wasm-dry-run --no-pub --dart2js-optimization O2 --no-source-maps
 
 FROM python:3.12-alpine
 
