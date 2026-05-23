@@ -1,14 +1,32 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_core/firebase_core.dart';
+import '../firebase_options.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'dart:typed_data';
 
 class FirebaseService {
-  static final FirebaseAuth _auth = FirebaseAuth.instance;
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static final FirebaseStorage _storage = FirebaseStorage.instance;
-  static final GoogleSignIn _googleSignIn = GoogleSignIn();
+  // Use getters to avoid accessing Firebase instances before
+  // Firebase.initializeApp() has been called (avoids core/no-app).
+  static FirebaseAuth get _auth => FirebaseAuth.instance;
+  static FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+  static FirebaseStorage get _storage => FirebaseStorage.instance;
+  static GoogleSignIn get _googleSignIn => GoogleSignIn();
+
+  static Future<void> _ensureInitialized() async {
+    if (Firebase.apps.isEmpty) {
+      try {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
+        print('FirebaseService: Firebase.initializeApp() completed');
+      } catch (e) {
+        print('FirebaseService: Firebase.initializeApp() error: $e');
+        rethrow;
+      }
+    }
+  }
 
   static Future<void> logAuthEvent({
     required String event,
@@ -34,6 +52,7 @@ class FirebaseService {
   // Auth methods
   static Future<UserCredential?> signInWithEmail(
       String email, String password) async {
+    await _ensureInitialized();
     try {
       print('FirebaseService: Attempting sign in with email: $email');
       final result = await _auth.signInWithEmailAndPassword(
@@ -76,6 +95,7 @@ class FirebaseService {
 
   static Future<UserCredential?> signUpWithEmail(
       String email, String password) async {
+    await _ensureInitialized();
     try {
       print('FirebaseService: Attempting to create user with email: $email');
       final result = await _auth.createUserWithEmailAndPassword(
@@ -112,6 +132,7 @@ class FirebaseService {
   }
 
   static Future<UserCredential?> signInWithGoogle() async {
+    await _ensureInitialized();
     try {
       // Sign out first to avoid cached credentials issues
       await _googleSignIn.signOut();
@@ -151,10 +172,12 @@ class FirebaseService {
   }
 
   static Future<void> signOutGoogle() async {
+    await _ensureInitialized();
     await _googleSignIn.signOut();
   }
 
   static Future<void> signOut() async {
+    await _ensureInitialized();
     final currentUser = _auth.currentUser;
     await logAuthEvent(
       event: 'logout',

@@ -19,6 +19,22 @@
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="A new Flutter project.">
+  <!--
+    Google Sign-In web client id. Replace the placeholder below with your
+    actual OAuth 2.0 client ID (Web application) from Google Cloud Console.
+    Example: "1234-abcdefg.apps.googleusercontent.com"
+  -->
+  <meta name="google-signin-client_id" content="REPLACE_WITH_WEB_CLIENT_ID.apps.googleusercontent.com">
+  <script>
+    (function(){
+      try {
+        var meta = document.querySelector('meta[name="google-signin-client_id"]');
+        if (meta && meta.content && meta.content.indexOf('REPLACE_WITH_WEB_CLIENT_ID') !== -1) {
+          console.warn('Google Sign-In meta tag contains placeholder client id — replace it with your real Web OAuth client ID.');
+        }
+      } catch(e) { /* ignore */ }
+    })();
+  </script>
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
