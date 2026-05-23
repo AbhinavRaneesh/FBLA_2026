@@ -7,8 +7,11 @@ plugins {
 }
 
 android {
+    
     namespace = "com.example.fbla_2026"
     compileSdk = flutter.compileSdkVersion
+    buildToolsVersion = "33.0.0"
+
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -52,7 +55,11 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-storage")
-    implementation("com.google.firebase:firebase-messaging")
+    // Exclude the older firebase-iid transitively pulled by some libraries to avoid
+    // Duplicate class errors with firebase-messaging's bundled IID classes.
+    implementation("com.google.firebase:firebase-messaging") {
+        exclude(group = "com.google.firebase", module = "firebase-iid")
+    }
     
     // MultiDex support
     implementation("androidx.multidex:multidex:2.0.1")

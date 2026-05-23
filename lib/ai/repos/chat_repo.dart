@@ -7,6 +7,10 @@ import 'package:http/http.dart' as http;
 import '../models/chat_message_model.dart';
 import '../utils/constants.dart';
 
+// Legacy Ollama backend.
+// Kept for reference and troubleshooting, but the active chat flow now uses
+// Gemini from `gemini_repo.dart`.
+
 class _ApiCallResult {
   final String? content;
   final String? error;
@@ -185,12 +189,12 @@ class ChatRepo {
     }
 
     final baseUrls = await _buildCandidateBaseUrls();
+    // Probe candidates with a short timeout to avoid long sequential waits.
+    const probeTimeout = Duration(seconds: 2);
     for (final baseUrl in baseUrls) {
       final tagsUrl = '$baseUrl/api/tags';
       try {
-        final response = await http
-            .get(Uri.parse(tagsUrl))
-            .timeout(const Duration(seconds: 6));
+        final response = await http.get(Uri.parse(tagsUrl)).timeout(probeTimeout);
         if (response.statusCode == 200) {
           _activeBaseUrl = baseUrl;
           log('✅ Discovered Ollama endpoint: $_activeBaseUrl');
@@ -202,6 +206,18 @@ class ChatRepo {
     }
 
     return null;
+  }
+
+  /// Force the active Ollama base URL. Use this when your device should
+  /// connect to a specific server (for example your PC LAN IP) to avoid
+  /// discovery delays. Pass the full base URL without trailing `/`, e.g.
+  /// `http://192.168.1.42:11434`.
+  static void setActiveBaseUrl(String? baseUrl) {
+    if (baseUrl == null || baseUrl.trim().isEmpty) {
+      _activeBaseUrl = null;
+    } else {
+      _activeBaseUrl = baseUrl.trim().replaceFirst(RegExp(r'/$'), '');
+    }
   }
 
   static Future<List<String>> _resolveModelsToTry(String baseUrl) async {
@@ -313,7 +329,7 @@ class ChatRepo {
       "model": model,
       "messages": messages,
       "stream": false,
-      "keep_alive": "30m",
+      "keep_alive": "-1",
       "options": {
         "num_predict": 320,
         "num_ctx": 2048,
@@ -357,7 +373,7 @@ class ChatRepo {
           "model": model,
           "prompt": _messagesToPrompt(messages),
           "stream": false,
-          "keep_alive": "30m",
+          "keep_alive": "-1",
           "options": {
             "num_predict": 320,
             "num_ctx": 2048,

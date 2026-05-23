@@ -221,16 +221,23 @@ class _FirebaseAuthScreenState extends State<FirebaseAuthScreen>
         }
       } else {
         print('Google Sign-In returned null (cancelled or failed)');
-        // Show cancellation message only if widget is still mounted
         if (mounted) {
-          return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Google sign-in was cancelled.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
         }
       }
     } catch (e) {
-      // Show error message only if widget is still mounted
-      if (mounted) {
-        return;
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     } finally {
       // Only update state if widget is still mounted
       if (mounted) {

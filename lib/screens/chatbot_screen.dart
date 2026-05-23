@@ -75,12 +75,11 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    final keyboardInset = mediaQuery.viewInsets.bottom;
     final bottomSafeInset = mediaQuery.viewPadding.bottom;
 
     return Scaffold(
       backgroundColor: Colors.black,
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: Text(
           'FBLA AI Assistant',
@@ -126,7 +125,12 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
           child: Column(
             children: [
               Expanded(
-                child: BlocBuilder<ChatBloc, ChatState>(
+                child: BlocConsumer<ChatBloc, ChatState>(
+                  listener: (context, state) {
+                    if (state is ChatLoaded) {
+                      _scrollToBottom();
+                    }
+                  },
                   builder: (context, state) {
                     if (state is ChatInitial) {
                       return _buildWelcomeMessage();
@@ -148,12 +152,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                   },
                 ),
               ),
-              AnimatedPadding(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOut,
-                padding: EdgeInsets.only(bottom: keyboardInset),
-                child: _buildMessageInput(bottomSafeInset),
-              ),
+              _buildMessageInput(bottomSafeInset),
             ],
           ),
         ),
@@ -242,66 +241,78 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
   }
 
   Widget _buildLoadingState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(fblaGold),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 240),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(fblaGold),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'AI is thinking...',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.white70,
+                ),
+              ),
+            ],
           ),
-          SizedBox(height: 16),
-          Text(
-            'AI is thinking...',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.white70,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildErrorState(String error) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 64,
-            color: Colors.red.shade400,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 280),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 64,
+                color: Colors.red.shade400,
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Oops! Something went wrong',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red.shade600,
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                error,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.white70,
+                ),
+              ),
+              SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () {
+                  context.read<ChatBloc>().add(ClearChatEvent());
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: fblaNavy,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text('Try Again'),
+              ),
+            ],
           ),
-          SizedBox(height: 16),
-          Text(
-            'Oops! Something went wrong',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.red.shade600,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            error,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.white70,
-            ),
-          ),
-          SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: () {
-              context.read<ChatBloc>().add(ClearChatEvent());
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: fblaNavy,
-              foregroundColor: Colors.white,
-            ),
-            child: Text('Try Again'),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -313,7 +324,8 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
 
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.all(16),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       itemCount: messages.length + (isLoading ? 1 : 0),
       itemBuilder: (context, index) {
         if (index < messages.length) {
@@ -523,7 +535,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                     vertical: 12,
                   ),
                 ),
-                maxLines: null,
+                maxLines: 4,
                 minLines: 1,
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => _sendMessage(context),

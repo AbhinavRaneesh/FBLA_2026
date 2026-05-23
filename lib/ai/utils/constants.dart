@@ -15,6 +15,15 @@ const String ollamaHostIp = String.fromEnvironment(
   defaultValue: '',
 );
 
+String get geminiApiKey =>
+    const String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
+
+String get geminiModel =>
+    const String.fromEnvironment(
+      'GEMINI_MODEL',
+      defaultValue: 'gemini-2.5-flash',
+    );
+
 final List<String> apiEndpoints = [
   if (ollamaBaseUrl.isNotEmpty) "$ollamaBaseUrl/api/chat",
   "http://10.0.2.2:11434/api/chat",

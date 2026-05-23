@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'dart:typed_data';
 import '../services/firebase_service.dart';
+import '../services/ml_kit_service.dart';
 import '../main.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -21,8 +23,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final TextEditingController _biographyController = TextEditingController();
 
   bool _isLoading = false;
+  bool _isAnalyzingImage = false;
   Uint8List? _selectedImageBytes;
+  String? _selectedImagePath;
   String? _currentImageUrl;
+  List<MlKitLabel> _imageLabels = [];
+  String? _imageAnalysisError;
 
   @override
   void initState() {
@@ -85,7 +91,61 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final imageBytes = await pickedFile.readAsBytes();
       setState(() {
         _selectedImageBytes = imageBytes;
+        _selectedImagePath = pickedFile.path;
+        _imageLabels = [];
+        _imageAnalysisError = null;
       });
+    }
+  }
+
+  Future<void> _analyzeSelectedImage() async {
+    if (_selectedImagePath == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pick an image first.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (kIsWeb) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ML Kit image labeling runs on Android and iOS devices only.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isAnalyzingImage = true;
+      _imageAnalysisError = null;
+    });
+
+    final mlKitService = createMlKitImageLabelingService();
+
+    try {
+      final labels = await mlKitService.analyzeImage(_selectedImagePath!);
+      if (!mounted) return;
+      setState(() {
+        _imageLabels = labels;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _imageAnalysisError = e.toString().replaceFirst('Exception: ', '');
+      });
+    } finally {
+      await mlKitService.dispose();
+      if (mounted) {
+        setState(() {
+          _isAnalyzingImage = false;
+        });
+      }
     }
   }
 
@@ -226,6 +286,77 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             color: fblaGold, fontWeight: FontWeight.w700),
                       ),
                     ),
+                    const SizedBox(height: 6),
+                    OutlinedButton.icon(
+                      onPressed: _isAnalyzingImage ? null : _analyzeSelectedImage,
+                      icon: _isAnalyzingImage
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.auto_awesome),
+                      label: Text(
+                        _isAnalyzingImage ? 'Analyzing...' : 'Analyze with ML Kit',
+                      ),
+                    ),
+                    if (_imageAnalysisError != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        _imageAnalysisError!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.red.shade300,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                    if (_imageLabels.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'ML Kit labels',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ..._imageLabels.map(
+                        (label) => Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.06),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white12),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  label.label,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '${(label.confidence * 100).toStringAsFixed(1)}%',
+                                style: TextStyle(
+                                  color: Colors.grey.shade300,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

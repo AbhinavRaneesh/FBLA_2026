@@ -1,13 +1,14 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../models/chat_message_model.dart';
-import '../repos/chat_repo.dart';
+import '../repos/gemini_repo.dart';
 import 'chat_event.dart';
 import 'chat_state.dart';
 
 class ChatBloc extends Bloc<ChatEvent, ChatState> {
   
   ChatBloc() : super(ChatInitial()) {
-    Future(() => ChatRepo.preloadModel());
+    // Legacy Ollama warm-up kept below for reference.
+    // Future(() => ChatRepo.preloadModel());
 
     on<SendMessageEvent>(_onSendMessage);
     on<ClearChatEvent>(_onClearChat);
@@ -35,8 +36,9 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         isLoading: true,
       ));
 
-      // Get AI response using our ChatRepo static method
-      final aiResponse = await ChatRepo.chatTextGenerationRepo(messagesWithUser);
+      // Get AI response from Gemini. The old Ollama path is kept in
+      // chat_repo.dart as commented legacy code.
+      final aiResponse = await GeminiRepo.chatTextGenerationRepo(messagesWithUser);
 
       // Add AI response
       final aiMessage = ChatMessageModel.assistant(aiResponse);

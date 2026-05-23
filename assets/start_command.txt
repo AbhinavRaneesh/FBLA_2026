@@ -1,0 +1,7 @@
+# Legacy Ollama setup kept for reference:
+# ollama pull llama3.2:3b
+# ollama serve --port 11434
+# Invoke-RestMethod http://127.0.0.1:11434/api/tags
+
+# Gemini will be enabled later with your API key:
+# flutter run --dart-define=GEMINI_API_KEY=your_key_here

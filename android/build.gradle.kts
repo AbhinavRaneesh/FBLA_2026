@@ -21,6 +21,15 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// Prevent duplicate-class conflicts by excluding older firebase-iid artifact
+// from all configurations. Some plugins bring in firebase-iid separately
+// which conflicts with the firebase-messaging bundled classes.
+subprojects {
+    configurations.matching { true }.all {
+        exclude(group = "com.google.firebase", module = "firebase-iid")
+    }
+}
+
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
