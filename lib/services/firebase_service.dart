@@ -10,6 +10,27 @@ class FirebaseService {
   static final FirebaseStorage _storage = FirebaseStorage.instance;
   static final GoogleSignIn _googleSignIn = GoogleSignIn();
 
+  static Future<void> logAuthEvent({
+    required String event,
+    String? userId,
+    String? email,
+    String? provider,
+    String? details,
+  }) async {
+    try {
+      await _firestore.collection('auth_logs').add({
+        'event': event,
+        'userId': userId,
+        'email': email,
+        'provider': provider,
+        'details': details,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('FirebaseService: Auth log write failed: $e');
+    }
+  }
+
   // Auth methods
   static Future<UserCredential?> signInWithEmail(
       String email, String password) async {
@@ -18,6 +39,12 @@ class FirebaseService {
       final result = await _auth.signInWithEmailAndPassword(
           email: email, password: password);
       print('FirebaseService: Sign in successful for UID: ${result.user?.uid}');
+      await logAuthEvent(
+        event: 'login',
+        userId: result.user?.uid,
+        email: result.user?.email ?? email,
+        provider: 'email',
+      );
       return result;
     } on FirebaseAuthException catch (e) {
       print('FirebaseService: Auth error code: ${e.code}');
@@ -55,6 +82,12 @@ class FirebaseService {
           email: email, password: password);
       print(
           'FirebaseService: User created successfully with UID: ${result.user?.uid}');
+      await logAuthEvent(
+        event: 'signup',
+        userId: result.user?.uid,
+        email: result.user?.email ?? email,
+        provider: 'email',
+      );
       return result;
     } on FirebaseAuthException catch (e) {
       print('FirebaseService: Auth error code: ${e.code}');
@@ -102,7 +135,14 @@ class FirebaseService {
         idToken: googleAuth.idToken,
       );
 
-      return await _auth.signInWithCredential(credential);
+      final result = await _auth.signInWithCredential(credential);
+      await logAuthEvent(
+        event: 'login',
+        userId: result.user?.uid,
+        email: result.user?.email,
+        provider: 'google',
+      );
+      return result;
     } catch (e) {
       print('Google sign in error: $e');
       // Don't rethrow - return null to allow graceful handling
@@ -115,6 +155,15 @@ class FirebaseService {
   }
 
   static Future<void> signOut() async {
+    final currentUser = _auth.currentUser;
+    await logAuthEvent(
+      event: 'logout',
+      userId: currentUser?.uid,
+      email: currentUser?.email,
+      provider: currentUser?.providerData.isNotEmpty == true
+          ? currentUser?.providerData.first.providerId
+          : null,
+    );
     await _auth.signOut();
     await signOutGoogle();
   }
@@ -338,7 +387,7 @@ class FirebaseService {
       
       // Check if auth is enabled (try to get current user)
       try {
-        await _auth.currentUser;
+        _auth.currentUser;
         results['auth_enabled'] = true;
       } catch (e) {
         results['auth_enabled'] = false;

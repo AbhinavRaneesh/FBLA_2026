@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../services/mongodb_service.dart';
+// MongoDB removed — member listing not available.
 
 class FindMembersScreen extends StatefulWidget {
   const FindMembersScreen({super.key});
@@ -27,7 +27,7 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
   @override
   void initState() {
     super.initState();
-    _membersFuture = MongoDbService.listUsers();
+    _membersFuture = Future.value(<Map<String, String>>[]);
   }
 
   @override
@@ -38,7 +38,7 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
 
   Future<void> _refreshMembers() async {
     setState(() {
-      _membersFuture = MongoDbService.listUsers();
+      _membersFuture = Future.value(<Map<String, String>>[]);
     });
     await _membersFuture;
   }

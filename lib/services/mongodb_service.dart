@@ -1,121 +1,12 @@
-import 'dart:convert';
-
-import 'package:crypto/crypto.dart';
-import 'package:flutter/foundation.dart';
-import 'package:mongo_dart/mongo_dart.dart';
+// Compatibility shim for legacy MongoDbService API.
+// The app moved to Firebase; this stub keeps old callsites compiling
+// and delegates behavior to FirebaseService where possible.
+import 'package:fbla_member_app/services/firebase_service.dart';
 
 class MongoDbService {
-  static Db? _db;
-  static String? _connectedUri;
-  static String? _configuredUri;
-  static bool _indexesEnsured = false;
-  static String? _lastInitError;
-
-  static bool get isConnected => _db?.isConnected ?? false;
-  static String? get connectedUri => _connectedUri;
-  static String? get lastInitError => _lastInitError;
-
+  // No-op: retained for compatibility with older code.
   static void configureUri(String uri) {
-    final value = uri.trim();
-    if (value.isNotEmpty) {
-      _configuredUri = value;
-    }
-  }
-
-  static String _redactUri(String uri) {
-    final atIndex = uri.indexOf('@');
-    final schemeIndex = uri.indexOf('://');
-    final colonAfterScheme =
-        schemeIndex >= 0 ? uri.indexOf(':', schemeIndex + 3) : -1;
-    if (atIndex > 0 && colonAfterScheme > 0 && colonAfterScheme < atIndex) {
-      return '${uri.substring(0, colonAfterScheme + 1)}***${uri.substring(atIndex)}';
-    }
-    return uri;
-  }
-
-  static Future<bool> initialize({String? connectionString}) async {
-    final provided = connectionString?.trim() ?? '';
-    if (provided.isNotEmpty) {
-      _configuredUri = provided;
-    }
-
-    if (kIsWeb) {
-      _lastInitError =
-          'MongoDB is not supported on Flutter web via mongo_dart.';
-      debugPrint(_lastInitError);
-      return false;
-    }
-
-    if (isConnected) {
-      _lastInitError = null;
-      return true;
-    }
-
-    final uri = (_configuredUri ??
-            connectionString ??
-            const String.fromEnvironment('MONGODB_URI'))
-        .trim();
-    if (uri.isEmpty) {
-      _lastInitError = 'MongoDB init skipped: MONGODB_URI not provided.';
-      debugPrint(_lastInitError);
-      return false;
-    }
-
-    try {
-      debugPrint('MongoDB attempting connection: ${_redactUri(uri)}');
-      final db = await Db.create(uri);
-      await db.open();
-
-      _db = db;
-      _connectedUri = uri;
-      _lastInitError = null;
-      await _ensureIndexes();
-      debugPrint('MongoDB Atlas connected successfully.');
-      return true;
-    } catch (e) {
-      _lastInitError = e.toString();
-      debugPrint('MongoDB connection failed: $_lastInitError');
-      return false;
-    }
-  }
-
-  static Future<void> _ensureConnectedOrThrow() async {
-    if (isConnected) return;
-
-    final ok = await initialize(connectionString: _configuredUri);
-    if (ok) return;
-
-    final reason = _lastInitError ?? 'unknown reason';
-    throw Exception('MongoDB is not connected. Details: $reason');
-  }
-
-  static DbCollection collection(String name) {
-    final db = _db;
-    if (db == null || !db.isConnected) {
-      throw StateError(
-          'MongoDB is not connected. Call MongoDbService.initialize() first.');
-    }
-    return db.collection(name);
-  }
-
-  static Future<void> _ensureIndexes() async {
-    if (_indexesEnsured || !isConnected) return;
-    final users = collection('users');
-    await users
-        .createIndex(keys: {'email': 1}, unique: true, name: 'email_unique');
-    _indexesEnsured = true;
-  }
-
-  static String _hashPassword(String password) {
-    return sha256.convert(utf8.encode(password)).toString();
-  }
-
-  static String _normalizeEmail(String email) {
-    return email.trim().toLowerCase();
-  }
-
-  static String _normalizeUsername(String username) {
-    return username.trim().toLowerCase();
+    // Intentionally left blank. Firebase is used instead of MongoDB.
   }
 
   static Future<Map<String, dynamic>> createUser({
@@ -126,44 +17,42 @@ class MongoDbService {
     required String role,
     required String gradeLevel,
   }) async {
-    await _ensureConnectedOrThrow();
-
+    // Normalize identifier similar to the old implementation.
     final rawIdentifier = (username != null && username.trim().isNotEmpty)
         ? username.trim()
         : (email ?? '').trim();
+
     final normalizedUsername = _normalizeUsername(rawIdentifier);
     if (normalizedUsername.isEmpty) {
       throw Exception('Username is required.');
     }
 
     final generatedEmail = _normalizeEmail('$normalizedUsername@fbla.local');
-    final users = collection('users');
-    final existing =
-        await users.findOne(where.eq('username', normalizedUsername));
-    if (existing != null) {
-      throw Exception('That username is already taken.');
+
+    // Create Firebase auth user using the generated email.
+    final credential = await FirebaseService.signUpWithEmail(
+      generatedEmail,
+      password,
+    );
+
+    final userId = credential?.user?.uid;
+    if (userId == null) {
+      throw Exception('Failed to create user account.');
     }
 
-    final nowIso = DateTime.now().toUtc().toIso8601String();
-    final Map<String, dynamic> userDoc = {
-      'email': generatedEmail,
-      'username': normalizedUsername,
-      'name': name.trim(),
-      'role': role.trim(),
-      'gradeLevel': gradeLevel.trim(),
-      'passwordHash': _hashPassword(password),
-      'createdAt': nowIso,
-      'updatedAt': nowIso,
-    };
-
-    await users.insertOne(userDoc);
+    // Create user profile in Firestore
+    await FirebaseService.createUserProfile(
+      userId: userId,
+      name: name,
+      email: generatedEmail,
+    );
 
     return {
       'email': generatedEmail,
       'username': normalizedUsername,
-      'name': name.trim(),
-      'role': role.trim(),
-      'gradeLevel': gradeLevel.trim(),
+      'name': name,
+      'role': role,
+      'gradeLevel': gradeLevel,
     };
   }
 
@@ -172,8 +61,6 @@ class MongoDbService {
     String? email,
     required String password,
   }) async {
-    await _ensureConnectedOrThrow();
-
     final rawIdentifier = (username != null && username.trim().isNotEmpty)
         ? username.trim()
         : (email ?? '').trim();
@@ -182,57 +69,45 @@ class MongoDbService {
     }
 
     final normalizedUsername = _normalizeUsername(rawIdentifier);
-    final users = collection('users');
-    Map<String, dynamic>? userDoc =
-        await users.findOne(where.eq('username', normalizedUsername));
-    userDoc ??= await users.findOne(where.eq('name', rawIdentifier));
-    userDoc ??=
-        await users.findOne(where.eq('email', _normalizeEmail(rawIdentifier)));
+    final candidateEmail = _normalizeEmail('$normalizedUsername@fbla.local');
 
-    if (userDoc == null) {
-      throw Exception('No account found for this username.');
+    // Try signing in with provided email first, then with generated username email.
+    try {
+      if (email != null && email.trim().isNotEmpty) {
+        final cred = await FirebaseService.signInWithEmail(email.trim(), password);
+        final uid = cred?.user?.uid;
+        final profile = uid != null ? await FirebaseService.getUserProfile(uid) : null;
+        return {
+          'email': cred?.user?.email ?? email,
+          'username': normalizedUsername,
+          'name': profile?['name'] ?? '',
+          'role': profile?['role'] ?? '',
+          'gradeLevel': profile?['gradeLevel'] ?? '',
+        };
+      }
+
+      final cred = await FirebaseService.signInWithEmail(candidateEmail, password);
+      final uid = cred?.user?.uid;
+      final profile = uid != null ? await FirebaseService.getUserProfile(uid) : null;
+      return {
+        'email': cred?.user?.email ?? candidateEmail,
+        'username': normalizedUsername,
+        'name': profile?['name'] ?? '',
+        'role': profile?['role'] ?? '',
+        'gradeLevel': profile?['gradeLevel'] ?? '',
+      };
+    } catch (e) {
+      rethrow;
     }
-
-    final storedHash = (userDoc['passwordHash'] ?? '').toString();
-    final incomingHash = _hashPassword(password);
-    if (storedHash != incomingHash) {
-      throw Exception('Incorrect password.');
-    }
-
-    return {
-      'email': (userDoc['email'] ?? '').toString(),
-      'username': (userDoc['username'] ?? normalizedUsername).toString(),
-      'name': (userDoc['name'] ?? '').toString(),
-      'role': (userDoc['role'] ?? '').toString(),
-      'gradeLevel': (userDoc['gradeLevel'] ?? '').toString(),
-    };
   }
 
-  static Future<List<Map<String, String>>> listUsers() async {
-    await _ensureConnectedOrThrow();
-
-    final users = collection('users');
-    final docs = await users.find(where.sortBy('name')).toList();
-
-    return docs
-        .map(
-          (doc) => {
-            'name': (doc['name'] ?? '').toString(),
-            'username': (doc['username'] ?? '').toString(),
-            'email': (doc['email'] ?? '').toString(),
-            'role': (doc['role'] ?? '').toString(),
-            'gradeLevel': (doc['gradeLevel'] ?? '').toString(),
-          },
-        )
-        .toList(growable: false);
+  static String _normalizeUsername(String input) {
+    final s = input.trim().toLowerCase();
+    // keep letters, numbers, hyphen and underscore
+    return s.replaceAll(RegExp(r'[^a-z0-9_-]'), '_');
   }
 
-  static Future<void> close() async {
-    if (_db != null) {
-      await _db!.close();
-      _db = null;
-      _connectedUri = null;
-      _indexesEnsured = false;
-    }
+  static String _normalizeEmail(String input) {
+    return input.trim().toLowerCase();
   }
 }

@@ -1,0 +1,42 @@
+{
+	"flutter": {
+		"platforms": {
+			"android": {
+				"default": {
+					"projectId": "fbla-2026-kushal",
+					"appId": "1:1023723280371:android:5da08a1cfad26d5379e486",
+					"fileOutput": "android/app/google-services.json"
+				},
+				"buildConfigurations": {
+					".": {
+						"projectId": "fbla-2026-kushal",
+						"appId": "1:1023723280371:android:5da08a1cfad26d5379e486",
+						"fileOutput": "android/app/google-services.json"
+					}
+				}
+			},
+			"dart": {
+				"lib/firebase_options.dart": {
+					"projectId": "fbla-2026-kushal",
+					"configurations": {
+						"android": "1:1023723280371:android:5da08a1cfad26d5379e486"
+					}
+				}
+			}
+		}
+	},
+	"hosting": {
+		"public": "build/web",
+		"ignore": [
+			"firebase.json",
+			"**/.*",
+			"**/node_modules/**"
+		],
+		"rewrites": [
+			{
+				"source": "**",
+				"destination": "/index.html"
+			}
+		]
+	}
+}

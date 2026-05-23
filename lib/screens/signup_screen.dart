@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../main.dart';
+import '../services/firebase_service.dart';
 import 'terms_conditions_screen.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -150,14 +151,22 @@ class _SignupScreenState extends State<SignupScreen>
     setState(() => _isLoading = true);
 
     try {
-      final app = Provider.of<AppState>(context, listen: false);
-      await app.signUpWithMongo(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-        name: _nameController.text.trim(),
-        role: _selectedRole!.trim(),
-        grade: '',
+      final result = await FirebaseService.signUpWithEmail(
+        _emailController.text.trim(),
+        _passwordController.text,
       );
+      if (result?.user != null) {
+        final user = result!.user!;
+        await FirebaseService.createUserProfile(
+          userId: user.uid,
+          name: _nameController.text.trim(),
+          email: user.email ?? _emailController.text.trim(),
+          chapter: null,
+          school: null,
+          officerPosition: null,
+          biography: null,
+        );
+      }
       if (!mounted) return;
       Navigator.pop(context, {
         'email': _emailController.text.trim(),

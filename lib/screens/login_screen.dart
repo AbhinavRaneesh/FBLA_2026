@@ -87,10 +87,23 @@ class _LoginScreenState extends State<LoginScreen>
 
     try {
       final app = Provider.of<AppState>(context, listen: false);
-      await app.signInWithMongo(
-        email: email,
-        password: password,
-      );
+      final userCredential =
+          await FirebaseService.signInWithEmail(email, password);
+      if (userCredential?.user != null) {
+        final user = userCredential!.user!;
+        final profile = await FirebaseService.getUserProfile(user.uid);
+        if (profile == null) {
+          await FirebaseService.createUserProfile(
+            userId: user.uid,
+            name: user.displayName ?? 'FBLA Member',
+            email: user.email ?? email,
+            photoUrl: user.photoURL,
+          );
+        }
+        if (!mounted) return;
+        final app = Provider.of<AppState>(context, listen: false);
+        await app.setFirebaseUser(user);
+      }
     } catch (e) {
       if (!mounted) return;
       final rawMessage = e.toString().replaceFirst('Exception: ', '');
