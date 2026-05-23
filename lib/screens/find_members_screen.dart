@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-// MongoDB removed — member listing not available.
+import '../services/firebase_service.dart';
 
 class FindMembersScreen extends StatefulWidget {
   const FindMembersScreen({super.key});
@@ -10,24 +10,14 @@ class FindMembersScreen extends StatefulWidget {
 }
 
 class _FindMembersScreenState extends State<FindMembersScreen> {
-  static const List<String> _roleFilters = [
-    'All',
-    'Students',
-    'Advisors',
-    'Officers',
-    'Chapter Members',
-    'Other',
-  ];
-
   final TextEditingController _searchController = TextEditingController();
-  late Future<List<Map<String, String>>> _membersFuture;
+  late Future<List<Map<String, dynamic>>> _membersFuture;
   String _searchQuery = '';
-  String _selectedRoleFilter = 'All';
 
   @override
   void initState() {
     super.initState();
-    _membersFuture = Future.value(<Map<String, String>>[]);
+    _membersFuture = _loadMembers();
   }
 
   @override
@@ -36,48 +26,58 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
     super.dispose();
   }
 
+  Future<List<Map<String, dynamic>>> _loadMembers() async {
+    final members = await FirebaseService.getUsers();
+    members.sort((left, right) {
+      final leftName = (left['name'] ?? '').toString().trim().toLowerCase();
+      final rightName = (right['name'] ?? '').toString().trim().toLowerCase();
+
+      if (leftName.isEmpty && rightName.isEmpty) {
+        final leftEmail =
+            (left['email'] ?? '').toString().trim().toLowerCase();
+        final rightEmail =
+            (right['email'] ?? '').toString().trim().toLowerCase();
+        return leftEmail.compareTo(rightEmail);
+      }
+
+      if (leftName.isEmpty) return 1;
+      if (rightName.isEmpty) return -1;
+
+      final comparison = leftName.compareTo(rightName);
+      if (comparison != 0) return comparison;
+
+      final leftEmail = (left['email'] ?? '').toString().trim().toLowerCase();
+      final rightEmail = (right['email'] ?? '').toString().trim().toLowerCase();
+      return leftEmail.compareTo(rightEmail);
+    });
+    return members;
+  }
+
   Future<void> _refreshMembers() async {
     setState(() {
-      _membersFuture = Future.value(<Map<String, String>>[]);
+      _membersFuture = _loadMembers();
     });
     await _membersFuture;
   }
 
-  bool _matchesRoleFilter(String role) {
-    if (_selectedRoleFilter == 'All') return true;
-
-    final value = role.trim().toLowerCase();
-    switch (_selectedRoleFilter) {
-      case 'Students':
-        return value.contains('student');
-      case 'Advisors':
-        return value.contains('advisor') || value.contains('adviser');
-      case 'Officers':
-        return value.contains('officer');
-      case 'Chapter Members':
-        return value.contains('chapter member');
-      case 'Other':
-        return value.isEmpty || value.contains('other');
-      default:
-        return true;
-    }
-  }
-
-  List<Map<String, String>> _applyFilters(List<Map<String, String>> members) {
+  List<Map<String, dynamic>> _applyFilters(List<Map<String, dynamic>> members) {
     return members.where((member) {
-      final name = (member['name'] ?? '').toLowerCase();
-      final username = (member['username'] ?? '').toLowerCase();
-      final email = (member['email'] ?? '').toLowerCase();
-      final role = (member['role'] ?? '').toLowerCase();
+      final name = (member['name'] ?? '').toString().toLowerCase();
+      final email = (member['email'] ?? '').toString().toLowerCase();
+      final chapter = (member['chapter'] ?? '').toString().toLowerCase();
+      final school = (member['school'] ?? '').toString().toLowerCase();
+      final officerPosition =
+          (member['officerPosition'] ?? '').toString().toLowerCase();
       final query = _searchQuery.trim().toLowerCase();
 
       final matchesSearch = query.isEmpty ||
           name.contains(query) ||
-          username.contains(query) ||
           email.contains(query) ||
-          role.contains(query);
+          chapter.contains(query) ||
+          school.contains(query) ||
+          officerPosition.contains(query);
 
-      return matchesSearch && _matchesRoleFilter(member['role'] ?? '');
+      return matchesSearch;
     }).toList(growable: false);
   }
 
@@ -91,7 +91,7 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
         backgroundColor: fblaBlue,
         foregroundColor: Colors.white,
       ),
-      body: FutureBuilder<List<Map<String, String>>>(
+      body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _membersFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -122,7 +122,7 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
             );
           }
 
-          final allMembers = snapshot.data ?? const <Map<String, String>>[];
+          final allMembers = snapshot.data ?? const <Map<String, dynamic>>[];
           final filteredMembers = _applyFilters(allMembers);
 
           return RefreshIndicator(
@@ -134,7 +134,7 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
                   controller: _searchController,
                   onChanged: (value) => setState(() => _searchQuery = value),
                   decoration: InputDecoration(
-                    hintText: 'Search members, usernames, roles...',
+                    hintText: 'Search members by name, email, chapter, or school...',
                     prefixIcon: const Icon(Icons.search),
                     filled: true,
                     fillColor: Colors.grey.shade100,
@@ -145,21 +145,6 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _roleFilters
-                      .map(
-                        (filter) => ChoiceChip(
-                          label: Text(filter),
-                          selected: _selectedRoleFilter == filter,
-                          onSelected: (_) =>
-                              setState(() => _selectedRoleFilter = filter),
-                        ),
-                      )
-                      .toList(growable: false),
-                ),
-                const SizedBox(height: 14),
                 Text(
                   '${filteredMembers.length} member${filteredMembers.length == 1 ? '' : 's'}',
                   style: Theme.of(context).textTheme.titleMedium,
@@ -182,27 +167,27 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
     );
   }
 
-  Widget _buildMemberCard(Map<String, String> member) {
-    final name = (member['name'] ?? '').trim().isEmpty
+  Widget _buildMemberCard(Map<String, dynamic> member) {
+    final name = (member['name'] ?? '').toString().trim().isEmpty
         ? 'Unnamed Member'
-        : member['name']!.trim();
-    final username = (member['username'] ?? '').trim();
-    final role = (member['role'] ?? '').trim();
-    final grade = (member['gradeLevel'] ?? '').trim();
-    final email = (member['email'] ?? '').trim();
+        : member['name'].toString().trim();
+    final email = (member['email'] ?? '').toString().trim();
+    final chapter = (member['chapter'] ?? '').toString().trim();
+    final school = (member['school'] ?? '').toString().trim();
+    final officerPosition = (member['officerPosition'] ?? '').toString().trim();
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         leading: CircleAvatar(
-          child: Text(name[0].toUpperCase()),
+          child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?'),
         ),
         title: Text(name),
         subtitle: Text(
           [
-            if (username.isNotEmpty) '@$username',
-            if (role.isNotEmpty) role,
-            if (grade.isNotEmpty) grade,
+            if (school.isNotEmpty) school,
+            if (chapter.isNotEmpty) chapter,
+            if (officerPosition.isNotEmpty) officerPosition,
             if (email.isNotEmpty) email,
           ].join(' • '),
           maxLines: 2,

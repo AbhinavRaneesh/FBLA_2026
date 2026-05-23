@@ -12,12 +12,7 @@ class FirebaseService {
   static FirebaseAuth get _auth => FirebaseAuth.instance;
   static FirebaseFirestore get _firestore => FirebaseFirestore.instance;
   static FirebaseStorage get _storage => FirebaseStorage.instance;
-  static const String _googleWebClientId =
-      '1023723280371-7o7ocf59j4iod547576cmonp6lgoncfb.apps.googleusercontent.com';
-  static final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: ['email'],
-    serverClientId: _googleWebClientId,
-  );
+  static GoogleSignIn get _googleSignIn => GoogleSignIn();
 
   static Future<void> _ensureInitialized() async {
     if (Firebase.apps.isEmpty) {
@@ -139,6 +134,9 @@ class FirebaseService {
   static Future<UserCredential?> signInWithGoogle() async {
     await _ensureInitialized();
     try {
+      // Sign out first to avoid cached credentials issues
+      await _googleSignIn.signOut();
+
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
         print('Google sign in cancelled by user');
@@ -149,9 +147,8 @@ class FirebaseService {
           await googleUser.authentication;
 
       if (googleAuth.accessToken == null || googleAuth.idToken == null) {
-        throw Exception(
-          'Google Sign-In tokens were not returned. Check that Firebase Google Sign-In is configured correctly for Android and that the OAuth/web client setup has been generated in Firebase.',
-        );
+        print('Google auth tokens are null');
+        return null;
       }
 
       final credential = GoogleAuthProvider.credential(
@@ -169,7 +166,8 @@ class FirebaseService {
       return result;
     } catch (e) {
       print('Google sign in error: $e');
-      rethrow;
+      // Don't rethrow - return null to allow graceful handling
+      return null;
     }
   }
 
@@ -298,6 +296,10 @@ class FirebaseService {
 
   static Future<List<Map<String, dynamic>>> getThreads() async {
     return _getCollectionDocuments('threads');
+  }
+
+  static Future<List<Map<String, dynamic>>> getUsers() async {
+    return _getCollectionDocuments('users');
   }
 
   static Future<void> ensureAppDataSeeded({

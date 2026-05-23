@@ -1,378 +1,617 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../models/fbla_events.dart';
 
-import '../main.dart';
+// Local theme constants (kept here to avoid circular imports)
+const Color fblaGold = Color(0xFFFDB913);
+const Color fblaNavy = Color(0xFF1D4E89);
+const Color fblaAccent = Color(0xFF64B5F6);
 
-const Color appBackgroundColor = Color(0xFF0F1623);
 const LinearGradient appBackgroundGradient = LinearGradient(
-  begin: Alignment.topCenter,
-  end: Alignment.bottomCenter,
-  colors: [
-    Color(0xFF0F1623),
-    Color(0xFF0A1220),
-  ],
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+  colors: [Color(0xFF061726), Color(0xFF071A2A)],
 );
 
-class ResourcesScreen extends StatelessWidget {
-  const ResourcesScreen({super.key});
+IconData courseIconForName(String name) {
+  final n = name.toLowerCase();
+  if (n.contains('code') || n.contains('program') || n.contains('coding')) return Icons.code;
+  if (n.contains('business') || n.contains('plan') || n.contains('management')) return Icons.business;
+  if (n.contains('finance') || n.contains('bank') || n.contains('account')) return Icons.account_balance;
+  if (n.contains('marketing') || n.contains('sales')) return Icons.campaign;
+  if (n.contains('video') || n.contains('digital') || n.contains('animation')) return Icons.video_collection;
+  if (n.contains('public') || n.contains('speaking') || n.contains('speech')) return Icons.record_voice_over;
+  return Icons.school;
+}
+
+String courseShortFormForName(String name) {
+  final cleaned = name
+      .replaceAll(RegExp(r'[&/\-]'), ' ')
+      .replaceAll(RegExp(r'\([^)]*\)'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  final parts = cleaned.split(' ').where((part) {
+    final lower = part.toLowerCase();
+    return part.isNotEmpty &&
+        lower != 'and' &&
+        lower != 'of' &&
+        lower != 'the' &&
+        lower != 'to' &&
+        lower != 'in' &&
+        lower != 'for' &&
+        lower != 'with';
+  }).toList();
+
+  final letters = <String>[];
+  for (final part in parts) {
+    final match = RegExp(r'[A-Za-z0-9]').firstMatch(part);
+    if (match != null) {
+      letters.add(match.group(0)!.toUpperCase());
+    }
+  }
+
+  if (letters.isEmpty) return 'FBLA';
+  return letters.join('.');
+}
+
+class ResourcesScreen extends StatefulWidget {
+  const ResourcesScreen({Key? key}) : super(key: key);
+
+  @override
+  State<ResourcesScreen> createState() => _ResourcesScreenState();
+}
+
+class _ResourcesScreenState extends State<ResourcesScreen> {
+  final List<String> _userCourses = [];
+  String? _selectedCourse;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCourses();
+  }
+
+  Future<void> _loadCourses() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getStringList('userCourses') ?? <String>[];
+      setState(() {
+        _userCourses.clear();
+        _userCourses.addAll(saved);
+        if (_userCourses.isNotEmpty) _selectedCourse = _userCourses.first;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveCourses() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('userCourses', _userCourses);
+    } catch (_) {}
+  }
+
+  void _selectCourse(String course) {
+    setState(() => _selectedCourse = course);
+  }
+
+  void _openCoursePicker() => _showCoursePanel();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: appBackgroundColor,
       body: Container(
         decoration: const BoxDecoration(gradient: appBackgroundGradient),
-        child: CustomScrollView(
-          slivers: [
-            // Modern App Bar
-            SliverAppBar(
-              expandedHeight: 56,
-              floating: false,
-              pinned: true,
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              title: const Text(
-                'Resources',
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              children: [
+                _buildTopStatsBar(),
+                const SizedBox(height: 12),
+                Expanded(child: _buildCourseJourney()),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCourseJourney() {
+    final course = _selectedCourse ?? (_userCourses.isNotEmpty ? _userCourses.first : null);
+
+    if (course == null) {
+      return Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(28),
+          color: Colors.white.withOpacity(0.04),
+          border: Border.all(color: Colors.white12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.18),
+              blurRadius: 28,
+              offset: const Offset(0, 14),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 92,
+                height: 92,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [fblaGold.withOpacity(0.95), const Color(0xFFFFE082)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: [
+                    BoxShadow(
+                      color: fblaGold.withOpacity(0.35),
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.route, color: fblaNavy, size: 44),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Pick a course to begin',
                 style: TextStyle(
-                  fontWeight: FontWeight.bold,
                   color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-            ),
+              const SizedBox(height: 8),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 28),
+                child: Text(
+                  'Choose one of your saved courses to unlock the level path and see your next step.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 320),
+      switchInCurve: Curves.easeOutBack,
+      switchOutCurve: Curves.easeIn,
+      child: _CourseJourneyPanel(
+        key: ValueKey(course),
+        course: course,
+        color: _courseColor(course),
+        icon: _courseIcon(course),
+      ),
+    );
+  }
+
+  Widget _buildTopStatsBar() {
+    final rand = Random();
+    final selectedCourseShortForm = _selectedCourse == null
+        ? 'COURSE'
+        : courseShortFormForName(_selectedCourse!);
+
+    Widget statInline(
+      Widget iconWidget, {
+      int? value,
+      bool hideValue = false,
+      VoidCallback? onTap,
+    }) {
+      final displayValue = value ?? rand.nextInt(1000);
+      final content = hideValue
+          ? iconWidget
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                iconWidget,
+                const SizedBox(width: 6),
+                Text(
+                  '$displayValue',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                ),
+              ],
+            );
+
+      return GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: content,
+        ),
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Center(
+            child: GestureDetector(
+              onTap: _openCoursePicker,
+              behavior: HitTestBehavior.opaque,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Quick Access Section
-                    _buildModernSectionHeader(
-                        context, 'Quick Access', Icons.flash_on),
-                    const SizedBox(height: 16),
-
-                    _buildResourceCard(
-                      context,
-                      'FBLA Connect',
-                      'Access your FBLA Connect account',
-                      Icons.account_circle,
-                      Color(0xFF1D4E89),
-                      () => _launchUrl('https://connect.fbla.org/'),
+                    Icon(
+                      _selectedCourse == null
+                          ? Icons.school
+                          : courseIconForName(_selectedCourse!),
+                      color: _selectedCourse == null
+                          ? fblaGold
+                          : _courseColor(_selectedCourse!),
+                      size: 27,
                     ),
-
-                    _buildResourceCard(
-                      context,
-                      'Competition Guidelines',
-                      'Study guides and competition rules',
-                      Icons.school,
-                      Color(0xFFF6C500),
-                      () => _launchUrl(
-                          'https://www.fbla-pbl.org/competitive-events/'),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Text(
+                        selectedCourseShortForm,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
                     ),
-
-                    _buildResourceCard(
-                      context,
-                      'Leadership Development',
-                      'Build your leadership skills',
-                      Icons.leaderboard,
-                      Color(0xFF4CAF50),
-                      () => _launchUrl(
-                          'https://www.fbla-pbl.org/leadership-development/'),
-                    ),
-
-                    const SizedBox(height: 28),
-
-                    // Study Materials Section
-                    _buildModernSectionHeader(
-                        context, 'Study Materials', Icons.book),
-                    const SizedBox(height: 16),
-
-                    _buildResourceCard(
-                      context,
-                      'FBLA Competitive Events',
-                      'Browse all FBLA events with search and filters',
-                      Icons.emoji_events,
-                      Color(0xFF1D4E89),
-                      () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const CompetitiveEventsScreen(),
-                          ),
-                        );
-                      },
-                    ),
-
-                    _buildResourceCard(
-                      context,
-                      'Business Skills',
-                      'Fundamentals of business and entrepreneurship',
-                      Icons.business,
-                      Color(0xFFFF9800),
-                      () => _showComingSoon(context),
-                    ),
-
-                    _buildResourceCard(
-                      context,
-                      'Technology & Innovation',
-                      'Latest trends in business technology',
-                      Icons.computer,
-                      Color(0xFF2196F3),
-                      () => _showComingSoon(context),
-                    ),
-
-                    _buildResourceCard(
-                      context,
-                      'Career Preparation',
-                      'Resume building and interview skills',
-                      Icons.work,
-                      Color(0xFF9C27B0),
-                      () => _showComingSoon(context),
-                    ),
-
-                    const SizedBox(height: 28),
-
-                    // Downloads Section
-                    _buildModernSectionHeader(
-                        context, 'Downloads', Icons.download),
-                    const SizedBox(height: 16),
-
-                    _buildResourceCard(
-                      context,
-                      'FBLA Handbook',
-                      'Complete guide to FBLA programs',
-                      Icons.book,
-                      Color(0xFFFF5722),
-                      () => _showComingSoon(context),
-                    ),
-
-                    _buildResourceCard(
-                      context,
-                      'Chapter Resources',
-                      'Templates and guides for chapter activities',
-                      Icons.group,
-                      Color(0xFF607D8B),
-                      () => _showComingSoon(context),
-                    ),
-
-                    _buildResourceCard(
-                      context,
-                      'Competition Materials',
-                      'Practice tests and study guides',
-                      Icons.quiz,
-                      Colors.deepPurple,
-                      () => _showComingSoon(context),
-                    ),
-
-                    const SizedBox(height: 28),
-
-                    // External Links Section
-                    _buildModernSectionHeader(
-                        context, 'External Links', Icons.link),
-                    const SizedBox(height: 16),
-
-                    _buildResourceCard(
-                      context,
-                      'FBLA-PBL Official Website',
-                      'Visit the national FBLA website',
-                      Icons.language,
-                      Color(0xFF1D4E89),
-                      () => _launchUrl('https://www.fbla-pbl.org/'),
-                    ),
-
-                    _buildResourceCard(
-                      context,
-                      'State FBLA',
-                      'Connect with your state organization',
-                      Icons.location_on,
-                      Color(0xFFE91E63),
-                      () => _showComingSoon(context),
-                    ),
-
-                    _buildResourceCard(
-                      context,
-                      'Career Center',
-                      'Explore career opportunities',
-                      Icons.explore,
-                      Color(0xFF00BCD4),
-                      () =>
-                          _launchUrl('https://www.fbla-pbl.org/career-center/'),
-                    ),
-
-                    const SizedBox(height: 28),
-
-                    // Social Media Section
-                    _buildModernSectionHeader(
-                        context, 'Connect With Us', Icons.share),
-                    const SizedBox(height: 16),
-                    _buildSocialMediaRow(context),
-                    const SizedBox(height: 24),
                   ],
                 ),
               ),
             ),
-          ],
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildSocialMediaRow(BuildContext context) {
-    final buttons = [
-      _buildSocialButton(
-        context,
-        'Instagram',
-        Icons.camera_alt,
-        Color(0xFFE1306C),
-        () => _launchUrl('https://www.instagram.com/fbla_national/'),
-      ),
-      _buildSocialButton(
-        context,
-        'X',
-        Icons.flutter_dash,
-        Color(0xFF1DA1F2),
-        () => _launchUrl('https://x.com/FBLA_National'),
-      ),
-      _buildSocialButton(
-        context,
-        'Facebook',
-        Icons.facebook,
-        Color(0xFF1877F2),
-        () => _launchUrl('https://www.facebook.com/FBLAPBL/'),
-      ),
-      _buildSocialButton(
-        context,
-        'LinkedIn',
-        Icons.business,
-        Color(0xFF0A66C2),
-        () => _launchUrl('https://www.linkedin.com/company/fbla-pbl/'),
-      ),
-    ];
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const spacing = 10.0;
-        const columns = 3;
-        final buttonWidth =
-            (constraints.maxWidth - (spacing * (columns - 1))) / columns;
-
-        return Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
-          children: buttons
-              .map((button) => SizedBox(width: buttonWidth, child: button))
-              .toList(),
-        );
-      },
-    );
-  }
-
-  Widget _buildSocialButton(
-    BuildContext context,
-    String label,
-    IconData icon,
-    Color color,
-    VoidCallback onTap,
-  ) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3), width: 1.5),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
+        Expanded(
+          child: Center(
+            child: statInline(
+              const Icon(Icons.local_fire_department,
+                  color: Color(0xFFFF7043), size: 31),
+              hideValue: true,
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildModernSectionHeader(
-      BuildContext context, String title, IconData icon) {
-    final Color fblaBlue = const Color(0xFF1D4E89);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Row(
-      children: [
-        Container(
-          padding: EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: fblaBlue.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(
-            icon,
-            color: fblaBlue,
-            size: 20,
           ),
         ),
-        const SizedBox(width: 12),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: isDark ? Colors.white : fblaBlue,
+        Expanded(
+          child: Center(
+            child: statInline(
+              Image.asset('assets/coins.png', width: 30, height: 30),
+              hideValue: true,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Center(
+            child: statInline(
+              const Icon(Icons.leaderboard,
+                  color: Color(0xFF66BB6A), size: 31),
+              hideValue: true,
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildResourceCard(
-    BuildContext context,
-    String title,
-    String description,
-    IconData icon,
-    Color color,
-    VoidCallback onTap,
-  ) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  Future<void> _showCoursePanel() async {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final topOffset = MediaQuery.of(context).padding.top + 72;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: color.withOpacity(0.2),
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.1),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 280),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        return SafeArea(
+          top: false,
+          child: StatefulBuilder(
+            builder: (context, setModalState) {
+              Future<void> addCourse() async {
+                dynamic appState;
+                try {
+                  appState = Provider.of<dynamic>(context, listen: false);
+                } catch (_) {}
+                final selected = await Navigator.push<String>(
+                  dialogContext,
+                  MaterialPageRoute(builder: (_) => const CourseSelectionScreen()),
+                );
+                if (selected != null && selected.isNotEmpty) {
+                  setState(() {
+                    if (!_userCourses.contains(selected)) {
+                      _userCourses.add(selected);
+                    }
+                    _selectedCourse = selected;
+                  });
+                  await _saveCourses();
+                  setModalState(() {});
+                  if (appState != null) {
+                    try {
+                      await appState.addUserCourse?.call(selected);
+                    } catch (_) {}
+                  }
+                }
+              }
+
+              final panel = Align(
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    top: topOffset,
+                    left: 12,
+                    right: 12,
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Container(
+                      height: screenHeight * 0.31,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0B1624),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.35),
+                            blurRadius: 24,
+                            offset: const Offset(0, 12),
+                          ),
+                        ],
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 6),
+                          Container(
+                            width: 38,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.white24,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 9, 16, 4),
+                            child: Row(
+                              children: [
+                                const Expanded(
+                                  child: Text(
+                                    'Courses',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 9, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white10,
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(color: Colors.white12),
+                                  ),
+                                  child: Text(
+                                    '${_userCourses.length} added',
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: _userCourses.isEmpty
+                                ? Center(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          width: 62,
+                                          height: 62,
+                                          decoration: BoxDecoration(
+                                            color: Colors.white10,
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                            border: Border.all(
+                                                color: Colors.white12),
+                                          ),
+                                          child: const Icon(
+                                            Icons.school_outlined,
+                                            color: Colors.white38,
+                                            size: 30,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        const Text(
+                                          'No courses added yet',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : ListView(
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16, 0, 16, 10),
+                                    children: [
+                                      SizedBox(
+                                        height: 92,
+                                        child: ListView.separated(
+                                          scrollDirection: Axis.horizontal,
+                                          itemCount: _userCourses.length + 1,
+                                          separatorBuilder: (_, __) =>
+                                              const SizedBox(width: 12),
+                                          itemBuilder: (context, index) {
+                                            if (index == _userCourses.length) {
+                                              return _AddCourseTile(
+                                                  onTap: addCourse);
+                                            }
+
+                                            final course = _userCourses[index];
+                                            return _CourseTile(
+                                              title: course,
+                                              color: _courseColor(course),
+                                              icon: _courseIcon(course),
+                                              selected:
+                                                  course == _selectedCourse,
+                                              onTap: () => _selectCourse(course),
+                                              onRemove: () async {
+                                                setState(() {
+                                                  _userCourses.removeAt(index);
+                                                  if (_selectedCourse ==
+                                                      course) {
+                                                    _selectedCourse = _userCourses.isNotEmpty
+                                                        ? _userCourses.first
+                                                        : null;
+                                                  }
+                                                });
+                                                await _saveCourses();
+                                                setModalState(() {});
+                                              },
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              ],
-            ),
+              );
+
+              return AnimatedBuilder(
+                animation: animation,
+                child: panel,
+                builder: (context, child) {
+                  final slide = Tween<Offset>(
+                    begin: const Offset(0, -0.18),
+                    end: Offset.zero,
+                  ).animate(
+                    CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOutCubic,
+                    ),
+                  );
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(position: slide, child: child),
+                  );
+                },
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Color _courseColor(String course) {
+    final palette = [
+      const Color(0xFF1D4E89),
+      const Color(0xFF2E7D32),
+      const Color(0xFFF57C00),
+      const Color(0xFF7B1FA2),
+      const Color(0xFF00897B),
+      const Color(0xFFC62828),
+      const Color(0xFF1565C0),
+      const Color(0xFF6D4C41),
+    ];
+    final index = course.toLowerCase().codeUnits.fold<int>(0,
+            (sum, unit) => sum + unit) %
+        palette.length;
+    return palette[index];
+  }
+
+  IconData _courseIcon(String course) {
+    return courseIconForName(course);
+  }
+}
+
+enum _LevelStatus { locked, active, completed }
+
+class _CourseJourneyPanel extends StatelessWidget {
+  final String course;
+  final Color color;
+  final IconData icon;
+
+  const _CourseJourneyPanel({
+    super.key,
+    required this.course,
+    required this.color,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            color.withOpacity(0.28),
+            const Color(0xFF0D1826),
+            const Color(0xFF08111B),
+          ],
+        ),
+        border: Border.all(color: Colors.white12),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.14),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
             child: Row(
               children: [
                 Container(
@@ -380,71 +619,627 @@ class ResourcesScreen extends StatelessWidget {
                   height: 54,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [color, color.withOpacity(0.7)],
+                      colors: [color, color.withOpacity(0.72)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(18),
                     boxShadow: [
                       BoxShadow(
-                        color: color.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: Offset(0, 3),
+                        color: color.withOpacity(0.28),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
                       ),
                     ],
                   ),
-                  child: Icon(
-                    icon,
-                    color: Colors.white,
-                    size: 26,
-                  ),
+                  child: Icon(icon, color: Colors.white, size: 28),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        title,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: isDark ? Colors.white : Colors.black87,
+                        course,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        description,
+                        'Start at Level 1 and climb the path.',
                         style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 13,
+                          color: Colors.white.withOpacity(0.66),
+                          fontSize: 12,
+                          height: 1.2,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  color: color,
-                  size: 18,
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: const Text(
+                    '10 levels',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
-        ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Container(
+              height: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.transparent, color.withOpacity(0.38), Colors.transparent],
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: ScrollConfiguration(
+              behavior: _NoGlowScrollBehavior(),
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
+                physics: const BouncingScrollPhysics(),
+                itemCount: 10,
+                itemBuilder: (context, index) {
+                  final level = index + 1;
+                  final status = level == 1 ? _LevelStatus.active : _LevelStatus.locked;
+                  final alignRight = level.isOdd;
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Align(
+                        alignment: alignRight ? Alignment.centerRight : Alignment.centerLeft,
+                        child: FractionallySizedBox(
+                          widthFactor: 0.82,
+                          child: _LevelNode(
+                            level: level,
+                            color: color,
+                            status: status,
+                            alignRight: alignRight,
+                          ),
+                        ),
+                      ),
+                      if (index < 9)
+                        _PathConnector(
+                          alignRight: alignRight,
+                          color: color,
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
+}
 
-  Future<void> _launchUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+class _PathConnector extends StatelessWidget {
+  final bool alignRight;
+  final Color color;
+
+  const _PathConnector({
+    required this.alignRight,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 60,
+      width: double.infinity,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return CustomPaint(
+            size: Size(constraints.maxWidth, 60),
+            painter: _DiagonalConnectorPainter(
+              color: color,
+              alignRight: alignRight,
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _DiagonalConnectorPainter extends CustomPainter {
+  final Color color;
+  final bool alignRight;
+
+  const _DiagonalConnectorPainter({
+    required this.color,
+    required this.alignRight,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final start = alignRight
+      ? Offset(size.width * 0.82, 8)
+      : Offset(size.width * 0.18, 8);
+    final end = alignRight
+      ? Offset(size.width * 0.18, size.height - 8)
+      : Offset(size.width * 0.82, size.height - 8);
+
+    final paint = Paint()
+      ..color = color.withValues(alpha: 0.9)
+      ..strokeWidth = 4
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    const dashCount = 14;
+    for (var i = 0; i < dashCount; i++) {
+      final t0 = i / dashCount;
+      final t1 = (i + 0.7) / dashCount;
+      final p0 = Offset.lerp(start, end, t0)!;
+      final p1 = Offset.lerp(start, end, t1)!;
+      canvas.drawLine(p0, p1, paint);
     }
+
+    final endpointPaint = Paint()..color = fblaGold.withValues(alpha: 0.98);
+    canvas.drawCircle(start, 5, endpointPaint);
+    canvas.drawCircle(end, 5, endpointPaint);
   }
 
-  void _showComingSoon(BuildContext context) {
-    return;
+  @override
+  bool shouldRepaint(covariant _DiagonalConnectorPainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.alignRight != alignRight;
+  }
+}
+
+class _LevelNode extends StatelessWidget {
+  final int level;
+  final Color color;
+  final _LevelStatus status;
+  final bool alignRight;
+
+  const _LevelNode({
+    required this.level,
+    required this.color,
+    required this.status,
+    required this.alignRight,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = status == _LevelStatus.active;
+    final isCompleted = status == _LevelStatus.completed;
+
+    final bubbleGradient = isActive
+        ? LinearGradient(
+            colors: [fblaGold, const Color(0xFFFF8A65)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : isCompleted
+            ? const LinearGradient(
+                colors: [Color(0xFF43A047), Color(0xFF81C784)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(0.08),
+                  Colors.white.withOpacity(0.05),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              );
+
+    final borderColor = isActive
+        ? fblaGold
+        : isCompleted
+            ? const Color(0xFF81C784)
+            : Colors.white12;
+
+    return Row(
+      mainAxisAlignment:
+          alignRight ? MainAxisAlignment.end : MainAxisAlignment.start,
+      children: [
+        Container(
+          width: 150,
+          height: 150,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: bubbleGradient,
+            border: Border.all(color: borderColor, width: isActive ? 2.2 : 1.2),
+            boxShadow: isActive
+                ? [
+                    BoxShadow(
+                      color: fblaGold.withOpacity(0.32),
+                      blurRadius: 22,
+                      offset: const Offset(0, 10),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Center(
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 62,
+                  height: 62,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.2),
+                      width: 1.2,
+                    ),
+                  ),
+                ),
+                if (isActive)
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.45),
+                        width: 1.2,
+                      ),
+                    ),
+                  ),
+                if (isCompleted || isActive)
+                  Text(
+                    '$level',
+                    style: TextStyle(
+                      color: isActive ? fblaNavy : Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  )
+                else
+                  const Icon(
+                    Icons.lock_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NoGlowScrollBehavior extends ScrollBehavior {
+  @override
+  Widget buildOverscrollIndicator(
+      BuildContext context, Widget child, ScrollableDetails details) {
+    return child;
+  }
+}
+
+class _CourseTile extends StatelessWidget {
+  final String title;
+  final Color color;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+  final VoidCallback onRemove;
+
+  const _CourseTile({
+    required this.title,
+    required this.color,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final label = title.trim().isEmpty ? 'Course' : title.trim();
+
+    return SizedBox(
+      width: 102,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(18),
+              child: Container(
+                width: 102,
+                height: 72,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      color.withOpacity(0.98),
+                      color.withOpacity(0.82),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: selected ? fblaGold : Colors.white12,
+                    width: selected ? 1.6 : 1,
+                  ),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: Center(
+                        child: Icon(
+                          icon,
+                          color: Colors.white,
+                          size: 34,
+                        ),
+                      ),
+                    ),
+                    if (selected)
+                      const Positioned(
+                        bottom: 2,
+                        left: 2,
+                        child: Icon(Icons.check_circle,
+                            color: fblaGold, size: 13),
+                      ),
+                    Positioned(
+                      top: 2,
+                      right: 2,
+                      child: GestureDetector(
+                        onTap: onRemove,
+                        child: Container(
+                          width: 17,
+                          height: 17,
+                          decoration: const BoxDecoration(
+                            color: Colors.black45,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close,
+                              size: 10, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 10,
+              height: 1.0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AddCourseTile extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _AddCourseTile({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 72,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: onTap,
+            child: Container(
+              width: 72,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: const Column(
+                children: [
+                  SizedBox(height: 4),
+                  Expanded(
+                    child: Center(
+                      child: Icon(Icons.add, color: Colors.white70, size: 18),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 1),
+          const Text(
+            'Add',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white70,
+              fontWeight: FontWeight.w700,
+              fontSize: 9,
+              height: 1.0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class CourseSelectionScreen extends StatefulWidget {
+  const CourseSelectionScreen({super.key});
+
+  @override
+  State<CourseSelectionScreen> createState() => _CourseSelectionScreenState();
+}
+
+class _CourseSelectionScreenState extends State<CourseSelectionScreen> {
+  String _query = '';
+  String? _selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final queryLower = _query.trim().toLowerCase();
+    final Map<String, List<String>> grouped = {};
+    for (final category in fblaEventCategories) {
+      if (category == 'All') continue;
+      grouped[category] = [];
+    }
+
+    for (final opt in fblaEventCatalog) {
+      final nameLower = opt.name.toLowerCase();
+      if (queryLower.isEmpty ||
+          nameLower.contains(queryLower) ||
+          opt.category.toLowerCase().contains(queryLower)) {
+        grouped[opt.category]?.add(opt.name);
+      }
+    }
+
+    final items = grouped.entries.where((entry) => entry.value.isNotEmpty).toList();
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Add Course'), backgroundColor: fblaNavy),
+      backgroundColor: const Color(0xFF0B1624),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search events',
+                hintStyle: const TextStyle(color: Colors.white70),
+                prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                filled: true,
+                fillColor: Colors.white12,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              style: const TextStyle(color: Colors.white),
+              onChanged: (value) => setState(() => _query = value),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final category = items[index].key;
+                final list = items[index].value;
+                return ExpansionTile(
+                  backgroundColor: Colors.transparent,
+                  collapsedBackgroundColor: Colors.transparent,
+                  tilePadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  childrenPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  title: Text(
+                    category,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  children: list.map((eventName) {
+                    final selected = _selected == eventName;
+                    return InkWell(
+                      onTap: () => setState(() => _selected = eventName),
+                      borderRadius: BorderRadius.circular(12),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 260),
+                        curve: Curves.easeInOut,
+                        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: selected ? const Color(0xFF123A6A) : const Color(0xFF07121A),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: selected ? fblaAccent : Colors.white12, width: 1.2),
+                          boxShadow: selected ? [BoxShadow(color: fblaAccent.withOpacity(0.12), blurRadius: 8, offset: Offset(0,4))] : null,
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: selected ? fblaAccent.withOpacity(0.25) : Colors.blueGrey.shade700,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                courseIconForName(eventName),
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(child: Text(eventName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))),
+                            AnimatedOpacity(
+                              opacity: selected ? 1.0 : 0.0,
+                              duration: const Duration(milliseconds: 200),
+                              child: AnimatedScale(
+                                scale: selected ? 1.0 : 0.8,
+                                duration: const Duration(milliseconds: 200),
+                                child: const Icon(Icons.check_circle, color: Color(0xFFFDB913)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+          ),
+          if (_selected != null)
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(_selected),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: fblaGold,
+                    foregroundColor: fblaNavy,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text('Continue'),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 
@@ -452,8 +1247,7 @@ class CompetitiveEventsScreen extends StatefulWidget {
   const CompetitiveEventsScreen({super.key});
 
   @override
-  State<CompetitiveEventsScreen> createState() =>
-      _CompetitiveEventsScreenState();
+  State<CompetitiveEventsScreen> createState() => _CompetitiveEventsScreenState();
 }
 
 class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
@@ -472,87 +1266,23 @@ class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
   ];
 
   final List<_CompetitiveEventItem> _events = const [
-    _CompetitiveEventItem('Broadcast Journalism', 'Presentation Events'),
     _CompetitiveEventItem('Business Ethics', 'Presentation Events'),
     _CompetitiveEventItem('Business Plan', 'Presentation Events'),
     _CompetitiveEventItem('Coding & Programming', 'Presentation Events'),
-    _CompetitiveEventItem(
-        'Computer Game & Simulation Programming', 'Presentation Events'),
-    _CompetitiveEventItem('Data Analysis', 'Presentation Events'),
-    _CompetitiveEventItem('Digital Animation', 'Presentation Events'),
     _CompetitiveEventItem('Digital Video Production', 'Presentation Events'),
-    _CompetitiveEventItem('Electronic Career Portfolio', 'Presentation Events'),
     _CompetitiveEventItem('Financial Planning', 'Presentation Events'),
-    _CompetitiveEventItem(
-        'Financial Statement Analysis', 'Presentation Events'),
-    _CompetitiveEventItem('Future Business Educator', 'Presentation Events'),
-    _CompetitiveEventItem('Future Business Leader', 'Presentation Events'),
-    _CompetitiveEventItem('Graphic Design', 'Presentation Events'),
-    _CompetitiveEventItem('Impromptu Speaking', 'Presentation Events'),
-    _CompetitiveEventItem(
-        'Introduction to Business Presentation', 'Presentation Events'),
-    _CompetitiveEventItem(
-        'Introduction to Public Speaking', 'Presentation Events'),
-    _CompetitiveEventItem(
-        'Introduction to Social Media Strategy', 'Presentation Events'),
-    _CompetitiveEventItem('Job Interview', 'Presentation Events'),
-    _CompetitiveEventItem(
-        'Mobile Application Development', 'Presentation Events'),
-    _CompetitiveEventItem('Public Service Announcement', 'Presentation Events'),
     _CompetitiveEventItem('Public Speaking', 'Presentation Events'),
-    _CompetitiveEventItem('Sales Presentation', 'Presentation Events'),
-    _CompetitiveEventItem('Social Media Strategies', 'Presentation Events'),
-    _CompetitiveEventItem('Visual Design', 'Presentation Events'),
-    _CompetitiveEventItem('Website Design', 'Presentation Events'),
-    _CompetitiveEventItem('Banking & Financial Systems', 'Roleplay Events'),
-    _CompetitiveEventItem('Business Management', 'Roleplay Events'),
-    _CompetitiveEventItem('Customer Service', 'Roleplay Events'),
-    _CompetitiveEventItem('Entrepreneurship', 'Roleplay Events'),
-    _CompetitiveEventItem('Hospitality & Event Management', 'Roleplay Events'),
-    _CompetitiveEventItem('International Business', 'Roleplay Events'),
-    _CompetitiveEventItem('Management Information Systems', 'Roleplay Events'),
     _CompetitiveEventItem('Marketing', 'Roleplay Events'),
-    _CompetitiveEventItem('Network Design', 'Roleplay Events'),
-    _CompetitiveEventItem('Parliamentary Procedure', 'Roleplay Events'),
-    _CompetitiveEventItem(
-        'Sports & Entertainment Management', 'Roleplay Events'),
+    _CompetitiveEventItem('Entrepreneurship', 'Roleplay Events'),
     _CompetitiveEventItem('Accounting I & II', 'Objective Test Events'),
-    _CompetitiveEventItem('Advertising', 'Objective Test Events'),
-    _CompetitiveEventItem('Agribusiness', 'Objective Test Events'),
-    _CompetitiveEventItem('Business Communication', 'Objective Test Events'),
     _CompetitiveEventItem('Business Law', 'Objective Test Events'),
-    _CompetitiveEventItem('Cybersecurity', 'Objective Test Events'),
-    _CompetitiveEventItem('Data Science & AI', 'Objective Test Events'),
-    _CompetitiveEventItem('Economics', 'Objective Test Events'),
-    _CompetitiveEventItem('Financial Planning', 'Objective Test Events'),
-    _CompetitiveEventItem('Healthcare Administration', 'Objective Test Events'),
-    _CompetitiveEventItem(
-        'Insurance & Risk Management', 'Objective Test Events'),
-    _CompetitiveEventItem(
-        'Introduction to Business Communication', 'Objective Test Events'),
-    _CompetitiveEventItem(
-        'Introduction to Business Concepts', 'Objective Test Events'),
-    _CompetitiveEventItem('Introduction to FBLA', 'Objective Test Events'),
-    _CompetitiveEventItem('Journalism', 'Objective Test Events'),
-    _CompetitiveEventItem('Organizational Leadership', 'Objective Test Events'),
-    _CompetitiveEventItem('Personal Finance', 'Objective Test Events'),
-    _CompetitiveEventItem('Supply Chain Management', 'Objective Test Events'),
     _CompetitiveEventItem('Computer Applications', 'Production Events'),
     _CompetitiveEventItem('Spreadsheet Applications', 'Production Events'),
-    _CompetitiveEventItem('Word Processing', 'Production Events'),
     _CompetitiveEventItem(
         'Virtual Business Finance Challenge', 'Virtual & Partner Challenges'),
-    _CompetitiveEventItem('Virtual Business Management Challenge',
-        'Virtual & Partner Challenges'),
-    _CompetitiveEventItem(
-        'FBLA Stock Market Game', 'Virtual & Partner Challenges'),
-    _CompetitiveEventItem('LifeSmarts', 'Virtual & Partner Challenges'),
-    _CompetitiveEventItem('American Enterprise Project', 'Chapter Events'),
+    _CompetitiveEventItem('FBLA Stock Market Game', 'Virtual & Partner Challenges'),
     _CompetitiveEventItem('Community Service Project', 'Chapter Events'),
-    _CompetitiveEventItem(
-        'Local Chapter Annual Business Report', 'Chapter Events'),
-    _CompetitiveEventItem(
-        'Partnership with Business Project', 'Chapter Events'),
+    _CompetitiveEventItem('Local Chapter Annual Business Report', 'Chapter Events'),
   ];
 
   @override
@@ -563,7 +1293,6 @@ class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
 
   List<_CompetitiveEventItem> get _filteredEvents {
     final query = _query.trim().toLowerCase();
-
     final filtered = _events.where((event) {
       final categoryMatch =
           _selectedCategory == 'All' || event.category == _selectedCategory;
@@ -573,8 +1302,7 @@ class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
       return categoryMatch && queryMatch;
     }).toList();
 
-    filtered
-        .sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    filtered.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     return filtered;
   }
 
@@ -757,11 +1485,7 @@ class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
                       ),
                     ),
                   ),
-                  Icon(
-                    Icons.arrow_forward_ios,
-                    color: categoryColor,
-                    size: 14,
-                  ),
+                  Icon(Icons.arrow_forward_ios, color: categoryColor, size: 14),
                 ],
               ),
             ],
@@ -818,10 +1542,8 @@ class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
                   (category) => ListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      category,
-                      style: const TextStyle(color: Colors.white),
-                    ),
+                    title: Text(category,
+                        style: const TextStyle(color: Colors.white)),
                     trailing: _selectedCategory == category
                         ? const Icon(Icons.check_circle,
                             color: Color(0xFF1D4E89))
@@ -923,7 +1645,7 @@ class CompetitiveEventDetailScreen extends StatelessWidget {
             _buildMobileAppGuidelinesTile(context),
             const SizedBox(height: 10),
           ],
-          ...resources.map((resource) => _buildResourceTile(resource)).toList(),
+          ...resources.map((resource) => _buildResourceTile(resource)),
         ],
       ),
     );
@@ -949,11 +1671,11 @@ class CompetitiveEventDetailScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFF64B5F6).withOpacity(0.7)),
           ),
-          child: Row(
-            children: const [
+          child: const Row(
+            children: [
               Expanded(
                 child: Text(
-                  'Mobile Application Development Guidless',
+                  'Mobile Application Development Guidelines',
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
@@ -961,11 +1683,7 @@ class CompetitiveEventDetailScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              Icon(
-                Icons.arrow_forward_ios,
-                color: Color(0xFF64B5F6),
-                size: 16,
-              ),
+              Icon(Icons.arrow_forward_ios, color: Color(0xFF64B5F6), size: 16),
             ],
           ),
         ),
@@ -1022,157 +1740,86 @@ class CompetitiveEventDetailScreen extends StatelessWidget {
         return [
           _StudyPackResource(
             title: '${event.name} Blueprint',
-            description:
-                'Competency weighting summary (example: Ethics 10%, Economics 20%).',
+            description: 'Competency weighting summary and topic guide.',
             url: 'https://www.fbla-pbl.org/competitive-events/',
             linkLabel: 'Official Blueprint',
           ),
           _StudyPackResource(
             title: '${event.name} Daily Practice',
             description: '10–15 sample multiple-choice questions each day.',
-            url:
-                'https://quizlet.com/search?query=FBLA%20${Uri.encodeComponent(event.name)}',
+            url: 'https://quizlet.com/search?query=FBLA%20${Uri.encodeComponent(event.name)}',
             linkLabel: 'Open Quizlet Sets',
-          ),
-          _StudyPackResource(
-            title: '${event.name} Rulebook',
-            description:
-                'Official guidelines: eligibility, test timing, and calculator rules.',
-            url: 'https://www.fbla-pbl.org/competitive-events/',
-            linkLabel: 'Official Rules',
-          ),
-          _StudyPackResource(
-            title: '${event.name} Study Links',
-            description:
-                'Quick links to Quizlet and relevant Investopedia topics.',
-            url:
-                'https://www.investopedia.com/search?q=${Uri.encodeComponent(event.name)}',
-            linkLabel: 'Investopedia Search',
           ),
         ];
       case 'Roleplay Events':
         return [
           _StudyPackResource(
             title: '${event.name} Case Study Library',
-            description:
-                '3–5 practice scenarios for timed 10-minute prep sessions.',
+            description: 'Timed scenarios to practice the roleplay format.',
             url: 'https://www.fbla-pbl.org/competitive-events/',
             linkLabel: 'Past Scenarios',
           ),
           _StudyPackResource(
             title: '${event.name} Performance Rubric',
-            description:
-                'Judge scoring sheet focus: eye contact, creativity, and practical solution quality.',
+            description: 'Judge scoring criteria and delivery expectations.',
             url: 'https://www.fbla-pbl.org/competitive-events/',
             linkLabel: 'Rubric Guide',
-          ),
-          _StudyPackResource(
-            title: '${event.name} Secret Sauce Guide',
-            description:
-                'Roleplay structure one-pager: Intro, 3 Main Points, Ask, Conclusion.',
-          ),
-          _StudyPackResource(
-            title: '${event.name} Objective Test Sample',
-            description:
-                '100-question practice exam for the objective test portion.',
-            url:
-                'https://quizlet.com/search?query=FBLA%20${Uri.encodeComponent(event.name)}%20test',
-            linkLabel: 'Practice Exams',
           ),
         ];
       case 'Presentation Events':
         return [
           _StudyPackResource(
             title: '${event.name} Current Prompt',
-            description:
-                'Current-year event prompt and topic requirements for preparation.',
+            description: 'Current-year event prompt and topic requirements.',
             url: 'https://www.fbla-pbl.org/competitive-events/',
             linkLabel: 'Current Prompt',
           ),
           _StudyPackResource(
             title: '${event.name} Scoring Rubric',
-            description:
-                'Checklist for delivery, visual aids quality, and Q&A performance.',
+            description: 'Checklist for delivery, visuals, and Q&A performance.',
             url: 'https://www.fbla-pbl.org/competitive-events/',
             linkLabel: 'Scoring Rubric',
-          ),
-          _StudyPackResource(
-            title: '${event.name} Equipment Checklist',
-            description:
-                'Bring-ready list (HDMI adapter, clicker, backup file copy, presentation remote).',
-          ),
-          _StudyPackResource(
-            title: '${event.name} Sample Video',
-            description:
-                'Reference quality examples from national-level winning presentations.',
-            url:
-                'https://www.youtube.com/results?search_query=FBLA+${Uri.encodeComponent(event.name)}+national+winner',
-            linkLabel: 'Watch Examples',
           ),
         ];
       case 'Production Events':
         return [
           _StudyPackResource(
             title: '${event.name} Production Test',
-            description:
-                'Sample timed job packet (example tasks completed within event limits).',
+            description: 'Sample timed job packet and output target.',
           ),
           _StudyPackResource(
             title: '${event.name} FBLA Format Guide',
-            description:
-                'Official formatting rules for documents, margins, spacing, and report structure.',
+            description: 'Formatting standards for documents and reports.',
             url: 'https://www.fbla-pbl.org/competitive-events/',
             linkLabel: 'Format Rules',
-          ),
-          _StudyPackResource(
-            title: '${event.name} Solution Key',
-            description:
-                'Reference output showing what a fully correct final product should look like.',
           ),
         ];
       case 'Virtual & Partner Challenges':
         return [
           _StudyPackResource(
             title: '${event.name} Login Gateway',
-            description:
-                'Direct access to challenge portals (Knowledge Matters and partner systems).',
-            url:
-                'https://knowledgematters.com/high-school/virtual-business-challenge/',
+            description: 'Direct access to challenge portals and simulation tools.',
+            url: 'https://knowledgematters.com/high-school/virtual-business-challenge/',
             linkLabel: 'Open Portal',
           ),
           _StudyPackResource(
             title: '${event.name} Strategy Guide',
-            description:
-                'Tips from top competitors (focus priorities, first-round decisions, and pacing).',
-          ),
-          _StudyPackResource(
-            title: '${event.name} Dates & Rounds',
-            description:
-                'Round opening and closing schedule with checkpoint reminders.',
-            url: 'https://www.fbla-pbl.org/competitive-events/',
-            linkLabel: 'Official Schedule',
+            description: 'Tips from top competitors and pacing advice.',
           ),
         ];
       case 'Chapter Events':
         return [
           _StudyPackResource(
             title: '${event.name} Project Guide',
-            description:
-                'Official project structure, required components, and submission instructions.',
+            description: 'Official project structure and submission instructions.',
             url: 'https://www.fbla-pbl.org/competitive-events/',
             linkLabel: 'Project Rules',
           ),
           _StudyPackResource(
             title: '${event.name} Judging Rubric',
-            description:
-                'How chapter projects are evaluated for impact, planning, and execution quality.',
+            description: 'How chapter projects are evaluated.',
             url: 'https://www.fbla-pbl.org/competitive-events/',
             linkLabel: 'Rubric',
-          ),
-          _StudyPackResource(
-            title: '${event.name} Winning Samples',
-            description:
-                'Review past examples to benchmark scope, documentation, and presentation quality.',
           ),
         ];
       default:
@@ -1208,9 +1855,7 @@ class MobileAppDevGuidelinesScreen extends StatelessWidget {
         backgroundColor: fblaBlue,
         foregroundColor: Colors.white,
       ),
-      body: SfPdfViewer.asset(
-        'assets/Mobile-Application-Development.pdf',
-      ),
+      body: SfPdfViewer.asset('assets/Mobile-Application-Development.pdf'),
     );
   }
 }
@@ -1225,32 +1870,15 @@ class CompetitiveEventStudyPacksScreen extends StatelessWidget {
       resources: [
         _StudyPackResource(
           title: 'The Blueprint',
-          description:
-              'Summary of tested competencies by weight (for example, Ethics 10%, Economics 20%).',
+          description: 'Summary of tested competencies by weight.',
           url: 'https://www.fbla-pbl.org/competitive-events/',
           linkLabel: 'Official Event Blueprints',
         ),
         _StudyPackResource(
           title: 'Question Bank',
-          description:
-              'Daily Practice: 10–15 multiple-choice questions to build speed and accuracy.',
+          description: 'Daily practice questions to build speed and accuracy.',
           url: 'https://quizlet.com/search?query=FBLA%20objective%20test',
           linkLabel: 'Quizlet Practice Sets',
-        ),
-        _StudyPackResource(
-          title: 'The Rulebook',
-          description:
-              'Official PDF guidelines including eligibility, timing, and calculator rules.',
-          url: 'https://www.fbla-pbl.org/competitive-events/',
-          linkLabel: 'Official Guidelines',
-        ),
-        _StudyPackResource(
-          title: 'Study Links',
-          description:
-              'Direct external resources such as Quizlet and Investopedia articles.',
-          url:
-              'https://www.investopedia.com/search?q=business%20law%20personal%20finance',
-          linkLabel: 'Investopedia Topics',
         ),
       ],
     ),
@@ -1260,30 +1888,15 @@ class CompetitiveEventStudyPacksScreen extends StatelessWidget {
       resources: [
         _StudyPackResource(
           title: 'Case Study Library',
-          description:
-              '3–5 past scenarios to practice timed 10-minute prep and delivery.',
+          description: 'Practice timed 10-minute prep and delivery.',
           url: 'https://www.fbla-pbl.org/competitive-events/',
           linkLabel: 'Past Event Resources',
         ),
         _StudyPackResource(
           title: 'Performance Rubric',
-          description:
-              'Judge score sheet criteria including eye contact, clarity, and creativity.',
+          description: 'Focus on eye contact, clarity, and creativity.',
           url: 'https://www.fbla-pbl.org/competitive-events/',
           linkLabel: 'Judging Rubrics',
-        ),
-        _StudyPackResource(
-          title: 'The Secret Sauce Guide',
-          description:
-              'One-page structure: Intro, 3 Main Points, the Ask, and Conclusion.',
-        ),
-        _StudyPackResource(
-          title: 'Objective Test Sample',
-          description:
-              '100-question practice exam for the objective test portion before roleplay.',
-          url:
-              'https://quizlet.com/search?query=FBLA%20roleplay%20objective%20test',
-          linkLabel: 'Practice Question Sets',
         ),
       ],
     ),
@@ -1293,30 +1906,15 @@ class CompetitiveEventStudyPacksScreen extends StatelessWidget {
       resources: [
         _StudyPackResource(
           title: 'The Prompt',
-          description:
-              'Current-year topic statement and required scenario scope for your event.',
+          description: 'Current-year topic statement and required scope.',
           url: 'https://www.fbla-pbl.org/competitive-events/',
           linkLabel: 'Current Year Topics',
         ),
         _StudyPackResource(
           title: 'Scoring Rubric',
-          description:
-              'Checklist emphasizing delivery, visual aids, and Q&A performance.',
+          description: 'Checklist for delivery, visuals, and Q&A performance.',
           url: 'https://www.fbla-pbl.org/competitive-events/',
           linkLabel: 'Presentation Rubrics',
-        ),
-        _StudyPackResource(
-          title: 'Equipment Checklist',
-          description:
-              'Bring-required items checklist (adapter, projector compatibility, clicker, backups).',
-        ),
-        _StudyPackResource(
-          title: 'Sample Video',
-          description:
-              'Watch national-winning style performances to benchmark quality expectations.',
-          url:
-              'https://www.youtube.com/results?search_query=FBLA+national+winning+presentation',
-          linkLabel: 'YouTube Samples',
         ),
       ],
     ),
@@ -1326,46 +1924,13 @@ class CompetitiveEventStudyPacksScreen extends StatelessWidget {
       resources: [
         _StudyPackResource(
           title: 'The Production Test',
-          description:
-              'Sample timed job packet (example: create a business letter and database in 2 hours).',
+          description: 'Sample timed job packet and format expectations.',
         ),
         _StudyPackResource(
           title: 'FBLA Format Guide',
-          description:
-              'Formatting standards reference for reports, letters, spacing, and margins.',
+          description: 'Formatting standards reference for reports and letters.',
           url: 'https://www.fbla-pbl.org/competitive-events/',
           linkLabel: 'Format Standards',
-        ),
-        _StudyPackResource(
-          title: 'Solution Key',
-          description:
-              'Target output PDF showing what a full-credit final document should look like.',
-        ),
-      ],
-    ),
-    _StudyPackCategory(
-      title: 'Virtual Business Challenges',
-      examples: 'VBC Finance, VBC Management',
-      resources: [
-        _StudyPackResource(
-          title: 'Login Gateway',
-          description:
-              'Direct launch point for competition simulation access and participation.',
-          url:
-              'https://knowledgematters.com/high-school/virtual-business-challenge/',
-          linkLabel: 'Knowledge Matters Portal',
-        ),
-        _StudyPackResource(
-          title: 'Strategy Guide',
-          description:
-              'Tips from top competitors (e.g., early-round staffing and decision priorities).',
-        ),
-        _StudyPackResource(
-          title: 'Dates & Rounds',
-          description:
-              'Clear schedule for Round 1 and Round 2 opening/closing deadlines.',
-          url: 'https://www.fbla-pbl.org/competitive-events/',
-          linkLabel: 'Official Schedule',
         ),
       ],
     ),
@@ -1387,13 +1952,13 @@ class CompetitiveEventStudyPacksScreen extends StatelessWidget {
         itemCount: _packs.length,
         itemBuilder: (context, index) {
           final pack = _packs[index];
-          return _buildPackCard(context, pack);
+          return _buildPackCard(pack);
         },
       ),
     );
   }
 
-  Widget _buildPackCard(BuildContext context, _StudyPackCategory pack) {
+  Widget _buildPackCard(_StudyPackCategory pack) {
     final accent = _packColor(pack.title);
 
     return Container(
