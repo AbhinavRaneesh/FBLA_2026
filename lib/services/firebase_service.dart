@@ -12,7 +12,11 @@ class FirebaseService {
   static FirebaseAuth get _auth => FirebaseAuth.instance;
   static FirebaseFirestore get _firestore => FirebaseFirestore.instance;
   static FirebaseStorage get _storage => FirebaseStorage.instance;
-  static GoogleSignIn get _googleSignIn => GoogleSignIn();
+  static GoogleSignIn get _googleSignIn => GoogleSignIn(
+        scopes: const ['email', 'profile'],
+        serverClientId:
+            '1023723280371-7o7ocf59j4iod547576cmonp6lgoncfb.apps.googleusercontent.com',
+      );
 
   static Future<void> _ensureInitialized() async {
     if (Firebase.apps.isEmpty) {
@@ -79,15 +83,18 @@ class FirebaseService {
       } else if (e.code == 'too-many-requests') {
         throw Exception('Too many failed attempts. Please try again later.');
       } else if (e.code == 'operation-not-allowed') {
-        throw Exception('Email/Password authentication is not enabled in Firebase Console.');
+        throw Exception(
+            'Email/Password authentication is not enabled in Firebase Console.');
       } else if (e.code == 'network-request-failed') {
-        throw Exception('Network error. Please check your internet connection.');
+        throw Exception(
+            'Network error. Please check your internet connection.');
       }
       rethrow;
     } catch (e) {
       print('FirebaseService: Sign in error: $e');
       if (e.toString().contains('network')) {
-        throw Exception('Network error. Please check your internet connection.');
+        throw Exception(
+            'Network error. Please check your internet connection.');
       }
       rethrow;
     }
@@ -122,7 +129,8 @@ class FirebaseService {
       } else if (e.code == 'invalid-email') {
         throw Exception('The email address is invalid.');
       } else if (e.code == 'network-request-failed') {
-        throw Exception('Network error. Please check your internet connection.');
+        throw Exception(
+            'Network error. Please check your internet connection.');
       }
       rethrow;
     } catch (e) {
@@ -146,8 +154,11 @@ class FirebaseService {
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
 
-      if (googleAuth.accessToken == null || googleAuth.idToken == null) {
-        print('Google auth tokens are null');
+      final hasAccessToken = googleAuth.accessToken != null;
+      final hasIdToken = googleAuth.idToken != null;
+      if (!hasAccessToken && !hasIdToken) {
+        print(
+            'Google auth tokens are null: accessToken=$hasAccessToken idToken=$hasIdToken');
         return null;
       }
 
@@ -403,7 +414,10 @@ class FirebaseService {
     final data = Map<String, dynamic>.from(thread);
     final id = (data.remove('id') ?? '').toString();
     if (id.isEmpty) return;
-    await _firestore.collection('threads').doc(id).set(data, SetOptions(merge: true));
+    await _firestore
+        .collection('threads')
+        .doc(id)
+        .set(data, SetOptions(merge: true));
   }
 
   // Storage methods
@@ -448,11 +462,12 @@ class FirebaseService {
 
     try {
       // Check if Firebase is initialized
-      results['firebase_initialized'] = true; // Firebase is initialized if we can access _auth
-      
+      results['firebase_initialized'] =
+          true; // Firebase is initialized if we can access _auth
+
       // Check Firestore connectivity
       results['firestore_accessible'] = await checkFirebaseConnection();
-      
+
       // Check if auth is enabled (try to get current user)
       try {
         _auth.currentUser;
@@ -460,12 +475,12 @@ class FirebaseService {
       } catch (e) {
         results['auth_enabled'] = false;
       }
-      
+
       print('FirebaseService: Configuration check results: $results');
     } catch (e) {
       print('FirebaseService: Configuration check error: $e');
     }
-    
+
     return results;
   }
 }

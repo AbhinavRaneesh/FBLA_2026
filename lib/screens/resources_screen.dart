@@ -23,12 +23,17 @@ const LinearGradient appBackgroundGradient = LinearGradient(
 
 IconData courseIconForName(String name) {
   final n = name.toLowerCase();
-  if (n.contains('code') || n.contains('program') || n.contains('coding')) return Icons.code;
-  if (n.contains('business') || n.contains('plan') || n.contains('management')) return Icons.business;
-  if (n.contains('finance') || n.contains('bank') || n.contains('account')) return Icons.account_balance;
+  if (n.contains('code') || n.contains('program') || n.contains('coding'))
+    return Icons.code;
+  if (n.contains('business') || n.contains('plan') || n.contains('management'))
+    return Icons.business;
+  if (n.contains('finance') || n.contains('bank') || n.contains('account'))
+    return Icons.account_balance;
   if (n.contains('marketing') || n.contains('sales')) return Icons.campaign;
-  if (n.contains('video') || n.contains('digital') || n.contains('animation')) return Icons.video_collection;
-  if (n.contains('public') || n.contains('speaking') || n.contains('speech')) return Icons.record_voice_over;
+  if (n.contains('video') || n.contains('digital') || n.contains('animation'))
+    return Icons.video_collection;
+  if (n.contains('public') || n.contains('speaking') || n.contains('speech'))
+    return Icons.record_voice_over;
   return Icons.school;
 }
 
@@ -81,7 +86,8 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
   int _streak = 0;
   final GlobalKey _courseMenuButtonKey = GlobalKey();
   final GlobalKey _streakButtonKey = GlobalKey();
-  DateTime _streakCalendarMonth = DateTime(DateTime.now().year, DateTime.now().month);
+  DateTime _streakCalendarMonth =
+      DateTime(DateTime.now().year, DateTime.now().month);
 
   @override
   void initState() {
@@ -139,6 +145,37 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
 
   void _openCoursePicker() => _showCoursePanel();
 
+  Future<void> _addCourse(
+    BuildContext navigatorContext, {
+    VoidCallback? onCoursesChanged,
+  }) async {
+    dynamic appState;
+    try {
+      appState = Provider.of<dynamic>(context, listen: false);
+    } catch (_) {}
+
+    final selected = await Navigator.push<String>(
+      navigatorContext,
+      MaterialPageRoute(builder: (_) => const CourseSelectionScreen()),
+    );
+    if (!mounted || selected == null || selected.isEmpty) return;
+
+    setState(() {
+      if (!_userCourses.contains(selected)) {
+        _userCourses.add(selected);
+      }
+      _selectedCourse = selected;
+    });
+    await _saveCourses();
+    onCoursesChanged?.call();
+
+    if (appState != null) {
+      try {
+        await appState.addUserCourse?.call(selected);
+      } catch (_) {}
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -161,7 +198,8 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
   }
 
   Widget _buildCourseJourney() {
-    final course = _selectedCourse ?? (_userCourses.isNotEmpty ? _userCourses.first : null);
+    final course = _selectedCourse ??
+        (_userCourses.isNotEmpty ? _userCourses.first : null);
 
     if (course == null) {
       return Container(
@@ -181,25 +219,33 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                width: 92,
-                height: 92,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [fblaGold.withOpacity(0.95), const Color(0xFFFFE082)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(28),
-                  boxShadow: [
-                    BoxShadow(
-                      color: fblaGold.withOpacity(0.35),
-                      blurRadius: 24,
-                      offset: const Offset(0, 10),
+              GestureDetector(
+                onTap: () {
+                  unawaited(_addCourse(context));
+                },
+                child: Container(
+                  width: 92,
+                  height: 92,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        fblaGold.withValues(alpha: 0.95),
+                        const Color(0xFFFFE082)
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                  ],
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: [
+                      BoxShadow(
+                        color: fblaGold.withValues(alpha: 0.35),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.add, color: fblaNavy, size: 48),
                 ),
-                child: const Icon(Icons.route, color: fblaNavy, size: 44),
               ),
               const SizedBox(height: 18),
               const Text(
@@ -264,6 +310,19 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
         label: 'Question Bank',
         icon: Icons.quiz_outlined,
         onTap: () {
+          if (_isCybersecurityCourse(course)) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => CybersecurityQuestionBankScreen(
+                  course: course,
+                  color: _courseColor(course),
+                ),
+              ),
+            );
+            return;
+          }
+
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -287,7 +346,9 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
           }
 
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Official Documents are only available for the Cybersecurity course right now.')),
+            const SnackBar(
+                content: Text(
+                    'Official Documents are only available for the Cybersecurity course right now.')),
           );
         },
       ),
@@ -304,21 +365,42 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
       _CourseMenuItem(
         label: 'Vocabulary',
         icon: Icons.menu_book_outlined,
-        onTap: () async {
+        onTap: () {
+          if (_isCybersecurityCourse(course)) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => CybersecurityVocabularyScreen(
+                  course: course,
+                  color: _courseColor(course),
+                ),
+              ),
+            );
+            return;
+          }
+
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Vocabulary tools are coming soon.')),
+            const SnackBar(
+              content: Text(
+                'Vocabulary is only available for the Cybersecurity course right now.',
+              ),
+            ),
           );
         },
       ),
     ];
 
     final buttonContext = _courseMenuButtonKey.currentContext;
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
     final buttonBox = buttonContext?.findRenderObject() as RenderBox?;
     if (overlay == null || buttonBox == null) return;
 
-    final buttonTopLeft = buttonBox.localToGlobal(Offset.zero, ancestor: overlay);
-    final buttonBottomRight = buttonBox.localToGlobal(buttonBox.size.bottomRight(Offset.zero), ancestor: overlay);
+    final buttonTopLeft =
+        buttonBox.localToGlobal(Offset.zero, ancestor: overlay);
+    final buttonBottomRight = buttonBox.localToGlobal(
+        buttonBox.size.bottomRight(Offset.zero),
+        ancestor: overlay);
 
     final selected = await showMenu<String>(
       context: context,
@@ -478,8 +560,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
         Expanded(
           child: Center(
             child: statInline(
-              const Icon(Icons.leaderboard,
-                  color: Color(0xFF66BB6A), size: 31),
+              const Icon(Icons.leaderboard, color: Color(0xFF66BB6A), size: 31),
               hideValue: true,
             ),
           ),
@@ -490,16 +571,18 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
 
   Future<void> _showStreakCalendar() async {
     final buttonContext = _streakButtonKey.currentContext;
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
     final buttonBox = buttonContext?.findRenderObject() as RenderBox?;
     if (overlay == null || buttonBox == null) return;
 
     final now = DateTime.now();
     DateTime displayedMonth = DateTime(now.year, now.month);
 
-    final buttonTopLeft = buttonBox.localToGlobal(Offset.zero, ancestor: overlay);
-    final buttonBottomLeft =
-        buttonBox.localToGlobal(Offset(0, buttonBox.size.height), ancestor: overlay);
+    final buttonTopLeft =
+        buttonBox.localToGlobal(Offset.zero, ancestor: overlay);
+    final buttonBottomLeft = buttonBox
+        .localToGlobal(Offset(0, buttonBox.size.height), ancestor: overlay);
 
     await showGeneralDialog<void>(
       context: context,
@@ -510,18 +593,22 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
       pageBuilder: (dialogContext, animation, secondaryAnimation) {
         return StatefulBuilder(
           builder: (context, setPopupState) {
-            final cardWidth = (overlay.size.width - 24).clamp(300.0, 360.0).toDouble();
+            final cardWidth =
+                (overlay.size.width - 24).clamp(300.0, 360.0).toDouble();
             final cardHeight = 352.0;
             final left = ((overlay.size.width - cardWidth) / 2).toDouble();
             final top = (buttonBottomLeft.dy + 10)
-              .clamp(12.0, overlay.size.height - cardHeight - 12.0)
-              .toDouble();
-            final monthStart = DateTime(displayedMonth.year, displayedMonth.month, 1);
-            final daysInMonth = DateTime(displayedMonth.year, displayedMonth.month + 1, 0).day;
+                .clamp(12.0, overlay.size.height - cardHeight - 12.0)
+                .toDouble();
+            final monthStart =
+                DateTime(displayedMonth.year, displayedMonth.month, 1);
+            final daysInMonth =
+                DateTime(displayedMonth.year, displayedMonth.month + 1, 0).day;
             final firstWeekday = monthStart.weekday % 7;
             final totalCells = 42;
             final currentDay = DateTime(now.year, now.month, now.day);
-            final isCurrentMonth = now.year == displayedMonth.year && now.month == displayedMonth.month;
+            final isCurrentMonth = now.year == displayedMonth.year &&
+                now.month == displayedMonth.month;
 
             return Stack(
               children: [
@@ -555,7 +642,8 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                                 visualDensity: VisualDensity.compact,
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
-                                icon: const Icon(Icons.chevron_left, color: Colors.white),
+                                icon: const Icon(Icons.chevron_left,
+                                    color: Colors.white),
                                 onPressed: () {
                                   setPopupState(() {
                                     displayedMonth = DateTime(
@@ -581,7 +669,8 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                                 visualDensity: VisualDensity.compact,
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
-                                icon: const Icon(Icons.chevron_right, color: Colors.white),
+                                icon: const Icon(Icons.chevron_right,
+                                    color: Colors.white),
                                 onPressed: () {
                                   setPopupState(() {
                                     displayedMonth = DateTime(
@@ -597,13 +686,41 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: const [
-                              Text('S', style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w700)),
-                              Text('M', style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w700)),
-                              Text('T', style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w700)),
-                              Text('W', style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w700)),
-                              Text('T', style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w700)),
-                              Text('F', style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w700)),
-                              Text('S', style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w700)),
+                              Text('S',
+                                  style: TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700)),
+                              Text('M',
+                                  style: TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700)),
+                              Text('T',
+                                  style: TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700)),
+                              Text('W',
+                                  style: TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700)),
+                              Text('T',
+                                  style: TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700)),
+                              Text('F',
+                                  style: TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700)),
+                              Text('S',
+                                  style: TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700)),
                             ],
                           ),
                           const SizedBox(height: 8),
@@ -611,15 +728,19 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: totalCells,
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: 7,
                               mainAxisSpacing: 5,
                               crossAxisSpacing: 5,
                             ),
                             itemBuilder: (context, index) {
                               final dayNumber = index - firstWeekday + 1;
-                              final isInMonth = dayNumber >= 1 && dayNumber <= daysInMonth;
-                              final isToday = isCurrentMonth && isInMonth && dayNumber == currentDay.day;
+                              final isInMonth =
+                                  dayNumber >= 1 && dayNumber <= daysInMonth;
+                              final isToday = isCurrentMonth &&
+                                  isInMonth &&
+                                  dayNumber == currentDay.day;
 
                               if (!isInMonth) {
                                 return const SizedBox.shrink();
@@ -663,7 +784,8 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
         );
         return FadeTransition(
           opacity: animation,
-          child: ScaleTransition(scale: scale, alignment: Alignment.topCenter, child: child),
+          child: ScaleTransition(
+              scale: scale, alignment: Alignment.topCenter, child: child),
         );
       },
     );
@@ -703,29 +825,10 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
           child: StatefulBuilder(
             builder: (context, setModalState) {
               Future<void> addCourse() async {
-                dynamic appState;
-                try {
-                  appState = Provider.of<dynamic>(context, listen: false);
-                } catch (_) {}
-                final selected = await Navigator.push<String>(
+                await _addCourse(
                   dialogContext,
-                  MaterialPageRoute(builder: (_) => const CourseSelectionScreen()),
+                  onCoursesChanged: () => setModalState(() {}),
                 );
-                if (selected != null && selected.isNotEmpty) {
-                  setState(() {
-                    if (!_userCourses.contains(selected)) {
-                      _userCourses.add(selected);
-                    }
-                    _selectedCourse = selected;
-                  });
-                  await _saveCourses();
-                  setModalState(() {});
-                  if (appState != null) {
-                    try {
-                      await appState.addUserCourse?.call(selected);
-                    } catch (_) {}
-                  }
-                }
               }
 
               final panel = Align(
@@ -780,22 +883,56 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                                     ),
                                   ),
                                 ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 9, vertical: 5),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white10,
-                                    borderRadius: BorderRadius.circular(999),
-                                    border: Border.all(color: Colors.white12),
-                                  ),
-                                  child: Text(
-                                    '${_userCourses.length} added',
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 11,
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 9, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white10,
+                                        borderRadius:
+                                            BorderRadius.circular(999),
+                                        border:
+                                            Border.all(color: Colors.white12),
+                                      ),
+                                      child: Text(
+                                        '${_userCourses.length} added',
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 11,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    const SizedBox(width: 8),
+                                    GestureDetector(
+                                      onTap: () {
+                                        unawaited(addCourse());
+                                      },
+                                      child: Container(
+                                        width: 30,
+                                        height: 30,
+                                        decoration: BoxDecoration(
+                                          color: fblaGold,
+                                          shape: BoxShape.circle,
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: fblaGold.withValues(
+                                                  alpha: 0.28),
+                                              blurRadius: 10,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ],
+                                        ),
+                                        child: const Icon(
+                                          Icons.add,
+                                          color: fblaNavy,
+                                          size: 20,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -804,25 +941,15 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                             Padding(
                               padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Container(
-                                      width: 56,
-                                      height: 56,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white10,
-                                        borderRadius:
-                                            BorderRadius.circular(18),
-                                        border:
-                                            Border.all(color: Colors.white12),
-                                      ),
-                                      child: const Icon(
-                                        Icons.school_outlined,
-                                        color: Colors.white38,
-                                        size: 28,
-                                      ),
+                                    _AddCourseTile(
+                                      onTap: () {
+                                        unawaited(addCourse());
+                                      },
                                     ),
                                     const SizedBox(height: 8),
                                     const Text(
@@ -863,9 +990,10 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                                         setState(() {
                                           _userCourses.removeAt(index);
                                           if (_selectedCourse == course) {
-                                            _selectedCourse = _userCourses.isNotEmpty
-                                                ? _userCourses.first
-                                                : null;
+                                            _selectedCourse =
+                                                _userCourses.isNotEmpty
+                                                    ? _userCourses.first
+                                                    : null;
                                           }
                                         });
                                         await _saveCourses();
@@ -920,9 +1048,9 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
       const Color(0xFF1565C0),
       const Color(0xFF6D4C41),
     ];
-    final index = course.toLowerCase().codeUnits.fold<int>(0,
-            (sum, unit) => sum + unit) %
-        palette.length;
+    final index =
+        course.toLowerCase().codeUnits.fold<int>(0, (sum, unit) => sum + unit) %
+            palette.length;
     return palette[index];
   }
 
@@ -987,7 +1115,10 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
                       height: 54,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [widget.color, widget.color.withOpacity(0.72)],
+                          colors: [
+                            widget.color,
+                            widget.color.withOpacity(0.72)
+                          ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -1051,7 +1182,11 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
               height: 1,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Colors.transparent, widget.color.withOpacity(0.55), Colors.transparent],
+                  colors: [
+                    Colors.transparent,
+                    widget.color.withOpacity(0.55),
+                    Colors.transparent
+                  ],
                 ),
               ),
             ),
@@ -1065,7 +1200,8 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
                 itemCount: 10,
                 itemBuilder: (context, index) {
                   final level = index + 1;
-                  final status = level == 1 ? _LevelStatus.active : _LevelStatus.locked;
+                  final status =
+                      level == 1 ? _LevelStatus.active : _LevelStatus.locked;
                   final isCybersecurity = _isCybersecurityCourse(widget.course);
                   final levelTap = level == 1 && isCybersecurity
                       ? () {
@@ -1145,7 +1281,9 @@ class CybersecurityModulesScreen extends StatelessWidget {
   final String course;
   final Color color;
 
-  const CybersecurityModulesScreen({required this.course, required this.color, Key? key}) : super(key: key);
+  const CybersecurityModulesScreen(
+      {required this.course, required this.color, Key? key})
+      : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -1182,32 +1320,39 @@ class CybersecurityModulesScreen extends StatelessWidget {
                     // Route each module to its screen
                     if (mod['id'] == '1.1') {
                       Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => CybersecurityLevelOneScreen(course: course, color: color),
+                        builder: (_) => CybersecurityLevelOneScreen(
+                            course: course, color: color),
                       ));
                     } else if (mod['id'] == '1.2') {
                       Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => CybersecurityModuleOneTwoScreen(course: course, color: color),
+                        builder: (_) => CybersecurityModuleOneTwoScreen(
+                            course: course, color: color),
                       ));
                     } else if (mod['id'] == '1.3') {
                       Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => CybersecurityModuleOneThreeScreen(course: course, color: color),
+                        builder: (_) => CybersecurityVocabularyScreen(
+                            course: course, color: color),
                       ));
                     } else if (mod['id'] == '1.4') {
                       Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => CybersecurityModuleOneFourScreen(course: course, color: color),
+                        builder: (_) => CybersecurityModuleOneFourScreen(
+                            course: course, color: color),
                       ));
                     } else if (mod['id'] == '1.5') {
                       Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => CybersecurityModuleOneFiveScreen(course: course, color: color),
+                        builder: (_) => CybersecurityModuleOneFiveScreen(
+                            course: course, color: color),
                       ));
                     } else if (mod['id'] == '1.6') {
                       Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => CybersecurityModuleOneSixScreen(course: course, color: color),
+                        builder: (_) => CybersecurityModuleOneSixScreen(
+                            course: course, color: color),
                       ));
                     }
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 16, horizontal: 16),
                     child: Row(
                       children: [
                         Container(
@@ -1220,7 +1365,8 @@ class CybersecurityModulesScreen extends StatelessWidget {
                           child: Center(
                             child: Text(
                               mod['id']!,
-                              style: const TextStyle(fontWeight: FontWeight.w800),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w800),
                             ),
                           ),
                         ),
@@ -1231,10 +1377,13 @@ class CybersecurityModulesScreen extends StatelessWidget {
                             children: [
                               Text(
                                 mod['title']!,
-                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                                style: const TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.w700),
                               ),
                               const SizedBox(height: 4),
-                              Text('Tap to open the lesson', style: TextStyle(color: Colors.white.withOpacity(0.7))),
+                              Text('Tap to open the lesson',
+                                  style: TextStyle(
+                                      color: Colors.white.withOpacity(0.7))),
                             ],
                           ),
                         ),
@@ -1256,32 +1405,53 @@ class CybersecurityModuleOneTwoScreen extends StatefulWidget {
   final String course;
   final Color color;
 
-  const CybersecurityModuleOneTwoScreen({required this.course, required this.color, Key? key}) : super(key: key);
+  const CybersecurityModuleOneTwoScreen(
+      {required this.course, required this.color, Key? key})
+      : super(key: key);
 
   @override
-  State<CybersecurityModuleOneTwoScreen> createState() => _CybersecurityModuleOneTwoScreenState();
+  State<CybersecurityModuleOneTwoScreen> createState() =>
+      _CybersecurityModuleOneTwoScreenState();
 }
 
 class CybersecurityModuleOneThreeScreen extends StatefulWidget {
   final String course;
   final Color color;
 
-  const CybersecurityModuleOneThreeScreen({required this.course, required this.color, Key? key}) : super(key: key);
+  const CybersecurityModuleOneThreeScreen(
+      {required this.course, required this.color, Key? key})
+      : super(key: key);
 
   @override
-  State<CybersecurityModuleOneThreeScreen> createState() => _CybersecurityModuleOneThreeScreenState();
+  State<CybersecurityModuleOneThreeScreen> createState() =>
+      _CybersecurityModuleOneThreeScreenState();
 }
 
-class _CybersecurityModuleOneThreeScreenState extends State<CybersecurityModuleOneThreeScreen> {
+class _CybersecurityModuleOneThreeScreenState
+    extends State<CybersecurityModuleOneThreeScreen> {
   static const List<_CybersecuritySection> _sections = [
-    _CybersecuritySection(title: 'Core Cybersecurity Terms', subtitle: 'Fundamental words everyone should know.'),
-    _CybersecuritySection(title: 'CIA Triad', subtitle: 'Confidentiality, Integrity, Availability.'),
-    _CybersecuritySection(title: 'Malware Types', subtitle: 'Common malware definitions.'),
-    _CybersecuritySection(title: 'Social Engineering', subtitle: 'Human-targeted attacks.'),
-    _CybersecuritySection(title: 'Network Security Terms', subtitle: 'Network-focused vocabulary.'),
-    _CybersecuritySection(title: 'Authentication & Access', subtitle: 'Login and access control terms.'),
-    _CybersecuritySection(title: 'System & Data Protection', subtitle: 'Protective measures and tools.'),
-    _CybersecuritySection(title: 'Incident & Response', subtitle: 'How to react and what to look for.'),
+    _CybersecuritySection(
+        title: 'Core Cybersecurity Terms',
+        subtitle: 'Fundamental words everyone should know.'),
+    _CybersecuritySection(
+        title: 'CIA Triad',
+        subtitle: 'Confidentiality, Integrity, Availability.'),
+    _CybersecuritySection(
+        title: 'Malware Types', subtitle: 'Common malware definitions.'),
+    _CybersecuritySection(
+        title: 'Social Engineering', subtitle: 'Human-targeted attacks.'),
+    _CybersecuritySection(
+        title: 'Network Security Terms',
+        subtitle: 'Network-focused vocabulary.'),
+    _CybersecuritySection(
+        title: 'Authentication & Access',
+        subtitle: 'Login and access control terms.'),
+    _CybersecuritySection(
+        title: 'System & Data Protection',
+        subtitle: 'Protective measures and tools.'),
+    _CybersecuritySection(
+        title: 'Incident & Response',
+        subtitle: 'How to react and what to look for.'),
   ];
 
   int _currentSectionIndex = 0;
@@ -1324,24 +1494,56 @@ class _CybersecurityModuleOneThreeScreenState extends State<CybersecurityModuleO
     switch (idx) {
       case 0:
         return [
-          {'term': 'Cybersecurity', 'def': 'Protecting computers, networks, and data from digital threats.'},
-          {'term': 'Threat', 'def': 'Anything that can cause harm to a system.'},
+          {
+            'term': 'Cybersecurity',
+            'def':
+                'Protecting computers, networks, and data from digital threats.'
+          },
+          {
+            'term': 'Threat',
+            'def': 'Anything that can cause harm to a system.'
+          },
           {'term': 'Vulnerability', 'def': 'A weakness that can be exploited.'},
-          {'term': 'Risk', 'def': 'The chance a threat will exploit a vulnerability.'},
-          {'term': 'Attack Vector', 'def': 'The path an attacker uses to break in.'},
-          {'term': 'Exploit', 'def': 'Code or technique used to take advantage of a vulnerability.'},
+          {
+            'term': 'Risk',
+            'def': 'The chance a threat will exploit a vulnerability.'
+          },
+          {
+            'term': 'Attack Vector',
+            'def': 'The path an attacker uses to break in.'
+          },
+          {
+            'term': 'Exploit',
+            'def':
+                'Code or technique used to take advantage of a vulnerability.'
+          },
         ];
       case 1:
         return [
-          {'term': 'Confidentiality', 'def': 'Only authorized people can access information.'},
-          {'term': 'Integrity', 'def': 'Information stays accurate and unchanged.'},
-          {'term': 'Availability', 'def': 'Systems and data are accessible when needed.'},
+          {
+            'term': 'Confidentiality',
+            'def': 'Only authorized people can access information.'
+          },
+          {
+            'term': 'Integrity',
+            'def': 'Information stays accurate and unchanged.'
+          },
+          {
+            'term': 'Availability',
+            'def': 'Systems and data are accessible when needed.'
+          },
         ];
       case 2:
         return [
-          {'term': 'Virus', 'def': 'Attaches to files and spreads when opened.'},
+          {
+            'term': 'Virus',
+            'def': 'Attaches to files and spreads when opened.'
+          },
           {'term': 'Worm', 'def': 'Spreads automatically across networks.'},
-          {'term': 'Trojan Horse', 'def': 'Looks safe but contains harmful code.'},
+          {
+            'term': 'Trojan Horse',
+            'def': 'Looks safe but contains harmful code.'
+          },
           {'term': 'Ransomware', 'def': 'Locks files and demands payment.'},
           {'term': 'Spyware', 'def': 'Secretly collects information.'},
           {'term': 'Adware', 'def': 'Shows unwanted ads; sometimes malicious.'},
@@ -1349,51 +1551,88 @@ class _CybersecurityModuleOneThreeScreenState extends State<CybersecurityModuleO
       case 3:
         return [
           {'term': 'Phishing', 'def': 'Fake emails/messages that steal info.'},
-          {'term': 'Spear Phishing', 'def': 'Targeted phishing at a specific person.'},
+          {
+            'term': 'Spear Phishing',
+            'def': 'Targeted phishing at a specific person.'
+          },
           {'term': 'Vishing', 'def': 'Phone‑based phishing.'},
           {'term': 'Smishing', 'def': 'Text‑message phishing.'},
-          {'term': 'Pretexting', 'def': 'Attacker pretends to be someone trustworthy.'},
+          {
+            'term': 'Pretexting',
+            'def': 'Attacker pretends to be someone trustworthy.'
+          },
         ];
       case 4:
         return [
           {'term': 'Firewall', 'def': 'Blocks unwanted network traffic.'},
-          {'term': 'Encryption', 'def': 'Scrambles data so only authorized people can read it.'},
-          {'term': 'Decryption', 'def': 'Turning encrypted data back into readable form.'},
+          {
+            'term': 'Encryption',
+            'def': 'Scrambles data so only authorized people can read it.'
+          },
+          {
+            'term': 'Decryption',
+            'def': 'Turning encrypted data back into readable form.'
+          },
           {'term': 'MITM', 'def': 'Attacker intercepts communication.'},
           {'term': 'DDoS', 'def': 'Overloading a website so it crashes.'},
           {'term': 'Brute Force', 'def': 'Guessing passwords repeatedly.'},
         ];
       case 5:
         return [
-          {'term': 'Authentication', 'def': 'Proving who you are (password, MFA).'},
+          {
+            'term': 'Authentication',
+            'def': 'Proving who you are (password, MFA).'
+          },
           {'term': 'Authorization', 'def': 'What you’re allowed to access.'},
           {'term': 'MFA', 'def': 'Using more than one method to log in.'},
-          {'term': 'Password Manager', 'def': 'Tool that stores and creates strong passwords.'},
+          {
+            'term': 'Password Manager',
+            'def': 'Tool that stores and creates strong passwords.'
+          },
         ];
       case 6:
         return [
-          {'term': 'Patch', 'def': 'A software update that fixes vulnerabilities.'},
+          {
+            'term': 'Patch',
+            'def': 'A software update that fixes vulnerabilities.'
+          },
           {'term': 'Backup', 'def': 'Copy of data stored separately.'},
-          {'term': 'Antivirus', 'def': 'Software that detects and removes malware.'},
-          {'term': 'Secure Wi‑Fi', 'def': 'Encrypted wireless network (WPA2/WPA3).'},
+          {
+            'term': 'Antivirus',
+            'def': 'Software that detects and removes malware.'
+          },
+          {
+            'term': 'Secure Wi‑Fi',
+            'def': 'Encrypted wireless network (WPA2/WPA3).'
+          },
         ];
       case 7:
       default:
         return [
-          {'term': 'Incident', 'def': 'A security event that harms or threatens a system.'},
+          {
+            'term': 'Incident',
+            'def': 'A security event that harms or threatens a system.'
+          },
           {'term': 'IoC', 'def': 'Signs that an attack happened.'},
           {'term': 'Zero‑Day', 'def': 'A vulnerability with no patch yet.'},
-          {'term': 'Insider Threat', 'def': 'Harm caused by someone inside an organization.'},
+          {
+            'term': 'Insider Threat',
+            'def': 'Harm caused by someone inside an organization.'
+          },
         ];
     }
   }
 
-  Widget _buildCard(BuildContext context, Map<String, String> card, int pageIndex) {
+  Widget _buildCard(
+      BuildContext context, Map<String, String> card, int pageIndex) {
     final flipped = _flippedCards.contains(pageIndex);
     return GestureDetector(
       onTap: () {
         setState(() {
-          if (flipped) _flippedCards.remove(pageIndex); else _flippedCards.add(pageIndex);
+          if (flipped)
+            _flippedCards.remove(pageIndex);
+          else
+            _flippedCards.add(pageIndex);
         });
       },
       child: AnimatedContainer(
@@ -1410,19 +1649,29 @@ class _CybersecurityModuleOneThreeScreenState extends State<CybersecurityModuleO
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(card['term']!, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+              Text(card['term']!,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900)),
               const SizedBox(height: 14),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 360),
                 switchInCurve: Curves.easeOutCubic,
                 switchOutCurve: Curves.easeInCubic,
-                layoutBuilder: (widget, children) => Stack(children: [for (final child in children) child],),
+                layoutBuilder: (widget, children) => Stack(
+                  children: [for (final child in children) child],
+                ),
                 transitionBuilder: (child, anim) {
                   // Determine which side this child represents using its key
-                  final keyString = child.key is ValueKey ? (child.key as ValueKey).value?.toString() ?? '' : '';
+                  final keyString = child.key is ValueKey
+                      ? (child.key as ValueKey).value?.toString() ?? ''
+                      : '';
                   final isDef = keyString.startsWith('def-');
                   // Incoming def side rotates from -90deg -> 0, outgoing rotates 0 -> 90deg
-                  final rotateTween = isDef ? Tween(begin: -pi / 2, end: 0.0) : Tween(begin: 0.0, end: pi / 2);
+                  final rotateTween = isDef
+                      ? Tween(begin: -pi / 2, end: 0.0)
+                      : Tween(begin: 0.0, end: pi / 2);
                   final rotation = rotateTween.animate(anim);
                   return AnimatedBuilder(
                     animation: rotation,
@@ -1446,8 +1695,18 @@ class _CybersecurityModuleOneThreeScreenState extends State<CybersecurityModuleO
                   );
                 },
                 child: flipped
-                    ? Text(card['def']!, key: ValueKey('def-$pageIndex'), textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14, height: 1.4))
-                    : Text('Tap to reveal', key: ValueKey('hint-$pageIndex'), style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13)),
+                    ? Text(card['def']!,
+                        key: ValueKey('def-$pageIndex'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 14,
+                            height: 1.4))
+                    : Text('Tap to reveal',
+                        key: ValueKey('hint-$pageIndex'),
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.6),
+                            fontSize: 13)),
               ),
             ],
           ),
@@ -1456,7 +1715,8 @@ class _CybersecurityModuleOneThreeScreenState extends State<CybersecurityModuleO
     );
   }
 
-  Widget _buildMiniCard({required String title, required String body, required Color tint}) {
+  Widget _buildMiniCard(
+      {required String title, required String body, required Color tint}) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1465,9 +1725,17 @@ class _CybersecurityModuleOneThreeScreenState extends State<CybersecurityModuleO
         border: Border.all(color: tint.withOpacity(0.45)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
+        Text(title,
+            style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 14)),
         const SizedBox(height: 6),
-        Text(body, style: TextStyle(color: Colors.white.withOpacity(0.86), fontSize: 13, height: 1.45)),
+        Text(body,
+            style: TextStyle(
+                color: Colors.white.withOpacity(0.86),
+                fontSize: 13,
+                height: 1.45)),
       ]),
     );
   }
@@ -1482,43 +1750,316 @@ class _CybersecurityModuleOneThreeScreenState extends State<CybersecurityModuleO
           decoration: const BoxDecoration(gradient: appBackgroundGradient),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-            child: Column(children: [
-              Row(children: [
-                IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white)),
-                const SizedBox(width: 4),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(widget.course, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 2),
-                  Text('Level 1 · Vocabulary', style: TextStyle(color: Colors.white.withOpacity(0.72), fontSize: 12)),
-                ])),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(999), border: Border.all(color: Colors.white12)), child: Text('1.3', style: const TextStyle(color: Colors.white70, fontSize: 11))),
-              ]),
-              const SizedBox(height: 12),
-              ClipRRect(borderRadius: BorderRadius.circular(999), child: LinearProgressIndicator(value: _progress.clamp(0.0, 1.0), minHeight: 9, backgroundColor: Colors.white.withOpacity(0.08), valueColor: AlwaysStoppedAnimation<Color>(widget.color))),
-              const SizedBox(height: 14),
-              Expanded(child: Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(28), border: Border.all(color: Colors.white12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 28, offset: Offset(0,16))]), child: Align(alignment: Alignment.topCenter, child: AnimatedSwitcher(duration: const Duration(milliseconds: 300), child: _inFlashcards ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                // Flashcards view
-                Padding(padding: const EdgeInsets.symmetric(horizontal:12, vertical:8), child: Text(_sections[_currentSectionIndex].subtitle, style: TextStyle(color: widget.color.withOpacity(0.95), fontSize:12, fontWeight: FontWeight.w700),),),
+            child: Column(
+              children: [
+                Row(children: [
+                  IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white)),
+                  const SizedBox(width: 4),
+                  Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        Text(widget.course,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 2),
+                        Text('Level 1 · Vocabulary',
+                            style: TextStyle(
+                                color: Colors.white.withOpacity(0.72),
+                                fontSize: 12)),
+                      ])),
+                  Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: Colors.white12)),
+                      child: Text('1.3',
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 11))),
+                ]),
                 const SizedBox(height: 12),
-                Expanded(child: Column(children: [
-                  Expanded(child: PageView.builder(controller: _cardController, itemCount: cards.length, onPageChanged: (p) => setState(() { _currentCardPage = p; _flippedCards.clear(); }), itemBuilder: (ctx, p) => _buildCard(ctx, cards[p], p))),
-                  const SizedBox(height: 10),
-                  Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(cards.length, (i) => Container(margin: const EdgeInsets.symmetric(horizontal:4), width: i==_currentCardPage?12:8, height: 8, decoration: BoxDecoration(color: i==_currentCardPage?widget.color:Colors.white12, borderRadius: BorderRadius.circular(6))),)),
-                  const SizedBox(height: 8),
-                  Row(children: [Expanded(child: OutlinedButton(onPressed: () { if (_currentCardPage>0) _cardController.previousPage(duration: const Duration(milliseconds:300), curve: Curves.ease); else _exitFlashcards(); }, style: OutlinedButton.styleFrom(foregroundColor: Colors.white), child: Text(_currentCardPage>0? 'Previous' : 'Back'))), const SizedBox(width: 12), Expanded(child: ElevatedButton(onPressed: () { if (_currentCardPage < cards.length-1) _cardController.nextPage(duration: const Duration(milliseconds:300), curve: Curves.ease); else _exitFlashcards(); }, style: ElevatedButton.styleFrom(backgroundColor: widget.color), child: Text(_currentCardPage < cards.length-1 ? 'Next Card' : 'Done')))],),
-                ])),
-              ]) : SingleChildScrollView(key: ValueKey(_currentSectionIndex), physics: const BouncingScrollPhysics(), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: widget.color.withOpacity(0.14), borderRadius: BorderRadius.circular(999), border: Border.all(color: widget.color.withOpacity(0.35))), child: Text(_sections[_currentSectionIndex].subtitle, style: TextStyle(color: widget.color.withOpacity(0.95), fontSize:12, fontWeight: FontWeight.w700),),),
-                const SizedBox(height: 18),
-                Text('Tap "Start" to begin the flashcards for this section.', style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14)),
-                const SizedBox(height: 12),
-                ElevatedButton(onPressed: _startFlashcards, style: ElevatedButton.styleFrom(backgroundColor: widget.color), child: const Text('Start')),
-                const SizedBox(height: 12),
-                _buildMiniCard(title: 'Study tip', body: 'Try to recall the definition before tapping the card. Repeating cards helps memory.', tint: widget.color),
-              ]))),),),),
-              const SizedBox(height: 14),
-              Row(children: [Expanded(child: GestureDetector(onTap: _currentSectionIndex>0? () => setState(()=> _currentSectionIndex--): null, child: AnimatedOpacity(duration: const Duration(milliseconds:180), opacity: _currentSectionIndex>0?1:0.45, child: Container(height:54, decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white12)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size:18), SizedBox(width:8), Text('Prev Section', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize:14)),],),),),),), const SizedBox(width:12), Expanded(child: GestureDetector(onTap: _currentSectionIndex < _sections.length-1 ? () => setState(()=> _currentSectionIndex++): null, child: AnimatedOpacity(duration: const Duration(milliseconds:180), opacity: _currentSectionIndex < _sections.length-1?1:0.45, child: Container(height:54, decoration: BoxDecoration(gradient: LinearGradient(colors: [widget.color, widget.color.withOpacity(0.78)]), borderRadius: BorderRadius.circular(18), boxShadow: [BoxShadow(color: widget.color.withOpacity(0.32), blurRadius: 18, offset: const Offset(0,8))],), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text(_currentSectionIndex < _sections.length-1 ? 'Next Section' : 'Done', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize:14),), const SizedBox(width:8), Icon(_currentSectionIndex < _sections.length-1 ? Icons.arrow_forward_ios_rounded : Icons.check_rounded, color: Colors.white, size:18),],),),),),),],),
-            ],),
+                ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                        value: _progress.clamp(0.0, 1.0),
+                        minHeight: 9,
+                        backgroundColor: Colors.white.withOpacity(0.08),
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(widget.color))),
+                const SizedBox(height: 14),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(color: Colors.white12),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 28,
+                              offset: Offset(0, 16))
+                        ]),
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          child: _inFlashcards
+                              ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                      // Flashcards view
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 8),
+                                        child: Text(
+                                          _sections[_currentSectionIndex]
+                                              .subtitle,
+                                          style: TextStyle(
+                                              color: widget.color
+                                                  .withOpacity(0.95),
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Expanded(
+                                          child: Column(children: [
+                                        Expanded(
+                                            child: PageView.builder(
+                                                controller: _cardController,
+                                                itemCount: cards.length,
+                                                onPageChanged: (p) =>
+                                                    setState(() {
+                                                      _currentCardPage = p;
+                                                      _flippedCards.clear();
+                                                    }),
+                                                itemBuilder: (ctx, p) =>
+                                                    _buildCard(
+                                                        ctx, cards[p], p))),
+                                        const SizedBox(height: 10),
+                                        Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: List.generate(
+                                              cards.length,
+                                              (i) => Container(
+                                                  margin: const EdgeInsets
+                                                      .symmetric(horizontal: 4),
+                                                  width: i == _currentCardPage
+                                                      ? 12
+                                                      : 8,
+                                                  height: 8,
+                                                  decoration: BoxDecoration(
+                                                      color:
+                                                          i == _currentCardPage
+                                                              ? widget.color
+                                                              : Colors.white12,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              6))),
+                                            )),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                                child: OutlinedButton(
+                                                    onPressed: () {
+                                                      if (_currentCardPage > 0)
+                                                        _cardController.previousPage(
+                                                            duration:
+                                                                const Duration(
+                                                                    milliseconds:
+                                                                        300),
+                                                            curve: Curves.ease);
+                                                      else
+                                                        _exitFlashcards();
+                                                    },
+                                                    style: OutlinedButton
+                                                        .styleFrom(
+                                                            foregroundColor:
+                                                                Colors.white),
+                                                    child: Text(
+                                                        _currentCardPage > 0
+                                                            ? 'Previous'
+                                                            : 'Back'))),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                                child: ElevatedButton(
+                                                    onPressed: () {
+                                                      if (_currentCardPage <
+                                                          cards.length - 1)
+                                                        _cardController.nextPage(
+                                                            duration:
+                                                                const Duration(
+                                                                    milliseconds:
+                                                                        300),
+                                                            curve: Curves.ease);
+                                                      else
+                                                        _exitFlashcards();
+                                                    },
+                                                    style: ElevatedButton
+                                                        .styleFrom(
+                                                            backgroundColor:
+                                                                widget.color),
+                                                    child: Text(
+                                                        _currentCardPage <
+                                                                cards.length - 1
+                                                            ? 'Next Card'
+                                                            : 'Done')))
+                                          ],
+                                        ),
+                                      ])),
+                                    ])
+                              : SingleChildScrollView(
+                                  key: ValueKey(_currentSectionIndex),
+                                  physics: const BouncingScrollPhysics(),
+                                  child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 8),
+                                          decoration: BoxDecoration(
+                                              color: widget.color
+                                                  .withOpacity(0.14),
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                              border: Border.all(
+                                                  color: widget.color
+                                                      .withOpacity(0.35))),
+                                          child: Text(
+                                            _sections[_currentSectionIndex]
+                                                .subtitle,
+                                            style: TextStyle(
+                                                color: widget.color
+                                                    .withOpacity(0.95),
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 18),
+                                        Text(
+                                            'Tap "Start" to begin the flashcards for this section.',
+                                            style: TextStyle(
+                                                color: Colors.white
+                                                    .withOpacity(0.9),
+                                                fontSize: 14)),
+                                        const SizedBox(height: 12),
+                                        ElevatedButton(
+                                            onPressed: _startFlashcards,
+                                            style: ElevatedButton.styleFrom(
+                                                backgroundColor: widget.color),
+                                            child: const Text('Start')),
+                                        const SizedBox(height: 12),
+                                        _buildMiniCard(
+                                            title: 'Study tip',
+                                            body:
+                                                'Try to recall the definition before tapping the card. Repeating cards helps memory.',
+                                            tint: widget.color),
+                                      ]))),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _currentSectionIndex > 0
+                            ? () => setState(() => _currentSectionIndex--)
+                            : null,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 180),
+                          opacity: _currentSectionIndex > 0 ? 1 : 0.45,
+                          child: Container(
+                            height: 54,
+                            decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: Colors.white12)),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.arrow_back_ios_rounded,
+                                    color: Colors.white, size: 18),
+                                SizedBox(width: 8),
+                                Text('Prev Section',
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 14)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _currentSectionIndex < _sections.length - 1
+                            ? () => setState(() => _currentSectionIndex++)
+                            : null,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 180),
+                          opacity: _currentSectionIndex < _sections.length - 1
+                              ? 1
+                              : 0.45,
+                          child: Container(
+                            height: 54,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(colors: [
+                                widget.color,
+                                widget.color.withOpacity(0.78)
+                              ]),
+                              borderRadius: BorderRadius.circular(18),
+                              boxShadow: [
+                                BoxShadow(
+                                    color: widget.color.withOpacity(0.32),
+                                    blurRadius: 18,
+                                    offset: const Offset(0, 8))
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  _currentSectionIndex < _sections.length - 1
+                                      ? 'Next Section'
+                                      : 'Done',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 14),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                    _currentSectionIndex < _sections.length - 1
+                                        ? Icons.arrow_forward_ios_rounded
+                                        : Icons.check_rounded,
+                                    color: Colors.white,
+                                    size: 18),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1526,15 +2067,1959 @@ class _CybersecurityModuleOneThreeScreenState extends State<CybersecurityModuleO
   }
 }
 
-class _CybersecurityModuleOneTwoScreenState extends State<CybersecurityModuleOneTwoScreen> {
+class CybersecurityVocabularyScreen extends StatefulWidget {
+  final String course;
+  final Color color;
+
+  const CybersecurityVocabularyScreen({
+    super.key,
+    required this.course,
+    required this.color,
+  });
+
+  @override
+  State<CybersecurityVocabularyScreen> createState() =>
+      _CybersecurityVocabularyScreenState();
+}
+
+class _CybersecurityVocabularyScreenState
+    extends State<CybersecurityVocabularyScreen> {
+  static const List<_CyberVocabularyTerm> _terms = [
+    _CyberVocabularyTerm(
+      term: 'Virus',
+      definition:
+          'A piece of code that is capable of copying itself and typically has a detrimental effect, such as corrupting the system or destroying data.',
+      difficulty: 'Easy',
+    ),
+    _CyberVocabularyTerm(
+      term: 'Social Engineering',
+      definition:
+          'Tricking/deceiving someone into giving you private information or data.',
+      difficulty: 'Medium',
+    ),
+    _CyberVocabularyTerm(
+      term: 'Backdoor',
+      definition:
+          'An attacker gets access by using an exploit to access the system.',
+      difficulty: 'Difficult',
+    ),
+  ];
+
+  static const List<String> _difficultyOptions = [
+    'All',
+    'Easy',
+    'Medium',
+    'Difficult',
+  ];
+
+  final PageController _pageController = PageController(viewportFraction: 0.9);
+  String _selectedDifficulty = 'All';
+  int _currentIndex = 0;
+  bool _isFlipped = false;
+
+  List<_CyberVocabularyTerm> get _visibleTerms {
+    if (_selectedDifficulty == 'All') return _terms;
+    return _terms
+        .where((term) => term.difficulty == _selectedDifficulty)
+        .toList(growable: false);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _setDifficulty(String difficulty) {
+    setState(() {
+      _selectedDifficulty = difficulty;
+      _currentIndex = 0;
+      _isFlipped = false;
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(0);
+      }
+    });
+  }
+
+  void _handleMoreAction(String action) {
+    if (action == 'reset') {
+      setState(() {
+        _currentIndex = 0;
+        _isFlipped = false;
+      });
+      if (_pageController.hasClients) {
+        _pageController.animateToPage(
+          0,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+        );
+      }
+      return;
+    }
+
+    _setDifficulty(action);
+  }
+
+  void _goToPrevious() {
+    if (_currentIndex == 0) return;
+    _pageController.previousPage(
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _goToNext(List<_CyberVocabularyTerm> terms) {
+    if (_currentIndex >= terms.length - 1) return;
+    _pageController.nextPage(
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  Color _difficultyColor(String difficulty) {
+    switch (difficulty) {
+      case 'Easy':
+        return const Color(0xFF66BB6A);
+      case 'Medium':
+        return fblaGold;
+      case 'Difficult':
+        return const Color(0xFFFF7043);
+      default:
+        return widget.color;
+    }
+  }
+
+  Widget _buildStatPill({
+    required IconData icon,
+    required String label,
+    required String value,
+    Color? color,
+  }) {
+    final pillColor = color ?? widget.color;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: pillColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: pillColor.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: pillColor, size: 18),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.62),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDifficultyChip(String difficulty) {
+    final selected = _selectedDifficulty == difficulty;
+    final chipColor =
+        difficulty == 'All' ? widget.color : _difficultyColor(difficulty);
+
+    return GestureDetector(
+      onTap: () => _setDifficulty(difficulty),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected
+              ? chipColor.withValues(alpha: 0.22)
+              : Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color:
+                selected ? chipColor.withValues(alpha: 0.72) : Colors.white12,
+            width: selected ? 1.4 : 1,
+          ),
+        ),
+        child: Text(
+          difficulty,
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.white70,
+            fontWeight: FontWeight.w800,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDifficultyBadge(String difficulty) {
+    final color = _difficultyColor(difficulty);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.46)),
+      ),
+      child: Text(
+        difficulty,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFlashcard(_CyberVocabularyTerm term, int index) {
+    final shouldFlip = _isFlipped && index == _currentIndex;
+
+    return GestureDetector(
+      onTap: () => setState(() => _isFlipped = !_isFlipped),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(begin: 0, end: shouldFlip ? pi : 0),
+        duration: const Duration(milliseconds: 520),
+        curve: Curves.easeInOutCubic,
+        builder: (context, angle, child) {
+          final showBack = angle > pi / 2;
+          final displayAngle = showBack ? angle - pi : angle;
+
+          return Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.0018)
+              ..rotateY(displayAngle),
+            child: _buildCardSide(term, showBack: showBack),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCardSide(_CyberVocabularyTerm term, {required bool showBack}) {
+    final difficultyColor = _difficultyColor(term.difficulty);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: showBack
+              ? [
+                  difficultyColor.withValues(alpha: 0.28),
+                  const Color(0xFF0B1624),
+                ]
+              : [
+                  widget.color.withValues(alpha: 0.28),
+                  const Color(0xFF0B1624),
+                ],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: (showBack ? difficultyColor : widget.color)
+              .withValues(alpha: 0.52),
+          width: 1.4,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (showBack ? difficultyColor : widget.color)
+                .withValues(alpha: 0.18),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _buildDifficultyBadge(term.difficulty),
+              const Spacer(),
+              Icon(
+                showBack ? Icons.auto_stories_outlined : Icons.style_outlined,
+                color: Colors.white70,
+                size: 20,
+              ),
+            ],
+          ),
+          const Spacer(),
+          Text(
+            showBack ? 'Definition' : 'Term',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.58),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            showBack ? term.definition : term.term,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: showBack ? 22 : 30,
+              height: showBack ? 1.35 : 1.05,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const Spacer(),
+          Row(
+            children: [
+              Icon(
+                Icons.touch_app_outlined,
+                color: Colors.white.withValues(alpha: 0.62),
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                showBack ? 'Tap to return to the term' : 'Tap to reveal',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.64),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTermPreview(_CyberVocabularyTerm term) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.055),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  term.term,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              _buildDifficultyBadge(term.difficulty),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            term.definition,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.72),
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final terms = _visibleTerms;
+    final currentTerm = terms.isEmpty ? null : terms[_currentIndex];
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF061726),
+      body: Container(
+        decoration: const BoxDecoration(gradient: appBackgroundGradient),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Vocabulary',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${widget.course} · Flashcards',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.68),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    PopupMenuButton<String>(
+                      color: const Color(0xFF0B1624),
+                      icon: const Icon(Icons.more_horiz, color: Colors.white),
+                      onSelected: _handleMoreAction,
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'reset',
+                          child: Text('Reset deck'),
+                        ),
+                        const PopupMenuDivider(),
+                        for (final difficulty in _difficultyOptions)
+                          PopupMenuItem(
+                            value: difficulty,
+                            child: Text('Show $difficulty'),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: ListView(
+                    physics: const BouncingScrollPhysics(),
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(28),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 60,
+                                  height: 60,
+                                  decoration: BoxDecoration(
+                                    color: fblaGold.withValues(alpha: 0.16),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: fblaGold.withValues(alpha: 0.38),
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.menu_book_rounded,
+                                    color: fblaGold,
+                                    size: 30,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Cybersecurity Vocabulary',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'Flip through each card, filter by difficulty, and use the list below as a quick reference.',
+                                        style: TextStyle(
+                                          color: Colors.white
+                                              .withValues(alpha: 0.72),
+                                          fontSize: 13,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: [
+                                _buildStatPill(
+                                  icon: Icons.format_list_numbered_rounded,
+                                  label: 'Number of terms',
+                                  value: '${terms.length} of ${_terms.length}',
+                                ),
+                                _buildStatPill(
+                                  icon: Icons.speed_rounded,
+                                  label: 'Difficulty',
+                                  value: _selectedDifficulty,
+                                  color: _selectedDifficulty == 'All'
+                                      ? widget.color
+                                      : _difficultyColor(_selectedDifficulty),
+                                ),
+                                _buildStatPill(
+                                  icon: Icons.touch_app_outlined,
+                                  label: 'Mode',
+                                  value: 'Flip cards',
+                                  color: fblaGold,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Difficulty',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.82),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        child: Row(
+                          children: [
+                            for (final difficulty in _difficultyOptions) ...[
+                              _buildDifficultyChip(difficulty),
+                              const SizedBox(width: 8),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      if (terms.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(color: Colors.white12),
+                          ),
+                          child: const Text(
+                            'No terms match this filter yet.',
+                            style: TextStyle(color: Colors.white70),
+                          ),
+                        )
+                      else ...[
+                        SizedBox(
+                          height: 330,
+                          child: PageView.builder(
+                            controller: _pageController,
+                            itemCount: terms.length,
+                            onPageChanged: (index) {
+                              setState(() {
+                                _currentIndex = index;
+                                _isFlipped = false;
+                              });
+                            },
+                            itemBuilder: (context, index) {
+                              return _buildFlashcard(terms[index], index);
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(
+                            terms.length,
+                            (index) => AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              width: index == _currentIndex ? 18 : 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: index == _currentIndex
+                                    ? widget.color
+                                    : Colors.white24,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed:
+                                    _currentIndex == 0 ? null : _goToPrevious,
+                                icon: const Icon(Icons.chevron_left_rounded),
+                                label: const Text('Previous'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  disabledForegroundColor: Colors.white30,
+                                  side: BorderSide(
+                                    color: Colors.white.withValues(alpha: 0.24),
+                                  ),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  setState(() => _isFlipped = !_isFlipped);
+                                },
+                                icon: const Icon(Icons.flip_rounded),
+                                label: Text(
+                                  _isFlipped ? 'Show Term' : 'Flip',
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: fblaGold,
+                                  foregroundColor: fblaNavy,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _currentIndex >= terms.length - 1
+                                    ? null
+                                    : () => _goToNext(terms),
+                                icon: const Icon(Icons.chevron_right_rounded),
+                                label: const Text('Next'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: widget.color,
+                                  foregroundColor: Colors.white,
+                                  disabledBackgroundColor:
+                                      Colors.white.withValues(alpha: 0.10),
+                                  disabledForegroundColor: Colors.white38,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (currentTerm != null) ...[
+                          const SizedBox(height: 14),
+                          Text(
+                            'Card ${_currentIndex + 1} of ${terms.length} · ${currentTerm.difficulty}',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.62),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ],
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Term List',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            'Expandable',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.58),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      for (final term in terms) _buildTermPreview(term),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CyberVocabularyTerm {
+  final String term;
+  final String definition;
+  final String difficulty;
+
+  const _CyberVocabularyTerm({
+    required this.term,
+    required this.definition,
+    required this.difficulty,
+  });
+}
+
+class CybersecurityQuestionBankScreen extends StatefulWidget {
+  final String course;
+  final Color color;
+
+  const CybersecurityQuestionBankScreen({
+    super.key,
+    required this.course,
+    required this.color,
+  });
+
+  @override
+  State<CybersecurityQuestionBankScreen> createState() =>
+      _CybersecurityQuestionBankScreenState();
+}
+
+class _CybersecurityQuestionBankScreenState
+    extends State<CybersecurityQuestionBankScreen> {
+  static final List<_CyberQuestion> _questions =
+      _parseQuestionBank(_cyberQuestionSeed);
+
+  final Map<int, int> _answers = {};
+  final Set<int> _savedQuestions = {};
+  String _selectedTopic = 'All Topics';
+  String _selectedDifficulty = 'All';
+  String _completedFilter = 'All';
+  String _resultFilter = 'All';
+  bool _savedOnly = false;
+  int _currentIndex = 0;
+
+  static List<_CyberQuestion> _parseQuestionBank(String seed) {
+    return seed
+        .trim()
+        .split('\n')
+        .where((line) => line.trim().isNotEmpty)
+        .map((line) {
+      final parts = line.split('|');
+      return _CyberQuestion(
+        id: int.parse(parts[0]),
+        topic: parts[1],
+        difficulty: parts[2],
+        answerIndex: 'ABCD'.indexOf(parts[3]),
+        prompt: parts[4],
+        options: parts.sublist(5, 9),
+      );
+    }).toList(growable: false);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProgress();
+  }
+
+  Future<void> _loadProgress() async {
+    final prefs = await SharedPreferences.getInstance();
+    final answerEntries =
+        prefs.getStringList('cyberQuestionBankAnswers') ?? const <String>[];
+    final savedEntries =
+        prefs.getStringList('cyberQuestionBankSaved') ?? const <String>[];
+
+    if (!mounted) return;
+    setState(() {
+      _answers.clear();
+      for (final entry in answerEntries) {
+        final parts = entry.split(':');
+        if (parts.length != 2) continue;
+        final id = int.tryParse(parts[0]);
+        final answer = int.tryParse(parts[1]);
+        if (id != null && answer != null) {
+          _answers[id] = answer;
+        }
+      }
+
+      _savedQuestions
+        ..clear()
+        ..addAll(savedEntries.map(int.tryParse).whereType<int>());
+    });
+  }
+
+  Future<void> _saveProgress() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      'cyberQuestionBankAnswers',
+      _answers.entries.map((entry) => '${entry.key}:${entry.value}').toList(),
+    );
+    await prefs.setStringList(
+      'cyberQuestionBankSaved',
+      _savedQuestions.map((id) => id.toString()).toList(),
+    );
+  }
+
+  List<String> get _topics {
+    return [
+      'All Topics',
+      ..._questions.map((question) => question.topic).toSet()
+    ];
+  }
+
+  List<_CyberQuestion> get _filteredQuestions {
+    return _questions.where((question) {
+      if (_selectedTopic != 'All Topics' && question.topic != _selectedTopic) {
+        return false;
+      }
+      if (_selectedDifficulty != 'All' &&
+          question.difficulty != _selectedDifficulty) {
+        return false;
+      }
+      if (_savedOnly && !_savedQuestions.contains(question.id)) {
+        return false;
+      }
+
+      final selectedAnswer = _answers[question.id];
+      final completed = selectedAnswer != null;
+      if (_completedFilter == 'Completed' && !completed) return false;
+      if (_completedFilter == 'Uncompleted' && completed) return false;
+
+      if (_resultFilter == 'Correct') {
+        return completed && selectedAnswer == question.answerIndex;
+      }
+      if (_resultFilter == 'Incorrect') {
+        return completed && selectedAnswer != question.answerIndex;
+      }
+      if (_resultFilter == 'Unanswered') {
+        return !completed;
+      }
+
+      return true;
+    }).toList(growable: false);
+  }
+
+  double get _overallProgress => _answers.length / _questions.length;
+
+  double get _overallAccuracy {
+    if (_answers.isEmpty) return 0;
+    final correct = _questions
+        .where((question) => _answers[question.id] == question.answerIndex)
+        .length;
+    return correct / _answers.length;
+  }
+
+  void _resetFilters() {
+    setState(() {
+      _selectedTopic = 'All Topics';
+      _selectedDifficulty = 'All';
+      _completedFilter = 'All';
+      _resultFilter = 'All';
+      _savedOnly = false;
+      _currentIndex = 0;
+    });
+  }
+
+  Future<void> _resetProgress() async {
+    setState(() {
+      _answers.clear();
+      _savedQuestions.clear();
+      _currentIndex = 0;
+    });
+    await _saveProgress();
+  }
+
+  void _setTopic(String topic) {
+    setState(() {
+      _selectedTopic = topic;
+      _currentIndex = 0;
+    });
+  }
+
+  void _setDifficulty(String difficulty) {
+    setState(() {
+      _selectedDifficulty = difficulty;
+      _currentIndex = 0;
+    });
+  }
+
+  void _setCompletedFilter(String filter) {
+    setState(() {
+      _completedFilter = filter;
+      _currentIndex = 0;
+    });
+  }
+
+  void _setResultFilter(String filter) {
+    setState(() {
+      _resultFilter = filter;
+      _currentIndex = 0;
+    });
+  }
+
+  Future<void> _answerQuestion(_CyberQuestion question, int optionIndex) async {
+    setState(() => _answers[question.id] = optionIndex);
+    await _saveProgress();
+  }
+
+  Future<void> _toggleSaved(_CyberQuestion question) async {
+    setState(() {
+      if (_savedQuestions.contains(question.id)) {
+        _savedQuestions.remove(question.id);
+      } else {
+        _savedQuestions.add(question.id);
+      }
+    });
+    await _saveProgress();
+  }
+
+  Color _difficultyColor(String difficulty) {
+    switch (difficulty) {
+      case 'Easy':
+        return const Color(0xFF66BB6A);
+      case 'Medium':
+        return fblaGold;
+      case 'Difficult':
+        return const Color(0xFFFF7043);
+      default:
+        return widget.color;
+    }
+  }
+
+  Color _optionColor(_CyberQuestion question, int index) {
+    final selectedAnswer = _answers[question.id];
+    if (selectedAnswer == null) return Colors.white.withValues(alpha: 0.055);
+    if (index == question.answerIndex) {
+      return const Color(0xFF66BB6A).withValues(alpha: 0.2);
+    }
+    if (index == selectedAnswer) {
+      return const Color(0xFFFF7043).withValues(alpha: 0.2);
+    }
+    return Colors.white.withValues(alpha: 0.035);
+  }
+
+  Color _optionBorderColor(_CyberQuestion question, int index) {
+    final selectedAnswer = _answers[question.id];
+    if (selectedAnswer == null) return Colors.white12;
+    if (index == question.answerIndex) {
+      return const Color(0xFF66BB6A).withValues(alpha: 0.7);
+    }
+    if (index == selectedAnswer) {
+      return const Color(0xFFFF7043).withValues(alpha: 0.7);
+    }
+    return Colors.white12;
+  }
+
+  List<_CyberQuestion> _questionsForTopic(String topic) {
+    return _questions
+        .where((question) => question.topic == topic)
+        .toList(growable: false);
+  }
+
+  double _topicProgress(String topic) {
+    final questions = _questionsForTopic(topic);
+    if (questions.isEmpty) return 0;
+    final completed =
+        questions.where((question) => _answers.containsKey(question.id)).length;
+    return completed / questions.length;
+  }
+
+  double? _topicAccuracy(String topic) {
+    final answered = _questionsForTopic(topic)
+        .where((question) => _answers.containsKey(question.id))
+        .toList(growable: false);
+    if (answered.isEmpty) return null;
+    final correct = answered
+        .where((question) => _answers[question.id] == question.answerIndex)
+        .length;
+    return correct / answered.length;
+  }
+
+  Widget _buildPopupFilter({
+    required IconData icon,
+    required String label,
+    required String value,
+    required List<String> options,
+    required ValueChanged<String> onSelected,
+  }) {
+    return PopupMenuButton<String>(
+      color: const Color(0xFF0B1624),
+      onSelected: onSelected,
+      itemBuilder: (context) => [
+        for (final option in options)
+          PopupMenuItem(
+            value: option,
+            child: Row(
+              children: [
+                if (option == value)
+                  Icon(Icons.check_rounded, color: widget.color, size: 18)
+                else
+                  const SizedBox(width: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child:
+                      Text(option, style: const TextStyle(color: Colors.white)),
+                ),
+              ],
+            ),
+          ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white70, size: 17),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(width: 6),
+            const Icon(Icons.keyboard_arrow_down_rounded,
+                color: Colors.white54, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeroCard(List<_CyberQuestion> filteredQuestions) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: widget.color.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: widget.color.withValues(alpha: 0.38)),
+            ),
+            child: Icon(Icons.quiz_rounded, color: widget.color, size: 30),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Practice all topics',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Start practicing ${filteredQuestions.length} filtered questions from ${_questions.length} total cybersecurity MCQs.',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.68),
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          ElevatedButton(
+            onPressed: filteredQuestions.isEmpty
+                ? null
+                : () => setState(() => _currentIndex = 0),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: fblaGold,
+              foregroundColor: fblaNavy,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+            child: const Text(
+              'Start',
+              style: TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOverviewStats() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildMetricCard(
+            label: 'Progress',
+            value: '${(_overallProgress * 100).round()}%',
+            icon: Icons.trending_up_rounded,
+            color: widget.color,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _buildMetricCard(
+            label: 'Accuracy',
+            value: _answers.isEmpty
+                ? '--'
+                : '${(_overallAccuracy * 100).round()}%',
+            icon: Icons.check_circle_outline_rounded,
+            color: const Color(0xFF66BB6A),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _buildMetricCard(
+            label: 'Saved',
+            value: '${_savedQuestions.length}',
+            icon: Icons.bookmark_rounded,
+            color: fblaGold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricCard({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 19),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.64),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopicDashboard() {
+    final topics = _topics.where((topic) => topic != 'All Topics').toList();
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.045),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Topic',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 94,
+                child: Text(
+                  'Progress',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 68,
+                child: Text(
+                  'Accuracy',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          for (final topic in topics) _buildTopicRow(topic),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopicRow(String topic) {
+    final topicQuestions = _questionsForTopic(topic);
+    final progress = _topicProgress(topic);
+    final accuracy = _topicAccuracy(topic);
+    final completed = topicQuestions
+        .where((question) => _answers.containsKey(question.id))
+        .length;
+    final selected = _selectedTopic == topic;
+
+    return InkWell(
+      onTap: () => _setTopic(topic),
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? widget.color.withValues(alpha: 0.10)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              progress >= 1
+                  ? Icons.check_box_rounded
+                  : Icons.check_box_outline_blank_rounded,
+              color: progress >= 1 ? const Color(0xFF66BB6A) : Colors.white30,
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                topic,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 94,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 7,
+                        backgroundColor: Colors.white.withValues(alpha: 0.10),
+                        valueColor: AlwaysStoppedAnimation<Color>(widget.color),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$completed/${topicQuestions.length}',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.66),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: 68,
+              child: Text(
+                accuracy == null ? '--' : '${(accuracy * 100).round()}%',
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  color: accuracy == null
+                      ? Colors.white38
+                      : const Color(0xFF66BB6A),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuestionCard(List<_CyberQuestion> filteredQuestions) {
+    if (filteredQuestions.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.055),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: const Text(
+          'No questions match these filters yet.',
+          style: TextStyle(color: Colors.white70),
+        ),
+      );
+    }
+
+    final safeIndex =
+        _currentIndex.clamp(0, filteredQuestions.length - 1).toInt();
+    if (safeIndex != _currentIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _currentIndex = safeIndex);
+      });
+    }
+    final question = filteredQuestions[safeIndex];
+    final selectedAnswer = _answers[question.id];
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.white12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.20),
+            blurRadius: 24,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: widget.color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(999),
+                  border:
+                      Border.all(color: widget.color.withValues(alpha: 0.36)),
+                ),
+                child: Text(
+                  question.topic,
+                  style: TextStyle(
+                    color: widget.color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _difficultyColor(question.difficulty)
+                      .withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: _difficultyColor(question.difficulty)
+                        .withValues(alpha: 0.42),
+                  ),
+                ),
+                child: Text(
+                  question.difficulty,
+                  style: TextStyle(
+                    color: _difficultyColor(question.difficulty),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                onPressed: () => _toggleSaved(question),
+                icon: Icon(
+                  _savedQuestions.contains(question.id)
+                      ? Icons.bookmark_rounded
+                      : Icons.bookmark_border_rounded,
+                  color: _savedQuestions.contains(question.id)
+                      ? fblaGold
+                      : Colors.white70,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Question ${safeIndex + 1} of ${filteredQuestions.length}',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.58),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            question.prompt,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              height: 1.35,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 16),
+          for (var i = 0; i < question.options.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: InkWell(
+                onTap: () => _answerQuestion(question, i),
+                borderRadius: BorderRadius.circular(16),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _optionColor(question, i),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: _optionBorderColor(question, i)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          String.fromCharCode(65 + i),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          question.options[i],
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            height: 1.3,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      if (selectedAnswer != null && i == question.answerIndex)
+                        const Icon(Icons.check_circle_rounded,
+                            color: Color(0xFF66BB6A))
+                      else if (selectedAnswer == i &&
+                          selectedAnswer != question.answerIndex)
+                        const Icon(Icons.cancel_rounded,
+                            color: Color(0xFFFF7043)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          if (selectedAnswer != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              selectedAnswer == question.answerIndex
+                  ? 'Correct. Nice work.'
+                  : 'Incorrect. Correct answer: ${String.fromCharCode(65 + question.answerIndex)}',
+              style: TextStyle(
+                color: selectedAnswer == question.answerIndex
+                    ? const Color(0xFF66BB6A)
+                    : const Color(0xFFFF7043),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: safeIndex == 0
+                      ? null
+                      : () => setState(() => _currentIndex = safeIndex - 1),
+                  icon: const Icon(Icons.chevron_left_rounded),
+                  label: const Text('Previous'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    disabledForegroundColor: Colors.white30,
+                    side:
+                        BorderSide(color: Colors.white.withValues(alpha: 0.24)),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: safeIndex >= filteredQuestions.length - 1
+                      ? null
+                      : () => setState(() => _currentIndex = safeIndex + 1),
+                  icon: const Icon(Icons.chevron_right_rounded),
+                  label: const Text('Next'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: widget.color,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor:
+                        Colors.white.withValues(alpha: 0.10),
+                    disabledForegroundColor: Colors.white38,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filteredQuestions = _filteredQuestions;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF061726),
+      body: Container(
+        decoration: const BoxDecoration(gradient: appBackgroundGradient),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Question Bank',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${widget.course} · Cybersecurity MCQs',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.68),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    PopupMenuButton<String>(
+                      color: const Color(0xFF0B1624),
+                      icon: const Icon(Icons.more_horiz, color: Colors.white),
+                      onSelected: (value) {
+                        if (value == 'resetFilters') {
+                          _resetFilters();
+                        } else if (value == 'resetProgress') {
+                          _resetProgress();
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'resetFilters',
+                          child: Text('Reset filters'),
+                        ),
+                        PopupMenuItem(
+                          value: 'resetProgress',
+                          child: Text('Reset progress'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: ListView(
+                    physics: const BouncingScrollPhysics(),
+                    children: [
+                      _buildOverviewStats(),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildPopupFilter(
+                            icon: Icons.folder_rounded,
+                            label: 'Question set',
+                            value: _selectedTopic,
+                            options: _topics,
+                            onSelected: _setTopic,
+                          ),
+                          _buildPopupFilter(
+                            icon: Icons.bar_chart_rounded,
+                            label: 'Difficulty',
+                            value: _selectedDifficulty,
+                            options: const [
+                              'All',
+                              'Easy',
+                              'Medium',
+                              'Difficult'
+                            ],
+                            onSelected: _setDifficulty,
+                          ),
+                          _buildPopupFilter(
+                            icon: Icons.check_circle_rounded,
+                            label: 'Completed',
+                            value: _completedFilter,
+                            options: const ['All', 'Completed', 'Uncompleted'],
+                            onSelected: _setCompletedFilter,
+                          ),
+                          _buildPopupFilter(
+                            icon: Icons.insights_rounded,
+                            label: 'Result',
+                            value: _resultFilter,
+                            options: const [
+                              'All',
+                              'Correct',
+                              'Incorrect',
+                              'Unanswered'
+                            ],
+                            onSelected: _setResultFilter,
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _savedOnly = !_savedOnly;
+                                _currentIndex = 0;
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: _savedOnly
+                                    ? fblaGold.withValues(alpha: 0.18)
+                                    : Colors.white.withValues(alpha: 0.07),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: _savedOnly
+                                      ? fblaGold.withValues(alpha: 0.46)
+                                      : Colors.white12,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _savedOnly
+                                        ? Icons.bookmark_rounded
+                                        : Icons.bookmark_border_rounded,
+                                    color:
+                                        _savedOnly ? fblaGold : Colors.white70,
+                                    size: 17,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'Saved',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _buildHeroCard(filteredQuestions),
+                      const SizedBox(height: 18),
+                      _buildTopicDashboard(),
+                      const SizedBox(height: 18),
+                      _buildQuestionCard(filteredQuestions),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CyberQuestion {
+  final int id;
+  final String topic;
+  final String difficulty;
+  final String prompt;
+  final List<String> options;
+  final int answerIndex;
+
+  const _CyberQuestion({
+    required this.id,
+    required this.topic,
+    required this.difficulty,
+    required this.prompt,
+    required this.options,
+    required this.answerIndex,
+  });
+}
+
+const String _cyberQuestionSeed = r'''
+1|Cybersecurity Fundamentals|Easy|C|What is the main objective of cybersecurity measures?|To enhance system performance|To streamline software development|To safeguard information and infrastructure from cyber threats|To boost data storage efficiency
+2|Cybersecurity Fundamentals|Easy|A|What does CIA stand for in the context of cybersecurity?|Confidentiality, Integrity, Availability|Control, Isolation, Authentication|Compliance, Investigation, Access|Connectivity, Inspection, Authorization
+3|Cybersecurity Fundamentals|Easy|B|What is the primary function of multi-factor authentication (MFA)?|To reduce authentication time|To enhance security with multiple verification steps|To simplify user login processes|To increase network capacity
+4|Cybersecurity Fundamentals|Easy|A|Which of the following is a type of authentication factor?|Biometric|Firewall|Encryption|Packet filtering
+5|Cybersecurity Fundamentals|Easy|D|What is the key role of encryption in securing digital information?|To compress data for storage|To accelerate data processing|To facilitate data sharing|To render data unreadable without a key
+6|Cybersecurity Fundamentals|Easy|C|Which of the following is a common access control model?|Data encryption model|Network segmentation model|Role-Based Access Control (RBAC)|Packet filtering model
+7|Cybersecurity Fundamentals|Medium|D|What is a digital signature used for?|To encrypt network traffic|To store user credentials|To increase server performance|To verify the authenticity of a message
+8|Cybersecurity Fundamentals|Medium|A|Which of the following is an example of a public key encryption algorithm?|RSA|DES|3DES|Blowfish
+9|Cybersecurity Fundamentals|Medium|A|What is the primary function of a hardware security token?|To verify user identity securely|To enhance network speed|To store large datasets|To monitor system performance
+10|Cybersecurity Fundamentals|Easy|C|What does the principle of least privilege (PoLP) entail?|Granting users full system access|Encrypting all user data|Limiting user access to only necessary resources|Monitoring all user activities
+11|Threats and Attacks|Easy|C|Which of the following is a common type of cyber attack?|Data encryption|System backup|Phishing|Network optimization
+12|Threats and Attacks|Easy|C|Which type of malware locks a user's data and demands payment for access?|Virus|Worm|Ransomware|Spyware
+13|Threats and Attacks|Easy|D|Which of the following best describes a DDoS attack?|Stealing user credentials|Encrypting sensitive data|Installing malware on a device|Overwhelming a system with traffic
+14|Threats and Attacks|Medium|B|Which technique involves manipulating individuals to disclose sensitive information?|SQL injection|Baiting|Brute force attack|Network scanning
+15|Threats and Attacks|Medium|D|What does the term zero-day refer to in cybersecurity?|A day with no cyber attacks|A day when systems are updated|A day when backups are performed|A vulnerability exploited before a patch is available
+16|Threats and Attacks|Medium|C|What is a man-in-the-middle (MITM) attack?|Locking a user's data for ransom|Flooding a server with requests|Intercepting communication between two parties|Guessing a user's password
+17|Threats and Attacks|Easy|A|What is the purpose of a brute force attack?|To guess passwords through trial and error|To encrypt sensitive data|To monitor network traffic|To optimize server performance
+18|Threats and Attacks|Easy|A|Which of the following is a type of malware that disguises itself as legitimate software?|Trojan|Worm|Virus|Ransomware
+19|Threats and Attacks|Medium|C|Which of the following is a common type of spyware?|Ransomware|Worm|Keylogger|Trojan
+20|Threats and Attacks|Easy|A|Which of the following is a common type of phishing attack?|Spear phishing|Brute force attack|SQL injection|Packet sniffing
+21|Security Technologies|Easy|A|What is the primary role of a firewall in a network?|To filter and regulate network traffic|To store critical system logs|To develop secure applications|To encrypt user credentials
+22|Security Technologies|Easy|B|What is the primary function of an Intrusion Detection System (IDS)?|To encrypt network traffic|To detect suspicious activity|To optimize database queries|To manage user accounts
+23|Security Technologies|Medium|B|Which encryption algorithm uses the same key for both encryption and decryption?|RSA|AES|ECC|DSA
+24|Security Technologies|Medium|C|What is the main function of a proxy server in a secure network?|To encrypt all network traffic|To store sensitive data securely|To mediate between users and external networks|To optimize server performance
+25|Security Technologies|Medium|D|What is the core function of a Security Information and Event Management (SIEM) system?|To develop secure applications|To manage user permissions|To optimize network performance|To collect and analyze security event data
+26|Security Technologies|Medium|B|What is the purpose of a honeypot in cybersecurity?|To store sensitive data|To attract and detect malicious activity|To encrypt network traffic|To optimize server performance
+27|Security Technologies|Medium|A|What is the purpose of a sandbox in cybersecurity?|To isolate and analyze suspicious files|To store sensitive data|To optimize network traffic|To manage user accounts
+28|Security Technologies|Medium|A|Which of the following is a network security device?|Intrusion Prevention System (IPS)|Database server|Web server|File server
+29|Security Technologies|Medium|D|What is the purpose of a certificate authority (CA)?|To monitor network traffic|To optimize server performance|To manage user accounts|To issue and manage digital certificates
+30|Security Technologies|Medium|B|What is the role of a Web Application Firewall (WAF)?|To manage user authentication|To protect web applications from attacks|To optimize server storage|To monitor network bandwidth
+31|Security Practices and Management|Easy|B|What is the purpose of a security policy?|To increase network speed|To define rules for protecting an organization's assets|To optimize database performance|To store user data
+32|Security Practices and Management|Easy|B|What is the purpose of a security audit?|To increase server storage|To evaluate and improve security measures|To optimize database performance|To develop new software
+33|Security Practices and Management|Easy|B|What is the purpose of a penetration test?|To develop new software|To identify vulnerabilities in a system|To optimize network performance|To manage user permissions
+34|Security Practices and Management|Medium|A|What is the primary role of a Security Operations Center (SOC)?|To detect and respond to security events|To develop cybersecurity software|To enhance network speed|To manage user authentication
+35|Security Practices and Management|Easy|B|What is the purpose of a penetration test?|To develop new software|To identify vulnerabilities in a system|To optimize network performance|To manage user permissions
+36|Security Practices and Management|Easy|B|What is the purpose of a security awareness training program?|To optimize network performance|To educate employees about cybersecurity best practices|To develop new software|To manage user accounts
+37|Security Practices and Management|Easy|A|What does patch management involve?|Updating software to fix vulnerabilities|Encrypting network traffic|Monitoring user activity|Backing up data
+38|Security Practices and Management|Easy|D|What is the purpose of a vulnerability assessment?|To optimize network performance|To manage user accounts|To encrypt sensitive data|To identify weaknesses in a system
+39|Security Practices and Management|Medium|B|Which of the following is a common type of insider threat?|DDoS attack|Data theft by employees|SQL injection|Packet sniffing
+40|Security Practices and Management|Medium|C|What is the purpose of incident response planning?|To optimize server performance|To develop new applications|To prepare for and mitigate security breaches|To increase network bandwidth
+41|Latest Cybersecurity Features and Updates|Difficult|C|What is the core principle of Zero Trust Architecture, a recent cybersecurity trend?|Trust all users by default|Encrypt all data automatically|Verify every user and device continuously|Allow unrestricted network access
+42|Latest Cybersecurity Features and Updates|Medium|A|Which recent technology is increasingly used for real-time threat detection?|Artificial Intelligence (AI)|Manual log analysis|Basic antivirus software|Static rule-based systems
+43|Latest Cybersecurity Features and Updates|Difficult|B|What is the purpose of post-quantum cryptography, a developing field in cybersecurity?|To increase network speed|To protect against quantum computer attacks|To simplify user authentication|To optimize database queries
+44|Latest Cybersecurity Features and Updates|Difficult|D|Which of the following is a feature of modern Endpoint Detection and Response (EDR) systems?|Blocking all network traffic|Encrypting all data by default|Managing user accounts|Continuous monitoring and automated response
+45|Latest Cybersecurity Features and Updates|Difficult|A|What is a key benefit of Secure Access Service Edge (SASE), a recent cybersecurity framework?|Integrates network security with cloud-based services|Reduces network security controls|Stores all data locally|Disables cloud access
+46|Latest Cybersecurity Features and Updates|Difficult|B|Which recent advancement enhances Security Orchestration, Automation, and Response (SOAR) platforms?|Manual threat analysis|Automated incident response workflows|Disabling firewalls|Reducing encryption strength
+47|Latest Cybersecurity Features and Updates|Difficult|C|What is the purpose of Extended Detection and Response (XDR), a newer cybersecurity solution?|To manage user accounts|To optimize network performance|To integrate security data across multiple systems|To store sensitive data
+48|Latest Cybersecurity Features and Updates|Difficult|A|Which of the following is a recent trend in cloud security?|Cloud-native security platforms|Disabling cloud access|Manual log monitoring|Reducing encryption levels
+49|Latest Cybersecurity Features and Updates|Difficult|B|What is the role of AI-driven User and Entity Behavior Analytics (UEBA) in modern cybersecurity?|To optimize database performance|To detect anomalies in user behavior|To store sensitive data|To manage network bandwidth
+50|Latest Cybersecurity Features and Updates|Difficult|D|Which of the following is a feature of modern passwordless authentication systems?|Requiring longer passwords|Using static credentials|Relying solely on usernames|Using biometrics or secure tokens
+51|Network Security|Easy|C|Which protocol is commonly used to secure web communication?|FTP|HTTP|HTTPS|SMTP
+52|Network Security|Easy|B|What is a VPN used for?|To block all network traffic|To create a secure connection over the internet|To increase server storage|To monitor user activity
+53|Network Security|Easy|A|Which of the following is a common network security protocol?|TLS|SMTP|FTP|HTTP
+54|Network Security|Medium|B|Which of the following is a common type of network attack?|Data encryption|Packet sniffing|User authentication|Database backup
+55|Network Security|Medium|C|What is the purpose of network segmentation in cybersecurity?|To increase network speed|To store sensitive data|To isolate network sections for security|To optimize database queries
+56|Network Security|Medium|A|What is the role of a Network Intrusion Detection System (NIDS)?|To monitor network traffic for suspicious activity|To encrypt sensitive data|To manage user accounts|To optimize server performance
+57|Network Security|Medium|B|What is the purpose of a DMZ (Demilitarized Zone) in network security?|To store sensitive data|To provide a buffer zone for public-facing services|To increase network bandwidth|To manage user authentication
+58|Network Security|Medium|D|Which of the following is a benefit of using VLANs in network security?|Increasing server storage|Encrypting all network traffic|Monitoring user activity|Isolating network traffic for security
+59|Network Security|Medium|A|What is the purpose of IPsec in network security?|To provide secure communication over IP networks|To manage user accounts|To optimize database performance|To monitor server performance
+60|Network Security|Medium|C|What is the role of a packet filter in network security?|To encrypt sensitive data|To store network logs|To control network traffic based on rules|To optimize network bandwidth
+61|Data Protection and Compliance|Medium|D|What is the purpose of a data loss prevention (DLP) system?|To optimize network performance|To manage user accounts|To encrypt network traffic|To prevent unauthorized data access and leakage
+62|Data Protection and Compliance|Medium|C|Which of the following is a common standard for information security management?|HTTP|FTP|ISO 27001|SMTP
+63|Data Protection and Compliance|Medium|B|Which of the following is a common method to prevent SQL injection attacks?|Increasing server bandwidth|Using parameterized queries|Disabling firewalls|Reducing encryption strength
+64|Data Protection and Compliance|Medium|B|Which of the following is a common method to protect against cross-site scripting (XSS) attacks?|Increasing server bandwidth|Input validation and sanitization|Disabling encryption|Reducing firewall rules
+65|Data Protection and Compliance|Medium|B|What is the purpose of the General Data Protection Regulation (GDPR)?|To optimize network performance|To protect personal data and privacy|To manage user accounts|To increase server storage
+66|Data Protection and Compliance|Medium|A|What is the purpose of data encryption at rest?|To protect stored data from unauthorized access|To increase data transmission speed|To monitor network traffic|To optimize database queries
+67|Data Protection and Compliance|Difficult|C|Which of the following is a key requirement of the Payment Card Industry Data Security Standard (PCI DSS)?|Optimizing network bandwidth|Disabling encryption|Protecting cardholder data|Increasing server storage
+68|Data Protection and Compliance|Medium|B|What is the purpose of a data retention policy?|To increase data storage capacity|To define how long data should be stored|To monitor network traffic|To optimize server performance
+69|Data Protection and Compliance|Difficult|A|What is the role of a Data Protection Officer (DPO) under GDPR?|To oversee data protection compliance|To manage network firewalls|To optimize database performance|To develop new software
+70|Data Protection and Compliance|Medium|C|What is the purpose of data anonymization in cybersecurity?|To increase data storage|To monitor user activity|To remove identifiable information from data|To optimize network bandwidth
+71|Data Protection and Compliance|Medium|B|What is the primary purpose of hashing in cybersecurity?|To encrypt data for transmission|To convert data into a fixed-length value|To compress files|To store data permanently
+72|Data Protection and Compliance|Easy|C|Which hashing algorithm is currently considered secure?|MD5|SHA-1|SHA-256|DES
+73|Cybersecurity Quick Review|Easy|A|What is a vulnerability in cybersecurity?|A weakness that can be exploited|A backup mechanism|A security policy|An encryption algorithm
+74|Cybersecurity Quick Review|Easy|D|What does patching primarily involve?|Monitoring logs|Backing up data|Encrypting systems|Fixing known vulnerabilities
+75|Cybersecurity Quick Review|Easy|B|What is social engineering in cybersecurity?|Securing networks|Manipulating people to reveal information|Writing secure code|Encrypting databases
+76|Cybersecurity Quick Review|Medium|A|Which attack involves inserting malicious queries into a database?|SQL Injection|Phishing|DDoS|Spoofing
+77|Cybersecurity Quick Review|Medium|C|What does XSS stand for?|Extended Secure System|Cross Server Security|Cross-Site Scripting|External Security Script
+78|Cybersecurity Quick Review|Easy|B|What is spoofing?|Encrypting traffic|Pretending to be a trusted entity|Blocking access|Monitoring systems
+79|Cybersecurity Quick Review|Medium|A|What is a botnet?|A group of infected devices controlled remotely|A firewall system|A type of encryption|A data backup system
+80|Cybersecurity Quick Review|Easy|D|What does endpoint security focus on?|Securing databases|Securing cloud storage|Securing networks|Securing user devices
+81|Cybersecurity Quick Review|Easy|C|What is the primary goal of ransomware?|Data backup|Monitoring systems|Extorting money|Improving performance
+82|Cybersecurity Quick Review|Easy|A|What is the role of antivirus software?|Detect and remove malware|Increase speed|Backup data|Encrypt files
+83|Cybersecurity Quick Review|Easy|B|What is cybersecurity risk?|Encryption process|Potential for loss or damage|Firewall configuration|Network monitoring
+84|Cybersecurity Quick Review|Medium|C|What is threat modeling?|Writing secure code|Encrypting systems|Identifying potential threats|Monitoring logs
+85|Cybersecurity Quick Review|Easy|A|What is authentication?|Verifying identity|Granting access|Encrypting data|Monitoring traffic
+86|Cybersecurity Quick Review|Easy|D|What is authorization in cybersecurity?|Verifying identity|Encrypting data|Monitoring logs|Granting access permissions
+87|Cybersecurity Quick Review|Easy|B|What is a security breach?|System update|Unauthorized access to data|Backup process|Network optimization
+88|Cybersecurity Quick Review|Easy|A|What is an encryption key?|A secret value used for encryption/decryption|A network protocol|A firewall rule|A backup file
+89|Cybersecurity Quick Review|Easy|C|What is malware?|Secure software|Backup software|Malicious software|Network tool
+90|Cybersecurity Quick Review|Easy|B|Which malware replicates itself across systems?|Trojan|Worm|Spyware|Adware
+91|Cybersecurity Quick Review|Easy|D|What is spyware designed to do?|Encrypt files|Destroy data|Improve performance|Monitor user activity secretly
+92|Cybersecurity Quick Review|Easy|A|What is a firewall rule?|A condition to allow or block traffic|A type of malware|Encryption key|Backup setting
+93|Cybersecurity Quick Review|Easy|C|What is two-factor authentication (2FA)?|Using two passwords|Encrypting twice|Using two verification methods|Using two firewalls
+94|Cybersecurity Quick Review|Easy|B|What is a digital certificate?|Backup file|Electronic document verifying identity|Encryption key|Security patch
+95|Cybersecurity Quick Review|Easy|A|What is HTTPS?|Secure version of HTTP|File transfer protocol|Email protocol|Network attack
+96|Cybersecurity Quick Review|Easy|D|What is data integrity?|Data storage|Data encryption|Data transmission|Ensuring data is accurate and unchanged
+97|Cybersecurity Quick Review|Easy|B|What is data availability?|Encrypting data|Ensuring data is accessible when needed|Backing up data|Monitoring data
+98|Cybersecurity Quick Review|Easy|A|What is a security incident?|An event that compromises security|System update|Backup activity|Performance tuning
+99|Cybersecurity Quick Review|Easy|C|What is penetration testing?|Monitoring traffic|Encrypting systems|Simulating attacks to find vulnerabilities|Backing up systems
+100|Cybersecurity Quick Review|Easy|B|What is cyber hygiene?|Cleaning hardware|Maintaining security best practices|Installing software|Monitoring performance
+101|Cybersecurity Quick Review|Easy|C|What is the main goal of a security audit?|Increase system speed|Backup data|Evaluate security controls|Encrypt files
+102|Cybersecurity Quick Review|Easy|B|What is the function of a VPN?|Increase bandwidth|Secure internet communication|Store data|Monitor logs
+103|Cybersecurity Quick Review|Easy|A|Which type of attack involves overwhelming a system with traffic?|DDoS|Phishing|XSS|Spoofing
+104|Cybersecurity Quick Review|Medium|D|What is a zero-day vulnerability?|A fixed bug|A tested patch|A known issue|A vulnerability with no patch available
+105|Cybersecurity Quick Review|Medium|C|What is the purpose of a honeypot?|Encrypt data|Backup systems|Attract attackers for monitoring|Increase speed
+106|Cybersecurity Quick Review|Easy|B|What is role-based access control (RBAC)?|Access based on passwords|Access based on user roles|Access based on location|Access based on time
+107|Cybersecurity Quick Review|Easy|A|What is phishing?|Fraudulent attempt to steal information|Network monitoring|Data encryption|Backup process
+108|Cybersecurity Quick Review|Easy|D|What is a strong password?|Short and simple|Only letters|Same for all accounts|Complex with mix of characters
+109|Cybersecurity Quick Review|Easy|C|What is data backup?|Encrypting files|Monitoring logs|Copying data for recovery|Blocking traffic
+110|Cybersecurity Quick Review|Easy|A|What is multi-factor authentication?|Using multiple verification methods|Using one password|Encrypting twice|Monitoring users
+111|Cybersecurity Quick Review|Medium|B|What is insider threat?|External hacker|Threat from inside organization|Firewall attack|Network failure
+112|Cybersecurity Quick Review|Easy|C|What is least privilege principle?|Full access to users|No access|Minimum necessary access|Unlimited access
+113|Cybersecurity Quick Review|Easy|D|What is encryption at rest?|Encrypting network traffic|Encrypting emails|Encrypting during transfer|Encrypting stored data
+114|Cybersecurity Quick Review|Easy|A|What is brute force attack?|Trying many password combinations|Injecting SQL|Monitoring logs|Encrypting data
+115|Cybersecurity Quick Review|Medium|B|What is SIEM?|Encryption tool|Security monitoring and analysis system|Backup software|Network protocol
+116|Cybersecurity Quick Review|Medium|C|What is an IDS?|Backup system|Encryption tool|Intrusion detection system|Network cable
+117|Cybersecurity Quick Review|Medium|A|What is an IPS?|Intrusion prevention system|Internet protocol service|Internal protection system|Input processing system
+118|Cybersecurity Quick Review|Medium|D|What is data masking?|Encrypting data|Deleting data|Backing up data|Hiding sensitive data
+119|Cybersecurity Quick Review|Easy|B|What is compliance in cybersecurity?|Hacking systems|Following security regulations|Encrypting files|Monitoring traffic
+120|Cybersecurity Quick Review|Medium|C|What is cyber resilience?|Preventing all attacks|Blocking internet access|Ability to recover from cyber attacks|Encrypting all data
+121|Cybersecurity Quick Review|Medium|A|What is the primary purpose of a Web Application Firewall (WAF)?|To protect web applications from malicious traffic|To increase internet speed|To manage employee attendance|To encrypt local storage
+122|Cybersecurity Quick Review|Medium|C|Which type of malware secretly records user activities such as keystrokes?|Worm|Trojan|Spyware|Rootkit
+123|Cybersecurity Quick Review|Easy|B|What is the purpose of role-based access control (RBAC)?|To improve internet bandwidth|To assign permissions based on user roles|To monitor network cables|To increase storage capacity
+124|Cybersecurity Quick Review|Easy|D|Which cybersecurity attack overloads systems with excessive traffic?|Phishing|Spoofing|SQL Injection|DDoS Attack
+125|Cybersecurity Quick Review|Easy|A|What is the purpose of encryption in cybersecurity?|To protect data from unauthorized access|To increase processor speed|To reduce file sizes|To optimize databases
+126|Cybersecurity Quick Review|Medium|C|Which security practice involves regularly reviewing system and user activity logs?|Penetration Testing|Threat Modeling|Security Monitoring|Data Compression
+127|Cybersecurity Quick Review|Medium|B|What is the main objective of vulnerability management?|To improve website design|To identify and fix security weaknesses|To increase internet speed|To monitor hardware temperature
+128|Cybersecurity Quick Review|Easy|A|Which authentication method uses physical traits for identity verification?|Biometric Authentication|Password Authentication|Token Authentication|Captcha Verification
+129|Cybersecurity Quick Review|Easy|D|What is the purpose of cybersecurity awareness training?|To increase hardware performance|To configure firewalls automatically|To replace antivirus software|To educate users about security risks and best practices
+130|Cybersecurity Quick Review|Medium|C|What is cyber threat intelligence?|A firewall configuration process|A method for compressing files|Information used to identify and prevent cyber threats|A type of malware
+''';
+
+class _CybersecurityModuleOneTwoScreenState
+    extends State<CybersecurityModuleOneTwoScreen> {
   static const List<_CybersecuritySection> _sections = [
-    _CybersecuritySection(title: 'Malware (Malicious Software)', subtitle: 'Types, how they spread, and why they are dangerous.'),
-    _CybersecuritySection(title: 'Social Engineering', subtitle: 'Attacking people, not computers.'),
-    _CybersecuritySection(title: 'Network Attacks', subtitle: 'How attackers target networks and services.'),
-    _CybersecuritySection(title: 'Vulnerabilities', subtitle: 'Weaknesses attackers exploit.'),
-    _CybersecuritySection(title: 'Zero-Day Attacks', subtitle: 'Unknown vulnerabilities with no patch.'),
-    _CybersecuritySection(title: 'Insider Threats', subtitle: 'Risks from people inside an organization.'),
-    _CybersecuritySection(title: 'Indicators of Compromise (IoCs)', subtitle: 'Signs that a system may be compromised.'),
+    _CybersecuritySection(
+        title: 'Malware (Malicious Software)',
+        subtitle: 'Types, how they spread, and why they are dangerous.'),
+    _CybersecuritySection(
+        title: 'Social Engineering',
+        subtitle: 'Attacking people, not computers.'),
+    _CybersecuritySection(
+        title: 'Network Attacks',
+        subtitle: 'How attackers target networks and services.'),
+    _CybersecuritySection(
+        title: 'Vulnerabilities', subtitle: 'Weaknesses attackers exploit.'),
+    _CybersecuritySection(
+        title: 'Zero-Day Attacks',
+        subtitle: 'Unknown vulnerabilities with no patch.'),
+    _CybersecuritySection(
+        title: 'Insider Threats',
+        subtitle: 'Risks from people inside an organization.'),
+    _CybersecuritySection(
+        title: 'Indicators of Compromise (IoCs)',
+        subtitle: 'Signs that a system may be compromised.'),
   ];
 
   int _currentSectionIndex = 0;
@@ -1559,44 +4044,88 @@ class _CybersecurityModuleOneTwoScreenState extends State<CybersecurityModuleOne
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 7),
-            child: Container(width: 7, height: 7, decoration: BoxDecoration(color: color ?? widget.color, shape: BoxShape.circle)),
+            child: Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                    color: color ?? widget.color, shape: BoxShape.circle)),
           ),
           const SizedBox(width: 10),
-          Expanded(child: Text(text, style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14, height: 1.45))),
+          Expanded(
+              child: Text(text,
+                  style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 14,
+                      height: 1.45))),
         ],
       ),
     );
   }
 
-  Widget _buildSectionHero({required String label, required String body, required IconData icon, required Color tint}) {
+  Widget _buildSectionHero(
+      {required String label,
+      required String body,
+      required IconData icon,
+      required Color tint}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [tint.withOpacity(0.22), Colors.white.withOpacity(0.05)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        gradient: LinearGradient(
+            colors: [tint.withOpacity(0.22), Colors.white.withOpacity(0.05)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: tint.withOpacity(0.42)),
       ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(width: 46, height: 46, decoration: BoxDecoration(color: tint.withOpacity(0.22), borderRadius: BorderRadius.circular(14)), child: Icon(icon, color: tint, size: 24)),
+        Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+                color: tint.withOpacity(0.22),
+                borderRadius: BorderRadius.circular(14)),
+            child: Icon(icon, color: tint, size: 24)),
         const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+        Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16)),
           const SizedBox(height: 8),
-          Text(body, style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14, height: 1.5)),
+          Text(body,
+              style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 14,
+                  height: 1.5)),
         ])),
       ]),
     );
   }
 
-  Widget _buildMiniCard({required String title, required String body, required Color tint}) {
+  Widget _buildMiniCard(
+      {required String title, required String body, required Color tint}) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: tint.withOpacity(0.14), borderRadius: BorderRadius.circular(18), border: Border.all(color: tint.withOpacity(0.45))),
+      decoration: BoxDecoration(
+          color: tint.withOpacity(0.14),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: tint.withOpacity(0.45))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
+        Text(title,
+            style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 14)),
         const SizedBox(height: 6),
-        Text(body, style: TextStyle(color: Colors.white.withOpacity(0.86), fontSize: 13, height: 1.45)),
+        Text(body,
+            style: TextStyle(
+                color: Colors.white.withOpacity(0.86),
+                fontSize: 13,
+                height: 1.45)),
       ]),
     );
   }
@@ -1605,70 +4134,149 @@ class _CybersecurityModuleOneTwoScreenState extends State<CybersecurityModuleOne
     switch (index) {
       case 0:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildSectionHero(label: 'Malware (Malicious Software)', body: 'Malware is software designed to harm, steal, or take control of a device. These are the main types you must know.', icon: Icons.bug_report_rounded, tint: widget.color),
+          _buildSectionHero(
+              label: 'Malware (Malicious Software)',
+              body:
+                  'Malware is software designed to harm, steal, or take control of a device. These are the main types you must know.',
+              icon: Icons.bug_report_rounded,
+              tint: widget.color),
           const SizedBox(height: 12),
-          _buildMiniCard(title: 'Virus', body: 'Attaches to files or programs. Spreads when the infected file is opened. Can delete files or corrupt systems.', tint: const Color(0xFF64B5F6)),
+          _buildMiniCard(
+              title: 'Virus',
+              body:
+                  'Attaches to files or programs. Spreads when the infected file is opened. Can delete files or corrupt systems.',
+              tint: const Color(0xFF64B5F6)),
           const SizedBox(height: 8),
-          _buildMiniCard(title: 'Worm', body: 'Spreads automatically across networks. Doesn\'t need user action. Can overload systems and cause slowdowns.', tint: const Color(0xFFFF7043)),
+          _buildMiniCard(
+              title: 'Worm',
+              body:
+                  'Spreads automatically across networks. Doesn\'t need user action. Can overload systems and cause slowdowns.',
+              tint: const Color(0xFFFF7043)),
           const SizedBox(height: 8),
-          _buildMiniCard(title: 'Trojan Horse', body: 'Pretends to be something safe. Once opened, it installs harmful code. Often used to steal data or open backdoors.', tint: const Color(0xFF66BB6A)),
+          _buildMiniCard(
+              title: 'Trojan Horse',
+              body:
+                  'Pretends to be something safe. Once opened, it installs harmful code. Often used to steal data or open backdoors.',
+              tint: const Color(0xFF66BB6A)),
           const SizedBox(height: 8),
-          _buildMiniCard(title: 'Ransomware', body: 'Locks your files and demands payment to unlock them. One of the most dangerous modern threats.', tint: const Color(0xFFF06292)),
+          _buildMiniCard(
+              title: 'Ransomware',
+              body:
+                  'Locks your files and demands payment to unlock them. One of the most dangerous modern threats.',
+              tint: const Color(0xFFF06292)),
           const SizedBox(height: 8),
-          _buildMiniCard(title: 'Spyware & Adware', body: 'Spyware secretly collects information. Adware shows unwanted ads and can track users.', tint: widget.color),
+          _buildMiniCard(
+              title: 'Spyware & Adware',
+              body:
+                  'Spyware secretly collects information. Adware shows unwanted ads and can track users.',
+              tint: widget.color),
         ]);
       case 1:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildSectionHero(label: 'Social Engineering', body: 'Social engineering tricks people into giving up information or access.', icon: Icons.people_alt_rounded, tint: const Color(0xFF64B5F6)),
+          _buildSectionHero(
+              label: 'Social Engineering',
+              body:
+                  'Social engineering tricks people into giving up information or access.',
+              icon: Icons.people_alt_rounded,
+              tint: const Color(0xFF64B5F6)),
           const SizedBox(height: 12),
-          _buildBullet('Phishing: Fake emails or messages that look real and try to steal passwords or personal info.'),
-          _buildBullet('Spear Phishing: Targeted phishing aimed at a specific person.'),
+          _buildBullet(
+              'Phishing: Fake emails or messages that look real and try to steal passwords or personal info.'),
+          _buildBullet(
+              'Spear Phishing: Targeted phishing aimed at a specific person.'),
           _buildBullet('Vishing: Voice phishing (scam phone calls).'),
           _buildBullet('Smishing: SMS/text message phishing.'),
-          _buildBullet('Pretexting: Pretending to be someone trustworthy (like tech support).'),
+          _buildBullet(
+              'Pretexting: Pretending to be someone trustworthy (like tech support).'),
           const SizedBox(height: 10),
-          _buildMiniCard(title: 'Why it works', body: 'Social engineering relies on trust, urgency, and authority. Attackers exploit emotions and routines.', tint: widget.color),
+          _buildMiniCard(
+              title: 'Why it works',
+              body:
+                  'Social engineering relies on trust, urgency, and authority. Attackers exploit emotions and routines.',
+              tint: widget.color),
         ]);
       case 2:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildSectionHero(label: 'Network Attacks', body: 'These attacks target networks, websites, or communication systems.', icon: Icons.settings_ethernet_rounded, tint: const Color(0xFFFF7043)),
+          _buildSectionHero(
+              label: 'Network Attacks',
+              body:
+                  'These attacks target networks, websites, or communication systems.',
+              icon: Icons.settings_ethernet_rounded,
+              tint: const Color(0xFFFF7043)),
           const SizedBox(height: 12),
-          _buildBullet('DDoS: Flood a website with traffic so it becomes slow or crashes.'),
-          _buildBullet('Man-in-the-Middle (MITM): Intercept communication, common on unsafe public Wi‑Fi.'),
-          _buildBullet('Brute Force Attack: Repeatedly guessing passwords; works on weak passwords.'),
-          _buildBullet('SQL Injection: Inject malicious code into a website\'s database to steal or delete data.'),
+          _buildBullet(
+              'DDoS: Flood a website with traffic so it becomes slow or crashes.'),
+          _buildBullet(
+              'Man-in-the-Middle (MITM): Intercept communication, common on unsafe public Wi‑Fi.'),
+          _buildBullet(
+              'Brute Force Attack: Repeatedly guessing passwords; works on weak passwords.'),
+          _buildBullet(
+              'SQL Injection: Inject malicious code into a website\'s database to steal or delete data.'),
         ]);
       case 3:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildSectionHero(label: 'Vulnerabilities', body: 'A vulnerability is a weakness in a system that attackers can exploit.', icon: Icons.warning_amber_rounded, tint: const Color(0xFF66BB6A)),
+          _buildSectionHero(
+              label: 'Vulnerabilities',
+              body:
+                  'A vulnerability is a weakness in a system that attackers can exploit.',
+              icon: Icons.warning_amber_rounded,
+              tint: const Color(0xFF66BB6A)),
           const SizedBox(height: 12),
           _buildBullet('Outdated software'),
           _buildBullet('Weak passwords'),
           _buildBullet('Misconfigured settings'),
           _buildBullet('Unpatched security flaws'),
           const SizedBox(height: 10),
-          _buildMiniCard(title: 'Fixing vulnerabilities', body: 'Regular updates, strong passwords, and secure configuration reduce many risks.', tint: widget.color),
+          _buildMiniCard(
+              title: 'Fixing vulnerabilities',
+              body:
+                  'Regular updates, strong passwords, and secure configuration reduce many risks.',
+              tint: widget.color),
         ]);
       case 4:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildSectionHero(label: 'Zero-Day Attacks', body: 'A zero-day is a vulnerability that developers don\'t know about and has no patch; attackers exploit it immediately.', icon: Icons.flash_on_rounded, tint: const Color(0xFFF06292)),
+          _buildSectionHero(
+              label: 'Zero-Day Attacks',
+              body:
+                  'A zero-day is a vulnerability that developers don\'t know about and has no patch; attackers exploit it immediately.',
+              icon: Icons.flash_on_rounded,
+              tint: const Color(0xFFF06292)),
           const SizedBox(height: 12),
           _buildBullet('Developers have no patch'),
           _buildBullet('Attackers exploit before defenses exist'),
-          _buildMiniCard(title: 'Why they are dangerous', body: 'No immediate fix exists, so detection and containment are critical.', tint: widget.color),
+          _buildMiniCard(
+              title: 'Why they are dangerous',
+              body:
+                  'No immediate fix exists, so detection and containment are critical.',
+              tint: widget.color),
         ]);
       case 5:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildSectionHero(label: 'Insider Threats', body: 'Threats from people inside an organization: accidental or malicious.', icon: Icons.person_off_rounded, tint: const Color(0xFF64B5F6)),
+          _buildSectionHero(
+              label: 'Insider Threats',
+              body:
+                  'Threats from people inside an organization: accidental or malicious.',
+              icon: Icons.person_off_rounded,
+              tint: const Color(0xFF64B5F6)),
           const SizedBox(height: 12),
-          _buildBullet('Accidental insiders: click phishing links, misconfigure systems, lose devices.'),
-          _buildBullet('Malicious insiders: steal data, sabotage systems, abuse access.'),
-          _buildMiniCard(title: 'Mitigation', body: 'Least privilege, auditing, and training reduce insider risks.', tint: widget.color),
+          _buildBullet(
+              'Accidental insiders: click phishing links, misconfigure systems, lose devices.'),
+          _buildBullet(
+              'Malicious insiders: steal data, sabotage systems, abuse access.'),
+          _buildMiniCard(
+              title: 'Mitigation',
+              body:
+                  'Least privilege, auditing, and training reduce insider risks.',
+              tint: widget.color),
         ]);
       case 6:
       default:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildSectionHero(label: 'Indicators of Compromise (IoCs)', body: 'Signs that something is wrong and may indicate an attack.', icon: Icons.search_rounded, tint: const Color(0xFFFF7043)),
+          _buildSectionHero(
+              label: 'Indicators of Compromise (IoCs)',
+              body: 'Signs that something is wrong and may indicate an attack.',
+              icon: Icons.search_rounded,
+              tint: const Color(0xFFFF7043)),
           const SizedBox(height: 12),
           _buildBullet('Sudden slow performance'),
           _buildBullet('Unknown programs appearing'),
@@ -1676,7 +4284,11 @@ class _CybersecurityModuleOneTwoScreenState extends State<CybersecurityModuleOne
           _buildBullet('Unauthorized logins'),
           _buildBullet('Files disappearing or changing'),
           const SizedBox(height: 10),
-          _buildMiniCard(title: 'Action steps', body: 'If you spot IoCs, disconnect, report to your administrator, and preserve logs for investigation.', tint: widget.color),
+          _buildMiniCard(
+              title: 'Action steps',
+              body:
+                  'If you spot IoCs, disconnect, report to your administrator, and preserve logs for investigation.',
+              tint: widget.color),
         ]);
     }
   }
@@ -1690,90 +4302,206 @@ class _CybersecurityModuleOneTwoScreenState extends State<CybersecurityModuleOne
           decoration: const BoxDecoration(gradient: appBackgroundGradient),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-            child: Column(children: [
-              Row(children: [
-                IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white)),
-                const SizedBox(width: 4),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(widget.course, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 2),
-                  Text('Level 1 · Section ${_currentSectionIndex + 1} of ${_sections.length}', style: TextStyle(color: Colors.white.withOpacity(0.72), fontSize: 12)),
-                ])),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(999), border: Border.all(color: Colors.white12)), child: const Text('1.2', style: TextStyle(color: Colors.white70, fontSize: 11))),
-              ]),
-              const SizedBox(height: 12),
-              ClipRRect(borderRadius: BorderRadius.circular(999), child: LinearProgressIndicator(value: _progress.clamp(0.0, 1.0), minHeight: 9, backgroundColor: Colors.white.withOpacity(0.08), valueColor: AlwaysStoppedAnimation<Color>(widget.color))),
-              const SizedBox(height: 14),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.06),
-                    borderRadius: BorderRadius.circular(28),
-                    border: Border.all(color: Colors.white12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 28,
-                        offset: Offset(0, 16),
-                      ),
-                    ],
-                  ),
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 340),
-                      reverseDuration: const Duration(milliseconds: 260),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
-                      transitionBuilder: (child, animation) {
-                        final fade = Tween<double>(begin: 0.0, end: 1.0).animate(animation);
-                        final slide = Tween<Offset>(
-                          begin: const Offset(0.06, 0.02),
-                          end: Offset.zero,
-                        ).animate(animation);
-                        return FadeTransition(
-                          opacity: fade,
-                          child: SlideTransition(
-                            position: slide,
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: SingleChildScrollView(
-                        key: ValueKey(_currentSectionIndex),
-                        physics: const BouncingScrollPhysics(),
-                        child: Column(
+            child: Column(
+              children: [
+                Row(children: [
+                  IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white)),
+                  const SizedBox(width: 4),
+                  Expanded(
+                      child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: widget.color.withOpacity(0.14),
-                                borderRadius: BorderRadius.circular(999),
-                                border: Border.all(color: widget.color.withOpacity(0.35)),
-                              ),
-                              child: Text(
-                                _sections[_currentSectionIndex].subtitle,
-                                style: TextStyle(
-                                  color: widget.color.withOpacity(0.95),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
+                        Text(widget.course,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 2),
+                        Text(
+                            'Level 1 · Section ${_currentSectionIndex + 1} of ${_sections.length}',
+                            style: TextStyle(
+                                color: Colors.white.withOpacity(0.72),
+                                fontSize: 12)),
+                      ])),
+                  Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: Colors.white12)),
+                      child: const Text('1.2',
+                          style:
+                              TextStyle(color: Colors.white70, fontSize: 11))),
+                ]),
+                const SizedBox(height: 12),
+                ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                        value: _progress.clamp(0.0, 1.0),
+                        minHeight: 9,
+                        backgroundColor: Colors.white.withOpacity(0.08),
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(widget.color))),
+                const SizedBox(height: 14),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(28),
+                      border: Border.all(color: Colors.white12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 28,
+                          offset: Offset(0, 16),
+                        ),
+                      ],
+                    ),
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 340),
+                        reverseDuration: const Duration(milliseconds: 260),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        transitionBuilder: (child, animation) {
+                          final fade = Tween<double>(begin: 0.0, end: 1.0)
+                              .animate(animation);
+                          final slide = Tween<Offset>(
+                            begin: const Offset(0.06, 0.02),
+                            end: Offset.zero,
+                          ).animate(animation);
+                          return FadeTransition(
+                            opacity: fade,
+                            child: SlideTransition(
+                              position: slide,
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: SingleChildScrollView(
+                          key: ValueKey(_currentSectionIndex),
+                          physics: const BouncingScrollPhysics(),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: widget.color.withOpacity(0.14),
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                      color: widget.color.withOpacity(0.35)),
+                                ),
+                                child: Text(
+                                  _sections[_currentSectionIndex].subtitle,
+                                  style: TextStyle(
+                                    color: widget.color.withOpacity(0.95),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 18),
-                            _buildSectionContent(_currentSectionIndex),
-                          ],
+                              const SizedBox(height: 18),
+                              _buildSectionContent(_currentSectionIndex),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              Row(children: [Expanded(child: GestureDetector(onTap: _canGoBack ? _goBack : null, child: AnimatedOpacity(duration: const Duration(milliseconds: 180), opacity: _canGoBack ? 1 : 0.45, child: Container(height:54, decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white12)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 18), SizedBox(width:8), Text('Back', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize:14),),],),),),),), const SizedBox(width:12), Expanded(child: GestureDetector(onTap: _canGoForward ? _goForward : null, child: AnimatedOpacity(duration: const Duration(milliseconds:180), opacity: _canGoForward ? 1 : 0.45, child: Container(height:54, decoration: BoxDecoration(gradient: LinearGradient(colors: [widget.color, widget.color.withOpacity(0.78)]), borderRadius: BorderRadius.circular(18), boxShadow: [BoxShadow(color: widget.color.withOpacity(0.32), blurRadius: 18, offset: const Offset(0,8))],), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text(_canGoForward ? 'Next' : 'Done', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize:14),), const SizedBox(width:8), Icon(_canGoForward ? Icons.arrow_forward_ios_rounded : Icons.check_rounded, color: Colors.white, size:18),],),),),),),],),
-            ],),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _canGoBack ? _goBack : null,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 180),
+                          opacity: _canGoBack ? 1 : 0.45,
+                          child: Container(
+                            height: 54,
+                            decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: Colors.white12)),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.arrow_back_ios_rounded,
+                                    color: Colors.white, size: 18),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Back',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _canGoForward ? _goForward : null,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 180),
+                          opacity: _canGoForward ? 1 : 0.45,
+                          child: Container(
+                            height: 54,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(colors: [
+                                widget.color,
+                                widget.color.withOpacity(0.78)
+                              ]),
+                              borderRadius: BorderRadius.circular(18),
+                              boxShadow: [
+                                BoxShadow(
+                                    color: widget.color.withOpacity(0.32),
+                                    blurRadius: 18,
+                                    offset: const Offset(0, 8))
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  _canGoForward ? 'Next' : 'Done',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 14),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                    _canGoForward
+                                        ? Icons.arrow_forward_ios_rounded
+                                        : Icons.check_rounded,
+                                    color: Colors.white,
+                                    size: 18),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1785,22 +4513,40 @@ class CybersecurityModuleOneFourScreen extends StatefulWidget {
   final String course;
   final Color color;
 
-  const CybersecurityModuleOneFourScreen({required this.course, required this.color, Key? key}) : super(key: key);
+  const CybersecurityModuleOneFourScreen(
+      {required this.course, required this.color, Key? key})
+      : super(key: key);
 
   @override
-  State<CybersecurityModuleOneFourScreen> createState() => _CybersecurityModuleOneFourScreenState();
+  State<CybersecurityModuleOneFourScreen> createState() =>
+      _CybersecurityModuleOneFourScreenState();
 }
 
-class _CybersecurityModuleOneFourScreenState extends State<CybersecurityModuleOneFourScreen> {
+class _CybersecurityModuleOneFourScreenState
+    extends State<CybersecurityModuleOneFourScreen> {
   static const List<_CybersecuritySection> _sections = [
-    _CybersecuritySection(title: 'Antivirus & Anti‑Malware', subtitle: 'Scans, blocks and removes malware.'),
-    _CybersecuritySection(title: 'Firewalls', subtitle: 'Network traffic control and protection.'),
-    _CybersecuritySection(title: 'Software Updates & Patches', subtitle: 'Keep systems patched and protected.'),
-    _CybersecuritySection(title: 'Safe Browsing', subtitle: 'Best practices when online.'),
-    _CybersecuritySection(title: 'Recognizing Suspicious Links & Emails', subtitle: 'Phishing and social engineering signs.'),
-    _CybersecuritySection(title: 'Backups', subtitle: 'Protect data with regular backups.'),
-    _CybersecuritySection(title: 'Secure Wi‑Fi', subtitle: 'Protect your network and connections.'),
-    _CybersecuritySection(title: 'Basic Account Protection', subtitle: 'Passwords, MFA, and account hygiene.'),
+    _CybersecuritySection(
+        title: 'Antivirus & Anti‑Malware',
+        subtitle: 'Scans, blocks and removes malware.'),
+    _CybersecuritySection(
+        title: 'Firewalls',
+        subtitle: 'Network traffic control and protection.'),
+    _CybersecuritySection(
+        title: 'Software Updates & Patches',
+        subtitle: 'Keep systems patched and protected.'),
+    _CybersecuritySection(
+        title: 'Safe Browsing', subtitle: 'Best practices when online.'),
+    _CybersecuritySection(
+        title: 'Recognizing Suspicious Links & Emails',
+        subtitle: 'Phishing and social engineering signs.'),
+    _CybersecuritySection(
+        title: 'Backups', subtitle: 'Protect data with regular backups.'),
+    _CybersecuritySection(
+        title: 'Secure Wi‑Fi',
+        subtitle: 'Protect your network and connections.'),
+    _CybersecuritySection(
+        title: 'Basic Account Protection',
+        subtitle: 'Passwords, MFA, and account hygiene.'),
   ];
 
   int _currentSectionIndex = 0;
@@ -1822,21 +4568,44 @@ class _CybersecurityModuleOneFourScreenState extends State<CybersecurityModuleOn
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(padding: const EdgeInsets.only(top:7), child: Container(width:7, height:7, decoration: BoxDecoration(color: color ?? widget.color, shape: BoxShape.circle))),
-        const SizedBox(width:10),
-        Expanded(child: Text(text, style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14, height: 1.45))),
+        Padding(
+            padding: const EdgeInsets.only(top: 7),
+            child: Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                    color: color ?? widget.color, shape: BoxShape.circle))),
+        const SizedBox(width: 10),
+        Expanded(
+            child: Text(text,
+                style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 14,
+                    height: 1.45))),
       ]),
     );
   }
 
-  Widget _buildMiniCard({required String title, required String body, required Color tint}) {
+  Widget _buildMiniCard(
+      {required String title, required String body, required Color tint}) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: tint.withOpacity(0.14), borderRadius: BorderRadius.circular(18), border: Border.all(color: tint.withOpacity(0.45))),
+      decoration: BoxDecoration(
+          color: tint.withOpacity(0.14),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: tint.withOpacity(0.45))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
-        const SizedBox(height:6),
-        Text(body, style: TextStyle(color: Colors.white.withOpacity(0.86), fontSize: 13, height: 1.45)),
+        Text(title,
+            style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 14)),
+        const SizedBox(height: 6),
+        Text(body,
+            style: TextStyle(
+                color: Colors.white.withOpacity(0.86),
+                fontSize: 13,
+                height: 1.45)),
       ]),
     );
   }
@@ -1845,61 +4614,136 @@ class _CybersecurityModuleOneFourScreenState extends State<CybersecurityModuleOn
     switch (index) {
       case 0:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'What it does', body: 'Scans your device for harmful software; blocks suspicious files; removes viruses, worms, trojans, and spyware; warns about unsafe downloads.', tint: widget.color),
-          const SizedBox(height:10),
-          _buildMiniCard(title: 'Why it matters', body: 'Malware is a common digital threat — antivirus acts like a shield for your device.', tint: const Color(0xFF64B5F6)),
-          const SizedBox(height:10),
-          _buildMiniCard(title: 'Good habits', body: 'Keep antivirus updated. Run regular scans. Don’t ignore warnings.', tint: widget.color),
+          _buildMiniCard(
+              title: 'What it does',
+              body:
+                  'Scans your device for harmful software; blocks suspicious files; removes viruses, worms, trojans, and spyware; warns about unsafe downloads.',
+              tint: widget.color),
+          const SizedBox(height: 10),
+          _buildMiniCard(
+              title: 'Why it matters',
+              body:
+                  'Malware is a common digital threat — antivirus acts like a shield for your device.',
+              tint: const Color(0xFF64B5F6)),
+          const SizedBox(height: 10),
+          _buildMiniCard(
+              title: 'Good habits',
+              body:
+                  'Keep antivirus updated. Run regular scans. Don’t ignore warnings.',
+              tint: widget.color),
         ]);
       case 1:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'What a firewall does', body: 'Controls incoming and outgoing network traffic and decides what to allow or block — like a security guard for your connection.', tint: const Color(0xFFFF7043)),
-          const SizedBox(height:10),
+          _buildMiniCard(
+              title: 'What a firewall does',
+              body:
+                  'Controls incoming and outgoing network traffic and decides what to allow or block — like a security guard for your connection.',
+              tint: const Color(0xFFFF7043)),
+          const SizedBox(height: 10),
           _buildBullet('Prevents unauthorized access'),
           _buildBullet('Stops malware from communicating with attackers'),
-          const SizedBox(height:8),
-          _buildMiniCard(title: 'Types', body: 'Hardware firewalls (routers) and software firewalls (on your device). Both are useful.', tint: widget.color),
+          const SizedBox(height: 8),
+          _buildMiniCard(
+              title: 'Types',
+              body:
+                  'Hardware firewalls (routers) and software firewalls (on your device). Both are useful.',
+              tint: widget.color),
         ]);
       case 2:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'What updates do', body: 'Fix vulnerabilities, improve security, patch bugs, and add protections.', tint: const Color(0xFF66BB6A)),
-          const SizedBox(height:10),
-          _buildMiniCard(title: 'Why it matters', body: 'Most attacks succeed because devices are out of date. Updates close the holes attackers use.', tint: widget.color),
-          const SizedBox(height:10),
-          _buildMiniCard(title: 'Good habits', body: 'Turn on automatic updates. Update apps, browsers, and OS regularly.', tint: const Color(0xFF64B5F6)),
+          _buildMiniCard(
+              title: 'What updates do',
+              body:
+                  'Fix vulnerabilities, improve security, patch bugs, and add protections.',
+              tint: const Color(0xFF66BB6A)),
+          const SizedBox(height: 10),
+          _buildMiniCard(
+              title: 'Why it matters',
+              body:
+                  'Most attacks succeed because devices are out of date. Updates close the holes attackers use.',
+              tint: widget.color),
+          const SizedBox(height: 10),
+          _buildMiniCard(
+              title: 'Good habits',
+              body:
+                  'Turn on automatic updates. Update apps, browsers, and OS regularly.',
+              tint: const Color(0xFF64B5F6)),
         ]);
       case 3:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'How to browse safely', body: 'Only visit trusted sites; look for https://; avoid random ads; don’t download from unknown sources.', tint: widget.color),
-          const SizedBox(height:10),
-          _buildMiniCard(title: 'Why it matters', body: 'Many attacks start with a single unsafe click.', tint: const Color(0xFFFF7043)),
+          _buildMiniCard(
+              title: 'How to browse safely',
+              body:
+                  'Only visit trusted sites; look for https://; avoid random ads; don’t download from unknown sources.',
+              tint: widget.color),
+          const SizedBox(height: 10),
+          _buildMiniCard(
+              title: 'Why it matters',
+              body: 'Many attacks start with a single unsafe click.',
+              tint: const Color(0xFFFF7043)),
         ]);
       case 4:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'Signs of suspicious messages', body: 'Urgent language, strange sender, misspellings, unexpected attachments, links that don’t match the real site.', tint: widget.color),
-          const SizedBox(height:10),
-          _buildMiniCard(title: 'What to do', body: 'Don’t click, don’t reply, delete or report. This protects you from phishing and social engineering.', tint: const Color(0xFF64B5F6)),
+          _buildMiniCard(
+              title: 'Signs of suspicious messages',
+              body:
+                  'Urgent language, strange sender, misspellings, unexpected attachments, links that don’t match the real site.',
+              tint: widget.color),
+          const SizedBox(height: 10),
+          _buildMiniCard(
+              title: 'What to do',
+              body:
+                  'Don’t click, don’t reply, delete or report. This protects you from phishing and social engineering.',
+              tint: const Color(0xFF64B5F6)),
         ]);
       case 5:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'What backups do', body: 'A backup is a copy of important files stored somewhere safe.', tint: const Color(0xFF66BB6A)),
-          const SizedBox(height:10),
-          _buildMiniCard(title: 'Why it matters', body: 'Backups protect you from ransomware, accidental deletion, and device failure.', tint: widget.color),
-          const SizedBox(height:10),
-          _buildMiniCard(title: 'Good habits', body: 'Use cloud storage or external drives, back up regularly, keep backups separate.', tint: const Color(0xFFFF7043)),
+          _buildMiniCard(
+              title: 'What backups do',
+              body:
+                  'A backup is a copy of important files stored somewhere safe.',
+              tint: const Color(0xFF66BB6A)),
+          const SizedBox(height: 10),
+          _buildMiniCard(
+              title: 'Why it matters',
+              body:
+                  'Backups protect you from ransomware, accidental deletion, and device failure.',
+              tint: widget.color),
+          const SizedBox(height: 10),
+          _buildMiniCard(
+              title: 'Good habits',
+              body:
+                  'Use cloud storage or external drives, back up regularly, keep backups separate.',
+              tint: const Color(0xFFFF7043)),
         ]);
       case 6:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'Secure Wi‑Fi', body: 'Use strong Wi‑Fi passwords; avoid public Wi‑Fi for sensitive tasks; turn off auto‑connect; use a hotspot when possible.', tint: widget.color),
-          const SizedBox(height:10),
-          _buildMiniCard(title: 'Why it matters', body: 'Public Wi‑Fi is a hotspot for MITM attacks, data theft, and fake networks.', tint: const Color(0xFF64B5F6)),
+          _buildMiniCard(
+              title: 'Secure Wi‑Fi',
+              body:
+                  'Use strong Wi‑Fi passwords; avoid public Wi‑Fi for sensitive tasks; turn off auto‑connect; use a hotspot when possible.',
+              tint: widget.color),
+          const SizedBox(height: 10),
+          _buildMiniCard(
+              title: 'Why it matters',
+              body:
+                  'Public Wi‑Fi is a hotspot for MITM attacks, data theft, and fake networks.',
+              tint: const Color(0xFF64B5F6)),
         ]);
       case 7:
       default:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'Basic account protection', body: 'Use strong, unique passwords; turn on multi‑factor authentication (MFA); don’t reuse passwords; log out on shared devices.', tint: widget.color),
-          const SizedBox(height:10),
-          _buildMiniCard(title: 'Why it matters', body: 'Good account hygiene reduces account takeover and protects personal data.', tint: const Color(0xFF66BB6A)),
+          _buildMiniCard(
+              title: 'Basic account protection',
+              body:
+                  'Use strong, unique passwords; turn on multi‑factor authentication (MFA); don’t reuse passwords; log out on shared devices.',
+              tint: widget.color),
+          const SizedBox(height: 10),
+          _buildMiniCard(
+              title: 'Why it matters',
+              body:
+                  'Good account hygiene reduces account takeover and protects personal data.',
+              tint: const Color(0xFF66BB6A)),
         ]);
     }
   }
@@ -1913,28 +4757,184 @@ class _CybersecurityModuleOneFourScreenState extends State<CybersecurityModuleOn
           decoration: const BoxDecoration(gradient: appBackgroundGradient),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-            child: Column(children: [
-              Row(children: [
-                IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white)),
-                const SizedBox(width: 4),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(widget.course, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 2),
-                  Text('Level 1 · Basic Protection', style: TextStyle(color: Colors.white.withOpacity(0.72), fontSize: 12)),
-                ])),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(999), border: Border.all(color: Colors.white12)), child: const Text('1.4', style: TextStyle(color: Colors.white70, fontSize: 11))),
-              ]),
-              const SizedBox(height: 12),
-              ClipRRect(borderRadius: BorderRadius.circular(999), child: LinearProgressIndicator(value: _progress.clamp(0.0, 1.0), minHeight: 9, backgroundColor: Colors.white.withOpacity(0.08), valueColor: AlwaysStoppedAnimation<Color>(widget.color))),
-              const SizedBox(height: 14),
-              Expanded(child: Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(28), border: Border.all(color: Colors.white12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 28, offset: Offset(0,16))]), child: Align(alignment: Alignment.topCenter, child: AnimatedSwitcher(duration: const Duration(milliseconds: 340), child: SingleChildScrollView(key: ValueKey(_currentSectionIndex), physics: const BouncingScrollPhysics(), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: widget.color.withOpacity(0.14), borderRadius: BorderRadius.circular(999), border: Border.all(color: widget.color.withOpacity(0.35))), child: Text(_sections[_currentSectionIndex].subtitle, style: TextStyle(color: widget.color.withOpacity(0.95), fontSize:12, fontWeight: FontWeight.w700),),),
-                const SizedBox(height: 18),
-                _buildSectionContent(_currentSectionIndex),
-              ])))),),),
-              const SizedBox(height: 14),
-              Row(children: [Expanded(child: GestureDetector(onTap: _canGoBack ? _goBack : null, child: AnimatedOpacity(duration: const Duration(milliseconds:180), opacity: _canGoBack ? 1 : 0.45, child: Container(height:54, decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white12)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size:18), SizedBox(width:8), Text('Back', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize:14)),],),),),),), const SizedBox(width:12), Expanded(child: GestureDetector(onTap: _canGoForward ? _goForward : null, child: AnimatedOpacity(duration: const Duration(milliseconds:180), opacity: _canGoForward ? 1 : 0.45, child: Container(height:54, decoration: BoxDecoration(gradient: LinearGradient(colors: [widget.color, widget.color.withOpacity(0.78)]), borderRadius: BorderRadius.circular(18), boxShadow: [BoxShadow(color: widget.color.withOpacity(0.32), blurRadius: 18, offset: const Offset(0,8))],), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text(_canGoForward ? 'Next' : 'Done', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize:14),), const SizedBox(width:8), Icon(_canGoForward ? Icons.arrow_forward_ios_rounded : Icons.check_rounded, color: Colors.white, size:18),],),),),),),],),
-            ],),
+            child: Column(
+              children: [
+                Row(children: [
+                  IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white)),
+                  const SizedBox(width: 4),
+                  Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        Text(widget.course,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 2),
+                        Text('Level 1 · Basic Protection',
+                            style: TextStyle(
+                                color: Colors.white.withOpacity(0.72),
+                                fontSize: 12)),
+                      ])),
+                  Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: Colors.white12)),
+                      child: const Text('1.4',
+                          style:
+                              TextStyle(color: Colors.white70, fontSize: 11))),
+                ]),
+                const SizedBox(height: 12),
+                ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                        value: _progress.clamp(0.0, 1.0),
+                        minHeight: 9,
+                        backgroundColor: Colors.white.withOpacity(0.08),
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(widget.color))),
+                const SizedBox(height: 14),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(color: Colors.white12),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 28,
+                              offset: Offset(0, 16))
+                        ]),
+                    child: Align(
+                        alignment: Alignment.topCenter,
+                        child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 340),
+                            child: SingleChildScrollView(
+                                key: ValueKey(_currentSectionIndex),
+                                physics: const BouncingScrollPhysics(),
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 8),
+                                        decoration: BoxDecoration(
+                                            color:
+                                                widget.color.withOpacity(0.14),
+                                            borderRadius:
+                                                BorderRadius.circular(999),
+                                            border: Border.all(
+                                                color: widget.color
+                                                    .withOpacity(0.35))),
+                                        child: Text(
+                                          _sections[_currentSectionIndex]
+                                              .subtitle,
+                                          style: TextStyle(
+                                              color: widget.color
+                                                  .withOpacity(0.95),
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 18),
+                                      _buildSectionContent(
+                                          _currentSectionIndex),
+                                    ])))),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _canGoBack ? _goBack : null,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 180),
+                          opacity: _canGoBack ? 1 : 0.45,
+                          child: Container(
+                            height: 54,
+                            decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: Colors.white12)),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.arrow_back_ios_rounded,
+                                    color: Colors.white, size: 18),
+                                SizedBox(width: 8),
+                                Text('Back',
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 14)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _canGoForward ? _goForward : null,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 180),
+                          opacity: _canGoForward ? 1 : 0.45,
+                          child: Container(
+                            height: 54,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(colors: [
+                                widget.color,
+                                widget.color.withOpacity(0.78)
+                              ]),
+                              borderRadius: BorderRadius.circular(18),
+                              boxShadow: [
+                                BoxShadow(
+                                    color: widget.color.withOpacity(0.32),
+                                    blurRadius: 18,
+                                    offset: const Offset(0, 8))
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  _canGoForward ? 'Next' : 'Done',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 14),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                    _canGoForward
+                                        ? Icons.arrow_forward_ios_rounded
+                                        : Icons.check_rounded,
+                                    color: Colors.white,
+                                    size: 18),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1946,22 +4946,42 @@ class CybersecurityModuleOneFiveScreen extends StatefulWidget {
   final String course;
   final Color color;
 
-  const CybersecurityModuleOneFiveScreen({required this.course, required this.color, Key? key}) : super(key: key);
+  const CybersecurityModuleOneFiveScreen(
+      {required this.course, required this.color, Key? key})
+      : super(key: key);
 
   @override
-  State<CybersecurityModuleOneFiveScreen> createState() => _CybersecurityModuleOneFiveScreenState();
+  State<CybersecurityModuleOneFiveScreen> createState() =>
+      _CybersecurityModuleOneFiveScreenState();
 }
 
-class _CybersecurityModuleOneFiveScreenState extends State<CybersecurityModuleOneFiveScreen> {
+class _CybersecurityModuleOneFiveScreenState
+    extends State<CybersecurityModuleOneFiveScreen> {
   static const List<_CybersecuritySection> _sections = [
-    _CybersecuritySection(title: 'What Makes a Password Strong?', subtitle: 'Length, complexity, uniqueness, and unpredictability.'),
-    _CybersecuritySection(title: 'Common Password Mistakes', subtitle: 'Reuse, short passwords, personal info.'),
-    _CybersecuritySection(title: 'Passphrases', subtitle: 'Long memorable phrases that are strong.'),
-    _CybersecuritySection(title: 'Password Managers', subtitle: 'Store and generate passwords safely.'),
-    _CybersecuritySection(title: 'Multi‑Factor Authentication (MFA)', subtitle: 'Adds extra verification steps.'),
-    _CybersecuritySection(title: 'Auth Apps vs SMS Codes', subtitle: 'Why apps are preferred over SMS'),
-    _CybersecuritySection(title: 'Recognizing Account Compromise', subtitle: 'Signs your account may be hacked.'),
-    _CybersecuritySection(title: 'Safe Account Habits', subtitle: 'Practical daily habits to stay safe.'),
+    _CybersecuritySection(
+        title: 'What Makes a Password Strong?',
+        subtitle: 'Length, complexity, uniqueness, and unpredictability.'),
+    _CybersecuritySection(
+        title: 'Common Password Mistakes',
+        subtitle: 'Reuse, short passwords, personal info.'),
+    _CybersecuritySection(
+        title: 'Passphrases',
+        subtitle: 'Long memorable phrases that are strong.'),
+    _CybersecuritySection(
+        title: 'Password Managers',
+        subtitle: 'Store and generate passwords safely.'),
+    _CybersecuritySection(
+        title: 'Multi‑Factor Authentication (MFA)',
+        subtitle: 'Adds extra verification steps.'),
+    _CybersecuritySection(
+        title: 'Auth Apps vs SMS Codes',
+        subtitle: 'Why apps are preferred over SMS'),
+    _CybersecuritySection(
+        title: 'Recognizing Account Compromise',
+        subtitle: 'Signs your account may be hacked.'),
+    _CybersecuritySection(
+        title: 'Safe Account Habits',
+        subtitle: 'Practical daily habits to stay safe.'),
   ];
 
   int _currentSectionIndex = 0;
@@ -1981,14 +5001,26 @@ class _CybersecurityModuleOneFiveScreenState extends State<CybersecurityModuleOn
   void _goBack() => _goToSection(_currentSectionIndex - 1);
   void _goForward() => _goToSection(_currentSectionIndex + 1);
 
-  Widget _buildMiniCard({required String title, required String body, required Color tint}) {
+  Widget _buildMiniCard(
+      {required String title, required String body, required Color tint}) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: tint.withOpacity(0.14), borderRadius: BorderRadius.circular(18), border: Border.all(color: tint.withOpacity(0.45))),
+      decoration: BoxDecoration(
+          color: tint.withOpacity(0.14),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: tint.withOpacity(0.45))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
+        Text(title,
+            style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 14)),
         const SizedBox(height: 6),
-        Text(body, style: TextStyle(color: Colors.white.withOpacity(0.86), fontSize: 13, height: 1.45)),
+        Text(body,
+            style: TextStyle(
+                color: Colors.white.withOpacity(0.86),
+                fontSize: 13,
+                height: 1.45)),
       ]),
     );
   }
@@ -1999,50 +5031,108 @@ class _CybersecurityModuleOneFiveScreenState extends State<CybersecurityModuleOn
     switch (idx) {
       case 0:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'Length', body: 'Use at least 12–16 characters.', tint: widget.color),
-          const SizedBox(height:8),
-          _buildMiniCard(title: 'Complexity', body: 'Mix uppercase, lowercase, numbers, and symbols.', tint: const Color(0xFF64B5F6)),
-          const SizedBox(height:8),
-          _buildMiniCard(title: 'Uniqueness & Unpredictability', body: 'Don’t reuse passwords or use personal info like names or birthdays.', tint: widget.color),
+          _buildMiniCard(
+              title: 'Length',
+              body: 'Use at least 12–16 characters.',
+              tint: widget.color),
+          const SizedBox(height: 8),
+          _buildMiniCard(
+              title: 'Complexity',
+              body: 'Mix uppercase, lowercase, numbers, and symbols.',
+              tint: const Color(0xFF64B5F6)),
+          const SizedBox(height: 8),
+          _buildMiniCard(
+              title: 'Uniqueness & Unpredictability',
+              body:
+                  'Don’t reuse passwords or use personal info like names or birthdays.',
+              tint: widget.color),
         ]);
       case 1:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'Common Mistakes', body: 'Reusing passwords, short passwords, personal info, sticky notes, sharing, simple patterns.', tint: const Color(0xFFFF7043)),
-          const SizedBox(height:8),
-          _buildMiniCard(title: 'Why it matters', body: 'Predictable passwords make account takeover trivial for attackers.', tint: widget.color),
+          _buildMiniCard(
+              title: 'Common Mistakes',
+              body:
+                  'Reusing passwords, short passwords, personal info, sticky notes, sharing, simple patterns.',
+              tint: const Color(0xFFFF7043)),
+          const SizedBox(height: 8),
+          _buildMiniCard(
+              title: 'Why it matters',
+              body:
+                  'Predictable passwords make account takeover trivial for attackers.',
+              tint: widget.color),
         ]);
       case 2:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'Passphrases', body: 'Long, memorable phrases like "BlueTacoRiver!92" are easy to remember and hard to crack.', tint: const Color(0xFF66BB6A)),
-          const SizedBox(height:8),
-          _buildMiniCard(title: 'Benefits', body: 'Passphrases are long, memorable, and resistant to brute-force attacks.', tint: widget.color),
+          _buildMiniCard(
+              title: 'Passphrases',
+              body:
+                  'Long, memorable phrases like "BlueTacoRiver!92" are easy to remember and hard to crack.',
+              tint: const Color(0xFF66BB6A)),
+          const SizedBox(height: 8),
+          _buildMiniCard(
+              title: 'Benefits',
+              body:
+                  'Passphrases are long, memorable, and resistant to brute-force attacks.',
+              tint: widget.color),
         ]);
       case 3:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'What password managers do', body: 'Store encrypted passwords, generate strong passwords, autofill logins, and protect against phishing autofill traps.', tint: widget.color),
-          const SizedBox(height:8),
-          _buildMiniCard(title: 'Why use one', body: 'You only remember one master password; no need to reuse passwords.', tint: const Color(0xFF64B5F6)),
+          _buildMiniCard(
+              title: 'What password managers do',
+              body:
+                  'Store encrypted passwords, generate strong passwords, autofill logins, and protect against phishing autofill traps.',
+              tint: widget.color),
+          const SizedBox(height: 8),
+          _buildMiniCard(
+              title: 'Why use one',
+              body:
+                  'You only remember one master password; no need to reuse passwords.',
+              tint: const Color(0xFF64B5F6)),
         ]);
       case 4:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'What is MFA?', body: 'Requires two or more verification methods: something you know, have, or are.', tint: widget.color),
-          const SizedBox(height:8),
-          _buildMiniCard(title: 'Why it matters', body: 'Blocks most account takeover attempts even if a password is stolen.', tint: const Color(0xFFFF7043)),
+          _buildMiniCard(
+              title: 'What is MFA?',
+              body:
+                  'Requires two or more verification methods: something you know, have, or are.',
+              tint: widget.color),
+          const SizedBox(height: 8),
+          _buildMiniCard(
+              title: 'Why it matters',
+              body:
+                  'Blocks most account takeover attempts even if a password is stolen.',
+              tint: const Color(0xFFFF7043)),
         ]);
       case 5:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'Auth Apps vs SMS', body: 'Authenticator apps (Google Authenticator) are more secure and work offline; SMS can be intercepted or SIM-swapped.', tint: widget.color),
+          _buildMiniCard(
+              title: 'Auth Apps vs SMS',
+              body:
+                  'Authenticator apps (Google Authenticator) are more secure and work offline; SMS can be intercepted or SIM-swapped.',
+              tint: widget.color),
         ]);
       case 6:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'Signs of compromise', body: 'Unexpected login alerts, password stops working, unknown devices, messages sent without you.', tint: widget.color),
-          const SizedBox(height:8),
-          _buildMiniCard(title: 'If compromised', body: 'Change password, enable MFA, log out devices, check activity.', tint: const Color(0xFF64B5F6)),
+          _buildMiniCard(
+              title: 'Signs of compromise',
+              body:
+                  'Unexpected login alerts, password stops working, unknown devices, messages sent without you.',
+              tint: widget.color),
+          const SizedBox(height: 8),
+          _buildMiniCard(
+              title: 'If compromised',
+              body:
+                  'Change password, enable MFA, log out devices, check activity.',
+              tint: const Color(0xFF64B5F6)),
         ]);
       case 7:
       default:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'Safe account habits', body: 'Unique passwords, MFA, update passwords, never share, use a password manager, log out on shared devices.', tint: widget.color),
+          _buildMiniCard(
+              title: 'Safe account habits',
+              body:
+                  'Unique passwords, MFA, update passwords, never share, use a password manager, log out on shared devices.',
+              tint: widget.color),
         ]);
     }
   }
@@ -2056,28 +5146,184 @@ class _CybersecurityModuleOneFiveScreenState extends State<CybersecurityModuleOn
           decoration: const BoxDecoration(gradient: appBackgroundGradient),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-            child: Column(children: [
-              Row(children: [
-                IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white)),
-                const SizedBox(width: 4),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(widget.course, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 2),
-                  Text('Level 1 · Password Basics', style: TextStyle(color: Colors.white.withOpacity(0.72), fontSize: 12)),
-                ])),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(999), border: Border.all(color: Colors.white12)), child: const Text('1.5', style: TextStyle(color: Colors.white70, fontSize: 11))),
-              ]),
-              const SizedBox(height: 12),
-              ClipRRect(borderRadius: BorderRadius.circular(999), child: LinearProgressIndicator(value: _progress.clamp(0.0, 1.0), minHeight: 9, backgroundColor: Colors.white.withOpacity(0.08), valueColor: AlwaysStoppedAnimation<Color>(widget.color))),
-              const SizedBox(height: 14),
-              Expanded(child: Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(28), border: Border.all(color: Colors.white12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 28, offset: Offset(0,16))]), child: Align(alignment: Alignment.topCenter, child: AnimatedSwitcher(duration: const Duration(milliseconds: 340), child: SingleChildScrollView(key: ValueKey(_currentSectionIndex), physics: const BouncingScrollPhysics(), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: widget.color.withOpacity(0.14), borderRadius: BorderRadius.circular(999), border: Border.all(color: widget.color.withOpacity(0.35))), child: Text(_sections[_currentSectionIndex].subtitle, style: TextStyle(color: widget.color.withOpacity(0.95), fontSize:12, fontWeight: FontWeight.w700),),),
-                const SizedBox(height: 18),
-                _buildSectionContent(_currentSectionIndex),
-              ])))),),),
-              const SizedBox(height: 14),
-              Row(children: [Expanded(child: GestureDetector(onTap: _canGoBack ? _goBack : null, child: AnimatedOpacity(duration: const Duration(milliseconds:180), opacity: _canGoBack ? 1 : 0.45, child: Container(height:54, decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white12)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size:18), SizedBox(width:8), Text('Back', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize:14)),],),),),),), const SizedBox(width:12), Expanded(child: GestureDetector(onTap: _canGoForward ? _goForward : null, child: AnimatedOpacity(duration: const Duration(milliseconds:180), opacity: _canGoForward ? 1 : 0.45, child: Container(height:54, decoration: BoxDecoration(gradient: LinearGradient(colors: [widget.color, widget.color.withOpacity(0.78)]), borderRadius: BorderRadius.circular(18), boxShadow: [BoxShadow(color: widget.color.withOpacity(0.32), blurRadius: 18, offset: const Offset(0,8))],), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text(_canGoForward ? 'Next' : 'Done', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize:14),), const SizedBox(width:8), Icon(_canGoForward ? Icons.arrow_forward_ios_rounded : Icons.check_rounded, color: Colors.white, size:18),],),),),),),],),
-            ],),
+            child: Column(
+              children: [
+                Row(children: [
+                  IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white)),
+                  const SizedBox(width: 4),
+                  Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        Text(widget.course,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 2),
+                        Text('Level 1 · Password Basics',
+                            style: TextStyle(
+                                color: Colors.white.withOpacity(0.72),
+                                fontSize: 12)),
+                      ])),
+                  Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: Colors.white12)),
+                      child: const Text('1.5',
+                          style:
+                              TextStyle(color: Colors.white70, fontSize: 11))),
+                ]),
+                const SizedBox(height: 12),
+                ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                        value: _progress.clamp(0.0, 1.0),
+                        minHeight: 9,
+                        backgroundColor: Colors.white.withOpacity(0.08),
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(widget.color))),
+                const SizedBox(height: 14),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(color: Colors.white12),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 28,
+                              offset: Offset(0, 16))
+                        ]),
+                    child: Align(
+                        alignment: Alignment.topCenter,
+                        child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 340),
+                            child: SingleChildScrollView(
+                                key: ValueKey(_currentSectionIndex),
+                                physics: const BouncingScrollPhysics(),
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 8),
+                                        decoration: BoxDecoration(
+                                            color:
+                                                widget.color.withOpacity(0.14),
+                                            borderRadius:
+                                                BorderRadius.circular(999),
+                                            border: Border.all(
+                                                color: widget.color
+                                                    .withOpacity(0.35))),
+                                        child: Text(
+                                          _sections[_currentSectionIndex]
+                                              .subtitle,
+                                          style: TextStyle(
+                                              color: widget.color
+                                                  .withOpacity(0.95),
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 18),
+                                      _buildSectionContent(
+                                          _currentSectionIndex),
+                                    ])))),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _canGoBack ? _goBack : null,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 180),
+                          opacity: _canGoBack ? 1 : 0.45,
+                          child: Container(
+                            height: 54,
+                            decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: Colors.white12)),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.arrow_back_ios_rounded,
+                                    color: Colors.white, size: 18),
+                                SizedBox(width: 8),
+                                Text('Back',
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 14)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _canGoForward ? _goForward : null,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 180),
+                          opacity: _canGoForward ? 1 : 0.45,
+                          child: Container(
+                            height: 54,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(colors: [
+                                widget.color,
+                                widget.color.withOpacity(0.78)
+                              ]),
+                              borderRadius: BorderRadius.circular(18),
+                              boxShadow: [
+                                BoxShadow(
+                                    color: widget.color.withOpacity(0.32),
+                                    blurRadius: 18,
+                                    offset: const Offset(0, 8))
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  _canGoForward ? 'Next' : 'Done',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 14),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                    _canGoForward
+                                        ? Icons.arrow_forward_ios_rounded
+                                        : Icons.check_rounded,
+                                    color: Colors.white,
+                                    size: 18),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -2089,20 +5335,36 @@ class CybersecurityModuleOneSixScreen extends StatefulWidget {
   final String course;
   final Color color;
 
-  const CybersecurityModuleOneSixScreen({required this.course, required this.color, Key? key}) : super(key: key);
+  const CybersecurityModuleOneSixScreen(
+      {required this.course, required this.color, Key? key})
+      : super(key: key);
 
   @override
-  State<CybersecurityModuleOneSixScreen> createState() => _CybersecurityModuleOneSixScreenState();
+  State<CybersecurityModuleOneSixScreen> createState() =>
+      _CybersecurityModuleOneSixScreenState();
 }
 
-class _CybersecurityModuleOneSixScreenState extends State<CybersecurityModuleOneSixScreen> {
+class _CybersecurityModuleOneSixScreenState
+    extends State<CybersecurityModuleOneSixScreen> {
   static const List<_CybersecuritySection> _sections = [
-    _CybersecuritySection(title: 'Safe Browsing', subtitle: 'Verify sites, look for https, avoid suspicious pop-ups.'),
-    _CybersecuritySection(title: 'Safe Downloading', subtitle: 'Only download from trusted sources and scan files.'),
-    _CybersecuritySection(title: 'Recognizing Online Scams', subtitle: 'Spot urgency, check sender, avoid strange links.'),
-    _CybersecuritySection(title: 'Safe Social Media Use', subtitle: 'Protect personal info and control privacy.'),
-    _CybersecuritySection(title: 'Public Wi‑Fi Safety', subtitle: 'Avoid sensitive logins and auto‑connect.'),
-    _CybersecuritySection(title: 'Protecting Personal Information', subtitle: 'Keep phone, address, and IDs private.'),
+    _CybersecuritySection(
+        title: 'Safe Browsing',
+        subtitle: 'Verify sites, look for https, avoid suspicious pop-ups.'),
+    _CybersecuritySection(
+        title: 'Safe Downloading',
+        subtitle: 'Only download from trusted sources and scan files.'),
+    _CybersecuritySection(
+        title: 'Recognizing Online Scams',
+        subtitle: 'Spot urgency, check sender, avoid strange links.'),
+    _CybersecuritySection(
+        title: 'Safe Social Media Use',
+        subtitle: 'Protect personal info and control privacy.'),
+    _CybersecuritySection(
+        title: 'Public Wi‑Fi Safety',
+        subtitle: 'Avoid sensitive logins and auto‑connect.'),
+    _CybersecuritySection(
+        title: 'Protecting Personal Information',
+        subtitle: 'Keep phone, address, and IDs private.'),
   ];
 
   int _currentSectionIndex = 0;
@@ -2120,14 +5382,26 @@ class _CybersecurityModuleOneSixScreenState extends State<CybersecurityModuleOne
   void _goBack() => _goToSection(_currentSectionIndex - 1);
   void _goForward() => _goToSection(_currentSectionIndex + 1);
 
-  Widget _buildMiniCard({required String title, required String body, required Color tint}) {
+  Widget _buildMiniCard(
+      {required String title, required String body, required Color tint}) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: tint.withOpacity(0.14), borderRadius: BorderRadius.circular(18), border: Border.all(color: tint.withOpacity(0.45))),
+      decoration: BoxDecoration(
+          color: tint.withOpacity(0.14),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: tint.withOpacity(0.45))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
+        Text(title,
+            style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 14)),
         const SizedBox(height: 6),
-        Text(body, style: TextStyle(color: Colors.white.withOpacity(0.86), fontSize: 13, height: 1.45)),
+        Text(body,
+            style: TextStyle(
+                color: Colors.white.withOpacity(0.86),
+                fontSize: 13,
+                height: 1.45)),
       ]),
     );
   }
@@ -2136,40 +5410,88 @@ class _CybersecurityModuleOneSixScreenState extends State<CybersecurityModuleOne
     switch (idx) {
       case 0:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'Look for secure connections', body: 'Check for https:// and the lock icon. Verify the URL carefully for small spelling changes.', tint: widget.color),
+          _buildMiniCard(
+              title: 'Look for secure connections',
+              body:
+                  'Check for https:// and the lock icon. Verify the URL carefully for small spelling changes.',
+              tint: widget.color),
           const SizedBox(height: 10),
-          _buildMiniCard(title: 'Avoid unsafe sites', body: 'Leave sites with aggressive pop‑ups or pressure prompts; don’t click suspicious banners.', tint: const Color(0xFFFF7043)),
+          _buildMiniCard(
+              title: 'Avoid unsafe sites',
+              body:
+                  'Leave sites with aggressive pop‑ups or pressure prompts; don’t click suspicious banners.',
+              tint: const Color(0xFFFF7043)),
         ]);
       case 1:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'Download from trusted sources', body: 'Use official app stores or the developer’s website. Avoid .exe/.apk/.zip from unknown places.', tint: const Color(0xFF66BB6A)),
+          _buildMiniCard(
+              title: 'Download from trusted sources',
+              body:
+                  'Use official app stores or the developer’s website. Avoid .exe/.apk/.zip from unknown places.',
+              tint: const Color(0xFF66BB6A)),
           const SizedBox(height: 10),
-          _buildMiniCard(title: 'Scan files', body: 'Scan downloads with antivirus before opening; avoid cracked software.', tint: widget.color),
+          _buildMiniCard(
+              title: 'Scan files',
+              body:
+                  'Scan downloads with antivirus before opening; avoid cracked software.',
+              tint: widget.color),
         ]);
       case 2:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'Spot scams', body: 'Urgent or threatening language, improbable prizes, links that don’t match the sender — these are red flags.', tint: widget.color),
+          _buildMiniCard(
+              title: 'Spot scams',
+              body:
+                  'Urgent or threatening language, improbable prizes, links that don’t match the sender — these are red flags.',
+              tint: widget.color),
           const SizedBox(height: 10),
-          _buildMiniCard(title: 'Before you click', body: 'Verify sender, check grammar/spelling, and confirm via a known channel if in doubt.', tint: const Color(0xFFFF7043)),
+          _buildMiniCard(
+              title: 'Before you click',
+              body:
+                  'Verify sender, check grammar/spelling, and confirm via a known channel if in doubt.',
+              tint: const Color(0xFFFF7043)),
         ]);
       case 3:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'Protect personal info', body: 'Keep your profiles private and avoid sharing location, school, or routine details.', tint: widget.color),
+          _buildMiniCard(
+              title: 'Protect personal info',
+              body:
+                  'Keep your profiles private and avoid sharing location, school, or routine details.',
+              tint: widget.color),
           const SizedBox(height: 10),
-          _buildMiniCard(title: 'Be selective with connections', body: 'Only accept requests from people you know; remember posted content can be saved even after deletion.', tint: const Color(0xFF64B5F6)),
+          _buildMiniCard(
+              title: 'Be selective with connections',
+              body:
+                  'Only accept requests from people you know; remember posted content can be saved even after deletion.',
+              tint: const Color(0xFF64B5F6)),
         ]);
       case 4:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'Public Wi‑Fi risks', body: 'Avoid logging into banking or email on public Wi‑Fi; attackers can intercept traffic.', tint: widget.color),
+          _buildMiniCard(
+              title: 'Public Wi‑Fi risks',
+              body:
+                  'Avoid logging into banking or email on public Wi‑Fi; attackers can intercept traffic.',
+              tint: widget.color),
           const SizedBox(height: 10),
-          _buildMiniCard(title: 'Safer alternatives', body: 'Use your phone hotspot, turn off auto‑connect, and prefer mobile data for sensitive work.', tint: const Color(0xFFFF7043)),
+          _buildMiniCard(
+              title: 'Safer alternatives',
+              body:
+                  'Use your phone hotspot, turn off auto‑connect, and prefer mobile data for sensitive work.',
+              tint: const Color(0xFFFF7043)),
         ]);
       case 5:
       default:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _buildMiniCard(title: 'Protecting personal info', body: 'Don’t post phone numbers, addresses, or ID numbers. Use app privacy settings and never share passwords.', tint: widget.color),
+          _buildMiniCard(
+              title: 'Protecting personal info',
+              body:
+                  'Don’t post phone numbers, addresses, or ID numbers. Use app privacy settings and never share passwords.',
+              tint: widget.color),
           const SizedBox(height: 10),
-          _buildMiniCard(title: 'Good habits', body: 'Limit personal details, review privacy settings, and be cautious before sharing.', tint: const Color(0xFF66BB6A)),
+          _buildMiniCard(
+              title: 'Good habits',
+              body:
+                  'Limit personal details, review privacy settings, and be cautious before sharing.',
+              tint: const Color(0xFF66BB6A)),
         ]);
     }
   }
@@ -2183,28 +5505,184 @@ class _CybersecurityModuleOneSixScreenState extends State<CybersecurityModuleOne
           decoration: const BoxDecoration(gradient: appBackgroundGradient),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-            child: Column(children: [
-              Row(children: [
-                IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white)),
-                const SizedBox(width: 4),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(widget.course, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 2),
-                  Text('Level 1 · Safe Internet Practices', style: TextStyle(color: Colors.white.withOpacity(0.72), fontSize: 12)),
-                ])),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(999), border: Border.all(color: Colors.white12)), child: const Text('1.6', style: TextStyle(color: Colors.white70, fontSize: 11))),
-              ]),
-              const SizedBox(height: 12),
-              ClipRRect(borderRadius: BorderRadius.circular(999), child: LinearProgressIndicator(value: _progress.clamp(0.0, 1.0), minHeight: 9, backgroundColor: Colors.white.withOpacity(0.08), valueColor: AlwaysStoppedAnimation<Color>(widget.color))),
-              const SizedBox(height: 14),
-              Expanded(child: Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(28), border: Border.all(color: Colors.white12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 28, offset: Offset(0,16))]), child: Align(alignment: Alignment.topCenter, child: AnimatedSwitcher(duration: const Duration(milliseconds: 340), child: SingleChildScrollView(key: ValueKey(_currentSectionIndex), physics: const BouncingScrollPhysics(), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: widget.color.withOpacity(0.14), borderRadius: BorderRadius.circular(999), border: Border.all(color: widget.color.withOpacity(0.35))), child: Text(_sections[_currentSectionIndex].subtitle, style: TextStyle(color: widget.color.withOpacity(0.95), fontSize:12, fontWeight: FontWeight.w700),),),
-                const SizedBox(height: 18),
-                _buildSectionContent(_currentSectionIndex),
-              ])))),),),
-              const SizedBox(height: 14),
-              Row(children: [Expanded(child: GestureDetector(onTap: _canGoBack ? _goBack : null, child: AnimatedOpacity(duration: const Duration(milliseconds:180), opacity: _canGoBack ? 1 : 0.45, child: Container(height:54, decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white12)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size:18), SizedBox(width:8), Text('Back', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize:14)),],),),),),), const SizedBox(width:12), Expanded(child: GestureDetector(onTap: _canGoForward ? _goForward : null, child: AnimatedOpacity(duration: const Duration(milliseconds:180), opacity: _canGoForward ? 1 : 0.45, child: Container(height:54, decoration: BoxDecoration(gradient: LinearGradient(colors: [widget.color, widget.color.withOpacity(0.78)]), borderRadius: BorderRadius.circular(18), boxShadow: [BoxShadow(color: widget.color.withOpacity(0.32), blurRadius: 18, offset: const Offset(0,8))],), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text(_canGoForward ? 'Next' : 'Done', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize:14),), const SizedBox(width:8), Icon(_canGoForward ? Icons.arrow_forward_ios_rounded : Icons.check_rounded, color: Colors.white, size:18),],),),),),),],),
-            ],),
+            child: Column(
+              children: [
+                Row(children: [
+                  IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white)),
+                  const SizedBox(width: 4),
+                  Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        Text(widget.course,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 2),
+                        Text('Level 1 · Safe Internet Practices',
+                            style: TextStyle(
+                                color: Colors.white.withOpacity(0.72),
+                                fontSize: 12)),
+                      ])),
+                  Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: Colors.white12)),
+                      child: const Text('1.6',
+                          style:
+                              TextStyle(color: Colors.white70, fontSize: 11))),
+                ]),
+                const SizedBox(height: 12),
+                ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                        value: _progress.clamp(0.0, 1.0),
+                        minHeight: 9,
+                        backgroundColor: Colors.white.withOpacity(0.08),
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(widget.color))),
+                const SizedBox(height: 14),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(color: Colors.white12),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 28,
+                              offset: Offset(0, 16))
+                        ]),
+                    child: Align(
+                        alignment: Alignment.topCenter,
+                        child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 340),
+                            child: SingleChildScrollView(
+                                key: ValueKey(_currentSectionIndex),
+                                physics: const BouncingScrollPhysics(),
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 8),
+                                        decoration: BoxDecoration(
+                                            color:
+                                                widget.color.withOpacity(0.14),
+                                            borderRadius:
+                                                BorderRadius.circular(999),
+                                            border: Border.all(
+                                                color: widget.color
+                                                    .withOpacity(0.35))),
+                                        child: Text(
+                                          _sections[_currentSectionIndex]
+                                              .subtitle,
+                                          style: TextStyle(
+                                              color: widget.color
+                                                  .withOpacity(0.95),
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 18),
+                                      _buildSectionContent(
+                                          _currentSectionIndex),
+                                    ])))),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _canGoBack ? _goBack : null,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 180),
+                          opacity: _canGoBack ? 1 : 0.45,
+                          child: Container(
+                            height: 54,
+                            decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: Colors.white12)),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.arrow_back_ios_rounded,
+                                    color: Colors.white, size: 18),
+                                SizedBox(width: 8),
+                                Text('Back',
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 14)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _canGoForward ? _goForward : null,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 180),
+                          opacity: _canGoForward ? 1 : 0.45,
+                          child: Container(
+                            height: 54,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(colors: [
+                                widget.color,
+                                widget.color.withOpacity(0.78)
+                              ]),
+                              borderRadius: BorderRadius.circular(18),
+                              boxShadow: [
+                                BoxShadow(
+                                    color: widget.color.withOpacity(0.32),
+                                    blurRadius: 18,
+                                    offset: const Offset(0, 8))
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  _canGoForward ? 'Next' : 'Done',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 14),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                    _canGoForward
+                                        ? Icons.arrow_forward_ios_rounded
+                                        : Icons.check_rounded,
+                                    color: Colors.white,
+                                    size: 18),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -2250,7 +5728,9 @@ class _DiagonalConnectorPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DiagonalConnectorPainter oldDelegate) {
-    return oldDelegate.color != color || oldDelegate.startFrac != startFrac || oldDelegate.endFrac != endFrac;
+    return oldDelegate.color != color ||
+        oldDelegate.startFrac != startFrac ||
+        oldDelegate.endFrac != endFrac;
   }
 }
 
@@ -2271,7 +5751,8 @@ class _LevelNode extends StatefulWidget {
   State<_LevelNode> createState() => _LevelNodeState();
 }
 
-class _LevelNodeState extends State<_LevelNode> with SingleTickerProviderStateMixin {
+class _LevelNodeState extends State<_LevelNode>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1450),
@@ -2339,7 +5820,8 @@ class _LevelNodeState extends State<_LevelNode> with SingleTickerProviderStateMi
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        final pulse = isActive ? (0.5 + 0.5 * sin(_controller.value * pi * 2)) : 0.0;
+        final pulse =
+            isActive ? (0.5 + 0.5 * sin(_controller.value * pi * 2)) : 0.0;
         final glowOpacity = isActive ? 0.32 + (pulse * 0.28) : 0.0;
         final glowBlur = isActive ? 16 + (pulse * 7) : 0.0;
         final glowSpread = isActive ? 0.4 + (pulse * 0.8) : 0.0;
@@ -2382,7 +5864,8 @@ class _LevelNodeState extends State<_LevelNode> with SingleTickerProviderStateMi
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.18 + (pulse * 0.18)),
+                              color: Colors.white
+                                  .withOpacity(0.18 + (pulse * 0.18)),
                               width: 1.0 + (pulse * 0.4),
                             ),
                           ),
@@ -2491,14 +5974,17 @@ class CybersecurityLevelOneScreen extends StatefulWidget {
   });
 
   @override
-  State<CybersecurityLevelOneScreen> createState() => _CybersecurityLevelOneScreenState();
+  State<CybersecurityLevelOneScreen> createState() =>
+      _CybersecurityLevelOneScreenState();
 }
 
-class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScreen> {
+class _CybersecurityLevelOneScreenState
+    extends State<CybersecurityLevelOneScreen> {
   static const List<_CybersecuritySection> _sections = [
     _CybersecuritySection(
       title: 'What Cybersecurity Is',
-      subtitle: 'Start with the core idea before moving deeper into the module.',
+      subtitle:
+          'Start with the core idea before moving deeper into the module.',
     ),
     _CybersecuritySection(
       title: 'Why Cybersecurity Matters',
@@ -2506,7 +5992,8 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
     ),
     _CybersecuritySection(
       title: 'The CIA Triad',
-      subtitle: 'Confidentiality, integrity, and availability are the core model.',
+      subtitle:
+          'Confidentiality, integrity, and availability are the core model.',
     ),
     _CybersecuritySection(
       title: 'Types of Data Cybersecurity Protects',
@@ -2701,14 +6188,16 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
           children: [
             _buildSectionHero(
               label: 'What cybersecurity is',
-              body: 'Cybersecurity is the practice of protecting computers, phones, networks, accounts, data, and the people using them from digital threats. It is digital safety for the tools we rely on every day.',
+              body:
+                  'Cybersecurity is the practice of protecting computers, phones, networks, accounts, data, and the people using them from digital threats. It is digital safety for the tools we rely on every day.',
               icon: Icons.shield_rounded,
               tint: fblaGold,
             ),
             const SizedBox(height: 14),
             _buildMiniCard(
               title: 'Think of it this way',
-              body: 'A secure device should work the way it is supposed to, keep your information private, and resist misuse from outsiders or harmful software.',
+              body:
+                  'A secure device should work the way it is supposed to, keep your information private, and resist misuse from outsiders or harmful software.',
               tint: const Color(0xFF64B5F6),
             ),
             const SizedBox(height: 14),
@@ -2729,20 +6218,23 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
           children: [
             _buildSectionHero(
               label: 'Why it matters',
-              body: 'We use technology for almost everything: schoolwork, banking, communication, entertainment, shopping, and storing personal information. That makes cybersecurity part of everyday life, not just a computer topic.',
+              body:
+                  'We use technology for almost everything: schoolwork, banking, communication, entertainment, shopping, and storing personal information. That makes cybersecurity part of everyday life, not just a computer topic.',
               icon: Icons.public_rounded,
               tint: const Color(0xFF64B5F6),
             ),
             const SizedBox(height: 14),
             _buildMiniCard(
               title: 'If cybersecurity fails, attackers can:',
-              body: 'Steal identities, access private accounts, damage devices, spread harmful software, cause financial loss, and disrupt important services.',
+              body:
+                  'Steal identities, access private accounts, damage devices, spread harmful software, cause financial loss, and disrupt important services.',
               tint: const Color(0xFFFF7043),
             ),
             const SizedBox(height: 14),
             _buildMiniCard(
               title: 'Big picture',
-              body: 'When cybersecurity works well, people can study, work, message, shop, and bank online with more confidence. It protects privacy, safety, and trust in the digital world.',
+              body:
+                  'When cybersecurity works well, people can study, work, message, shop, and bank online with more confidence. It protects privacy, safety, and trust in the digital world.',
               tint: widget.color,
             ),
           ],
@@ -2753,26 +6245,30 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
           children: [
             _buildSectionHero(
               label: 'The CIA Triad',
-              body: 'Confidentiality, integrity, and availability are the foundation of cybersecurity. Every security decision connects to at least one of these three goals.',
+              body:
+                  'Confidentiality, integrity, and availability are the foundation of cybersecurity. Every security decision connects to at least one of these three goals.',
               icon: Icons.lock_rounded,
               tint: fblaGold,
             ),
             const SizedBox(height: 14),
             _buildMiniCard(
               title: 'Confidentiality',
-              body: 'Information should only be seen by the right people. Examples include passwords, medical records, and private messages. Tools that help include encryption, passwords, and access controls.',
+              body:
+                  'Information should only be seen by the right people. Examples include passwords, medical records, and private messages. Tools that help include encryption, passwords, and access controls.',
               tint: fblaGold,
             ),
             const SizedBox(height: 12),
             _buildMiniCard(
               title: 'Integrity',
-              body: 'Information must stay accurate and unaltered. Grades should not be changed, bank balances should not be modified, and files should not be corrupted. Tools that help include checksums, version control, and digital signatures.',
+              body:
+                  'Information must stay accurate and unaltered. Grades should not be changed, bank balances should not be modified, and files should not be corrupted. Tools that help include checksums, version control, and digital signatures.',
               tint: const Color(0xFF66BB6A),
             ),
             const SizedBox(height: 12),
             _buildMiniCard(
               title: 'Availability',
-              body: 'Information and systems must be accessible when needed. School websites, emergency services, and cloud storage should stay online. Threats include DDoS attacks, power outages, and system failures.',
+              body:
+                  'Information and systems must be accessible when needed. School websites, emergency services, and cloud storage should stay online. Threats include DDoS attacks, power outages, and system failures.',
               tint: const Color(0xFF64B5F6),
             ),
           ],
@@ -2783,7 +6279,8 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
           children: [
             _buildSectionHero(
               label: 'What data needs protection',
-              body: 'Cybersecurity protects many kinds of information. Anything stored digitally can become a target if it is not protected properly.',
+              body:
+                  'Cybersecurity protects many kinds of information. Anything stored digitally can become a target if it is not protected properly.',
               icon: Icons.storage_rounded,
               tint: const Color(0xFF66BB6A),
             ),
@@ -2797,7 +6294,8 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
             const SizedBox(height: 10),
             _buildMiniCard(
               title: 'Bottom line',
-              body: 'Anything stored digitally needs protection. The more sensitive the data, the stronger the security should be.',
+              body:
+                  'Anything stored digitally needs protection. The more sensitive the data, the stronger the security should be.',
               tint: widget.color,
             ),
           ],
@@ -2808,7 +6306,8 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
           children: [
             _buildSectionHero(
               label: 'Related but different',
-              body: 'Cybersecurity and information security overlap, but they are not identical. The difference matters when deciding what needs to be protected and how wide the protection should reach.',
+              body:
+                  'Cybersecurity and information security overlap, but they are not identical. The difference matters when deciding what needs to be protected and how wide the protection should reach.',
               icon: Icons.compare_arrows_rounded,
               tint: fblaAccent,
             ),
@@ -2821,13 +6320,15 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
             const SizedBox(height: 12),
             _buildMiniCard(
               title: 'Information Security',
-              body: 'Protects all information, whether digital or physical, like paper files.',
+              body:
+                  'Protects all information, whether digital or physical, like paper files.',
               tint: const Color(0xFF64B5F6),
             ),
             const SizedBox(height: 14),
             _buildMiniCard(
               title: 'Relationship',
-              body: 'Cybersecurity is a subset of information security. Information security is the broader category because it also covers physical information, like paper files.',
+              body:
+                  'Cybersecurity is a subset of information security. Information security is the broader category because it also covers physical information, like paper files.',
               tint: widget.color,
             ),
           ],
@@ -2838,7 +6339,8 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
           children: [
             _buildSectionHero(
               label: 'Everyday habits',
-              body: 'Cyber hygiene is a set of simple habits that dramatically reduce risk. The goal is not perfection; it is to make attacks harder and mistakes less likely.',
+              body:
+                  'Cyber hygiene is a set of simple habits that dramatically reduce risk. The goal is not perfection; it is to make attacks harder and mistakes less likely.',
               icon: Icons.cleaning_services_rounded,
               tint: const Color(0xFFFF7043),
             ),
@@ -2853,7 +6355,8 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
             const SizedBox(height: 12),
             _buildMiniCard(
               title: 'Memory trick',
-              body: 'Cyber hygiene is like brushing your teeth: small habits prevent big problems. A few safe choices every day can block a lot of common attacks.',
+              body:
+                  'Cyber hygiene is like brushing your teeth: small habits prevent big problems. A few safe choices every day can block a lot of common attacks.',
               tint: widget.color,
             ),
           ],
@@ -2865,7 +6368,8 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
           children: [
             _buildSectionHero(
               label: 'Real-world cyber risks',
-              body: 'These examples show how cybersecurity failures appear in everyday life. Most attacks rely on tricking people, exploiting weak passwords, or hiding malware inside something that looks harmless.',
+              body:
+                  'These examples show how cybersecurity failures appear in everyday life. Most attacks rely on tricking people, exploiting weak passwords, or hiding malware inside something that looks harmless.',
               icon: Icons.warning_amber_rounded,
               tint: const Color(0xFFF06292),
             ),
@@ -2878,7 +6382,8 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
             const SizedBox(height: 10),
             _buildMiniCard(
               title: 'Takeaway',
-              body: 'If a message, network, or download feels unusual, pause and verify it before you click, connect, or share. That one habit stops many real attacks.',
+              body:
+                  'If a message, network, or download feels unusual, pause and verify it before you click, connect, or share. That one habit stops many real attacks.',
               tint: widget.color,
             ),
           ],
@@ -2901,7 +6406,8 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
                   children: [
                     IconButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white),
                     ),
                     const SizedBox(width: 4),
                     Expanded(
@@ -2930,7 +6436,8 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(999),
@@ -2978,7 +6485,8 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
                         switchInCurve: Curves.easeOutCubic,
                         switchOutCurve: Curves.easeInCubic,
                         transitionBuilder: (child, animation) {
-                          final fade = Tween<double>(begin: 0.0, end: 1.0).animate(animation);
+                          final fade = Tween<double>(begin: 0.0, end: 1.0)
+                              .animate(animation);
                           final slide = Tween<Offset>(
                             begin: const Offset(0.06, 0.02),
                             end: Offset.zero,
@@ -2998,11 +6506,13 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
                                 decoration: BoxDecoration(
                                   color: widget.color.withOpacity(0.14),
                                   borderRadius: BorderRadius.circular(999),
-                                  border: Border.all(color: widget.color.withOpacity(0.35)),
+                                  border: Border.all(
+                                      color: widget.color.withOpacity(0.35)),
                                 ),
                                 child: Text(
                                   _sections[_currentSectionIndex].subtitle,
@@ -3041,7 +6551,8 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
                             child: const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 18),
+                                Icon(Icons.arrow_back_ios_rounded,
+                                    color: Colors.white, size: 18),
                                 SizedBox(width: 8),
                                 Text(
                                   'Back',
@@ -3068,7 +6579,10 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
                             height: 54,
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
-                                colors: [widget.color, widget.color.withOpacity(0.78)],
+                                colors: [
+                                  widget.color,
+                                  widget.color.withOpacity(0.78)
+                                ],
                               ),
                               borderRadius: BorderRadius.circular(18),
                               boxShadow: [
@@ -3092,7 +6606,9 @@ class _CybersecurityLevelOneScreenState extends State<CybersecurityLevelOneScree
                                 ),
                                 const SizedBox(width: 8),
                                 Icon(
-                                  _canGoForward ? Icons.arrow_forward_ios_rounded : Icons.check_rounded,
+                                  _canGoForward
+                                      ? Icons.arrow_forward_ios_rounded
+                                      : Icons.check_rounded,
                                   color: Colors.white,
                                   size: 18,
                                 ),
@@ -3125,7 +6641,8 @@ class _CybersecuritySection {
 
 class _NoGlowScrollBehavior extends ScrollBehavior {
   @override
-  Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) {
+  Widget buildOverscrollIndicator(
+      BuildContext context, Widget child, ScrollableDetails details) {
     return child;
   }
 }
@@ -3183,7 +6700,8 @@ class _CourseTile extends StatelessWidget {
                     const Positioned(
                       bottom: 2,
                       left: 2,
-                      child: Icon(Icons.check_circle, color: fblaGold, size: 13),
+                      child:
+                          Icon(Icons.check_circle, color: fblaGold, size: 13),
                     ),
                   Positioned(
                     top: 2,
@@ -3197,7 +6715,8 @@ class _CourseTile extends StatelessWidget {
                           color: Colors.black45,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.close, size: 10, color: Colors.white),
+                        child: const Icon(Icons.close,
+                            size: 10, color: Colors.white),
                       ),
                     ),
                   ),
@@ -3304,10 +6823,12 @@ class _CourseSelectionScreenState extends State<CourseSelectionScreen> {
       }
     }
 
-    final items = grouped.entries.where((entry) => entry.value.isNotEmpty).toList();
+    final items =
+        grouped.entries.where((entry) => entry.value.isNotEmpty).toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Add Course'), backgroundColor: fblaNavy),
+      appBar:
+          AppBar(title: const Text('Add Course'), backgroundColor: fblaNavy),
       backgroundColor: const Color(0xFF0B1624),
       body: Column(
         children: [
@@ -3357,13 +6878,26 @@ class _CourseSelectionScreenState extends State<CourseSelectionScreen> {
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 260),
                         curve: Curves.easeInOut,
-                        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                        margin: const EdgeInsets.symmetric(
+                            vertical: 6, horizontal: 4),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12, horizontal: 12),
                         decoration: BoxDecoration(
-                          color: selected ? const Color(0xFF123A6A) : const Color(0xFF07121A),
+                          color: selected
+                              ? const Color(0xFF123A6A)
+                              : const Color(0xFF07121A),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: selected ? fblaAccent : Colors.white12, width: 1.2),
-                          boxShadow: selected ? [BoxShadow(color: fblaAccent.withOpacity(0.12), blurRadius: 8, offset: Offset(0,4))] : null,
+                          border: Border.all(
+                              color: selected ? fblaAccent : Colors.white12,
+                              width: 1.2),
+                          boxShadow: selected
+                              ? [
+                                  BoxShadow(
+                                      color: fblaAccent.withOpacity(0.12),
+                                      blurRadius: 8,
+                                      offset: Offset(0, 4))
+                                ]
+                              : null,
                         ),
                         child: Row(
                           children: [
@@ -3371,7 +6905,9 @@ class _CourseSelectionScreenState extends State<CourseSelectionScreen> {
                               width: 40,
                               height: 40,
                               decoration: BoxDecoration(
-                                color: selected ? fblaAccent.withOpacity(0.25) : Colors.blueGrey.shade700,
+                                color: selected
+                                    ? fblaAccent.withOpacity(0.25)
+                                    : Colors.blueGrey.shade700,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Icon(
@@ -3381,14 +6917,19 @@ class _CourseSelectionScreenState extends State<CourseSelectionScreen> {
                               ),
                             ),
                             const SizedBox(width: 12),
-                            Expanded(child: Text(eventName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))),
+                            Expanded(
+                                child: Text(eventName,
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600))),
                             AnimatedOpacity(
                               opacity: selected ? 1.0 : 0.0,
                               duration: const Duration(milliseconds: 200),
                               child: AnimatedScale(
                                 scale: selected ? 1.0 : 0.8,
                                 duration: const Duration(milliseconds: 200),
-                                child: const Icon(Icons.check_circle, color: Color(0xFFFDB913)),
+                                child: const Icon(Icons.check_circle,
+                                    color: Color(0xFFFDB913)),
                               ),
                             ),
                           ],
@@ -3428,7 +6969,8 @@ class CompetitiveEventsScreen extends StatefulWidget {
   const CompetitiveEventsScreen({super.key});
 
   @override
-  State<CompetitiveEventsScreen> createState() => _CompetitiveEventsScreenState();
+  State<CompetitiveEventsScreen> createState() =>
+      _CompetitiveEventsScreenState();
 }
 
 class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
@@ -3461,9 +7003,11 @@ class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
     _CompetitiveEventItem('Spreadsheet Applications', 'Production Events'),
     _CompetitiveEventItem(
         'Virtual Business Finance Challenge', 'Virtual & Partner Challenges'),
-    _CompetitiveEventItem('FBLA Stock Market Game', 'Virtual & Partner Challenges'),
+    _CompetitiveEventItem(
+        'FBLA Stock Market Game', 'Virtual & Partner Challenges'),
     _CompetitiveEventItem('Community Service Project', 'Chapter Events'),
-    _CompetitiveEventItem('Local Chapter Annual Business Report', 'Chapter Events'),
+    _CompetitiveEventItem(
+        'Local Chapter Annual Business Report', 'Chapter Events'),
   ];
 
   @override
@@ -3483,7 +7027,8 @@ class _CompetitiveEventsScreenState extends State<CompetitiveEventsScreen> {
       return categoryMatch && queryMatch;
     }).toList();
 
-    filtered.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    filtered
+        .sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     return filtered;
   }
 
@@ -3928,7 +7473,8 @@ class CompetitiveEventDetailScreen extends StatelessWidget {
           _StudyPackResource(
             title: '${event.name} Daily Practice',
             description: '10–15 sample multiple-choice questions each day.',
-            url: 'https://quizlet.com/search?query=FBLA%20${Uri.encodeComponent(event.name)}',
+            url:
+                'https://quizlet.com/search?query=FBLA%20${Uri.encodeComponent(event.name)}',
             linkLabel: 'Open Quizlet Sets',
           ),
         ];
@@ -3957,7 +7503,8 @@ class CompetitiveEventDetailScreen extends StatelessWidget {
           ),
           _StudyPackResource(
             title: '${event.name} Scoring Rubric',
-            description: 'Checklist for delivery, visuals, and Q&A performance.',
+            description:
+                'Checklist for delivery, visuals, and Q&A performance.',
             url: 'https://www.fbla-pbl.org/competitive-events/',
             linkLabel: 'Scoring Rubric',
           ),
@@ -3979,8 +7526,10 @@ class CompetitiveEventDetailScreen extends StatelessWidget {
         return [
           _StudyPackResource(
             title: '${event.name} Login Gateway',
-            description: 'Direct access to challenge portals and simulation tools.',
-            url: 'https://knowledgematters.com/high-school/virtual-business-challenge/',
+            description:
+                'Direct access to challenge portals and simulation tools.',
+            url:
+                'https://knowledgematters.com/high-school/virtual-business-challenge/',
             linkLabel: 'Open Portal',
           ),
           _StudyPackResource(
@@ -3992,7 +7541,8 @@ class CompetitiveEventDetailScreen extends StatelessWidget {
         return [
           _StudyPackResource(
             title: '${event.name} Project Guide',
-            description: 'Official project structure and submission instructions.',
+            description:
+                'Official project structure and submission instructions.',
             url: 'https://www.fbla-pbl.org/competitive-events/',
             linkLabel: 'Project Rules',
           ),
@@ -4045,10 +7595,12 @@ class CybersecurityOfficialDocumentsScreen extends StatefulWidget {
   const CybersecurityOfficialDocumentsScreen({super.key});
 
   @override
-  State<CybersecurityOfficialDocumentsScreen> createState() => _CybersecurityOfficialDocumentsScreenState();
+  State<CybersecurityOfficialDocumentsScreen> createState() =>
+      _CybersecurityOfficialDocumentsScreenState();
 }
 
-class _CybersecurityOfficialDocumentsScreenState extends State<CybersecurityOfficialDocumentsScreen> {
+class _CybersecurityOfficialDocumentsScreenState
+    extends State<CybersecurityOfficialDocumentsScreen> {
   static const List<_OfficialDocumentEntry> _documents = [
     _OfficialDocumentEntry(
       title: 'Cybersecurity Guidelines',
@@ -4187,7 +7739,8 @@ class _CybersecurityOfficialDocumentsScreenState extends State<CybersecurityOffi
                           decoration: BoxDecoration(
                             color: fblaGold.withOpacity(0.16),
                             borderRadius: BorderRadius.circular(22),
-                            border: Border.all(color: fblaGold.withOpacity(0.35)),
+                            border:
+                                Border.all(color: fblaGold.withOpacity(0.35)),
                           ),
                           child: const Icon(
                             Icons.description_outlined,
@@ -4228,10 +7781,14 @@ class _CybersecurityOfficialDocumentsScreenState extends State<CybersecurityOffi
                                 duration: const Duration(milliseconds: 180),
                                 padding: const EdgeInsets.all(14),
                                 decoration: BoxDecoration(
-                                  color: selected ? fblaGold.withOpacity(0.10) : Colors.white.withOpacity(0.04),
+                                  color: selected
+                                      ? fblaGold.withOpacity(0.10)
+                                      : Colors.white.withOpacity(0.04),
                                   borderRadius: BorderRadius.circular(18),
                                   border: Border.all(
-                                    color: selected ? fblaGold.withOpacity(0.6) : Colors.white12,
+                                    color: selected
+                                        ? fblaGold.withOpacity(0.6)
+                                        : Colors.white12,
                                   ),
                                 ),
                                 child: Row(
@@ -4243,12 +7800,14 @@ class _CybersecurityOfficialDocumentsScreenState extends State<CybersecurityOffi
                                         color: fblaGold.withOpacity(0.16),
                                         borderRadius: BorderRadius.circular(16),
                                       ),
-                                      child: Icon(document.icon, color: fblaGold, size: 26),
+                                      child: Icon(document.icon,
+                                          color: fblaGold, size: 26),
                                     ),
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             document.title,
@@ -4262,7 +7821,8 @@ class _CybersecurityOfficialDocumentsScreenState extends State<CybersecurityOffi
                                           Text(
                                             document.subtitle,
                                             style: TextStyle(
-                                              color: Colors.white.withOpacity(0.68),
+                                              color: Colors.white
+                                                  .withOpacity(0.68),
                                               fontSize: 12,
                                             ),
                                           ),
@@ -4271,8 +7831,10 @@ class _CybersecurityOfficialDocumentsScreenState extends State<CybersecurityOffi
                                     ),
                                     IconButton(
                                       visualDensity: VisualDensity.compact,
-                                      onPressed: () => _showDocumentDetails(document),
-                                      icon: const Icon(Icons.info_outline, color: Colors.white70),
+                                      onPressed: () =>
+                                          _showDocumentDetails(document),
+                                      icon: const Icon(Icons.info_outline,
+                                          color: Colors.white70),
                                     ),
                                   ],
                                 ),
@@ -4400,7 +7962,8 @@ class CompetitiveEventStudyPacksScreen extends StatelessWidget {
         ),
         _StudyPackResource(
           title: 'FBLA Format Guide',
-          description: 'Formatting standards reference for reports and letters.',
+          description:
+              'Formatting standards reference for reports and letters.',
           url: 'https://www.fbla-pbl.org/competitive-events/',
           linkLabel: 'Format Standards',
         ),

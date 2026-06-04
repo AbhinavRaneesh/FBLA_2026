@@ -19,6 +19,7 @@ import 'screens/resources_screen.dart';
 import 'screens/firebase_auth_screen.dart';
 import 'screens/edit_profile_screen.dart';
 import 'screens/chatbot_screen.dart';
+import 'screens/find_members_screen.dart';
 import 'ai/bloc/chat_bloc.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'services/firebase_service.dart';
@@ -46,7 +47,8 @@ const LinearGradient appBackgroundGradient = LinearGradient(
 
 // Optional fallback URI for local testing only.
 // Leave empty to require --dart-define=MONGODB_URI=...
-const hardcodedMongoUri = 'mongodb+srv://kushal:KushalNarkhede@fbla.ig6iamr.mongodb.net/?appName=FBLA';
+const hardcodedMongoUri =
+    'mongodb+srv://kushal:KushalNarkhede@fbla.ig6iamr.mongodb.net/?appName=FBLA';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -69,7 +71,7 @@ void main() async {
       'Set --dart-define=MONGODB_URI=... or hardcodedMongoUri in main.dart',
     );
   }
-  
+
   final prefs = await SharedPreferences.getInstance();
   runApp(MyApp(prefs: prefs));
 }
@@ -112,14 +114,14 @@ class AppState extends ChangeNotifier {
 
   Future<void> _initializeFirebase() async {
     if (_firebaseInitialized) return;
-    
+
     try {
       await Firebase.initializeApp();
       print('🔥 Firebase initialized successfully');
       _firebaseInitialized = true;
 
       await _loadAppDataFromFirestore();
-      
+
       // Firebase auth state listener
       FirebaseService.authStateChanges.listen((User? user) {
         firebaseUser = user;
@@ -162,7 +164,6 @@ class AppState extends ChangeNotifier {
           .map(_competitionFromFirestore)
           .toList();
       threads = (results[3] as List<Map<String, dynamic>>)
-      
           .map(_threadFromFirestore)
           .toList();
 
@@ -911,72 +912,76 @@ class MyApp extends StatelessWidget {
       create: (_) => AppState(prefs: prefs),
       child: Consumer<AppState>(
         builder: (context, app, child) => MaterialApp(
-        title: 'FBLA Member App',
-        theme: ThemeData(
-          primaryColor: fblaNavy,
-          colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.indigo)
-              .copyWith(secondary: fblaGold),
-          appBarTheme: AppBarTheme(
-            backgroundColor: fblaNavy,
-            titleTextStyle: TextStyle(
-                fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
+          title: 'FBLA Member App',
+          theme: ThemeData(
+            primaryColor: fblaNavy,
+            colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.indigo)
+                .copyWith(secondary: fblaGold),
+            appBarTheme: AppBarTheme(
               backgroundColor: fblaNavy,
-              foregroundColor: Colors.white,
+              titleTextStyle: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white),
+            ),
+            elevatedButtonTheme: ElevatedButtonThemeData(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: fblaNavy,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+            ),
+            cardTheme: CardThemeData(
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  borderRadius: BorderRadius.circular(16)),
+              elevation: 3,
+              margin: EdgeInsets.symmetric(vertical: 8),
             ),
           ),
-          cardTheme: CardThemeData(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 3,
-            margin: EdgeInsets.symmetric(vertical: 8),
-          ),
-        ),
-        darkTheme: ThemeData(
-          brightness: Brightness.dark,
-          primaryColor: fblaNavy,
-          colorScheme: ColorScheme.dark(
-            primary: fblaNavy,
-            secondary: fblaGold,
-            surface: Colors.grey.shade900,
-          ),
-          appBarTheme: AppBarTheme(
-            backgroundColor: fblaNavy,
-            titleTextStyle: TextStyle(
-                fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
+          darkTheme: ThemeData(
+            brightness: Brightness.dark,
+            primaryColor: fblaNavy,
+            colorScheme: ColorScheme.dark(
+              primary: fblaNavy,
+              secondary: fblaGold,
+              surface: Colors.grey.shade900,
+            ),
+            appBarTheme: AppBarTheme(
               backgroundColor: fblaNavy,
-              foregroundColor: Colors.white,
+              titleTextStyle: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white),
+            ),
+            elevatedButtonTheme: ElevatedButtonThemeData(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: fblaNavy,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+            ),
+            cardTheme: CardThemeData(
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  borderRadius: BorderRadius.circular(16)),
+              elevation: 3,
+              margin: EdgeInsets.symmetric(vertical: 8),
+              color: Colors.grey.shade800,
             ),
           ),
-          cardTheme: CardThemeData(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 3,
-            margin: EdgeInsets.symmetric(vertical: 8),
-            color: Colors.grey.shade800,
-          ),
-        ),
-        themeMode: ThemeMode.dark,
-        debugShowCheckedModeBanner: false,
-        routes: {
-          '/login': (_) => const LoginScreen(),
-          '/signup': (_) => const SignupScreen(),
-          '/onboarding': (_) => const OnboardingScreen(),
-          '/firebase_auth': (_) => const FirebaseAuthScreen(),
-          '/home': (_) => RootScreen(),
-        },
-        home: AuthGate(),
+          themeMode: ThemeMode.dark,
+          debugShowCheckedModeBanner: false,
+          routes: {
+            '/login': (_) => const LoginScreen(),
+            '/signup': (_) => const SignupScreen(),
+            '/onboarding': (_) => const OnboardingScreen(),
+            '/firebase_auth': (_) => const FirebaseAuthScreen(),
+            '/home': (_) => RootScreen(),
+          },
+          home: AuthGate(),
         ),
       ),
     );
@@ -1154,8 +1159,10 @@ class _RootScreenState extends State<RootScreen> {
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
             BottomNavigationBarItem(icon: Icon(Icons.event), label: 'Events'),
-            BottomNavigationBarItem(icon: Icon(Icons.school), label: 'Resources'),
-            BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'More'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.school), label: 'Resources'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.more_horiz), label: 'More'),
           ],
         ),
         floatingActionButton: const AiAssistantFab(),
@@ -1209,10 +1216,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late Future<List<Video>> _youtubeVideosFuture;
-  static const String _instagramProfileUrl = 'https://www.instagram.com/fbla_national/';
-  static const String _youtubeChannelUrl = 'https://www.youtube.com/@fbla_national';
+  static const String _instagramProfileUrl =
+      'https://www.instagram.com/fbla_national/';
+  static const String _youtubeChannelUrl =
+      'https://www.youtube.com/@fbla_national';
   static const String _facebookUrl = 'https://www.facebook.com/FBLAPBL/';
-  static const String _linkedinUrl = 'https://www.linkedin.com/company/fbla-pbl/';
+  static const String _linkedinUrl =
+      'https://www.linkedin.com/company/fbla-pbl/';
   static const String _xUrl = 'https://x.com/FBLA_National';
   static const String _linktreeUrl = 'https://linktr.ee/FBLA_National';
 
@@ -1299,8 +1309,7 @@ class _HomeScreenState extends State<HomeScreen> {
         .where((event) => event.end.isAfter(DateTime.now()))
         .take(3)
         .toList();
-    final latestNews = [...app.news]
-      ..sort((a, b) => b.date.compareTo(a.date));
+    final latestNews = [...app.news]..sort((a, b) => b.date.compareTo(a.date));
     final featuredNews = latestNews.take(3).toList();
     final firstName = app.displayName.trim().isEmpty
         ? 'Member'
@@ -1351,7 +1360,8 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () {},
           ),
           Padding(
-            padding: const EdgeInsets.only(right: 12, top: 6, bottom: 6, left: 4),
+            padding:
+                const EdgeInsets.only(right: 12, top: 6, bottom: 6, left: 4),
             child: Material(
               color: Colors.transparent,
               child: InkWell(
@@ -1394,62 +1404,61 @@ class _HomeScreenState extends State<HomeScreen> {
       body: RefreshIndicator(
         onRefresh: _refreshYouTubeVideos,
         child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: listPadding,
-            children: [
-              _buildHeroCard(firstName, nextEvent),
-              SizedBox(height: blockSpacing),
-              _buildStatsRow(app, nextEvents, featuredNews),
-              SizedBox(height: sectionSpacing),
-              _buildSectionTitle(
-                title: 'Quick Actions',
-                subtitle: 'Jump into the areas members use most',
-              ),
-              SizedBox(height: smallSpacing),
-              _buildQuickActions(),
-              SizedBox(height: sectionSpacing),
-              _buildSectionTitle(
-                title: 'Upcoming Events',
-                subtitle: 'Keep track of deadlines, meetings, and reminders',
-              ),
-              SizedBox(height: smallSpacing),
-              if (nextEvents.isEmpty)
-                _buildEmptyStateCard(
-                  icon: Icons.event_busy,
-                  title: 'No upcoming events',
-                  subtitle: 'New events will show up here as they are added.',
-                )
-              else
-                ...nextEvents.map((event) => _buildEventCard(app, event)),
-              SizedBox(height: sectionSpacing),
-              _buildSectionTitle(
-                title: 'Latest Updates',
-                subtitle: 'Announcements and chapter news at a glance',
-              ),
-              SizedBox(height: smallSpacing),
-              if (featuredNews.isEmpty)
-                _buildEmptyStateCard(
-                  icon: Icons.campaign_outlined,
-                  title: 'No announcements yet',
-                  subtitle: 'Check back soon for chapter and national updates.',
-                )
-              else
-                ...featuredNews.map(_buildAnnouncementCard),
-              SizedBox(height: sectionSpacing),
-              _buildSectionTitle(
-                title: 'Stay Connected',
-                subtitle:
-                    'Official FBLA social channels',
-              ),
-              SizedBox(height: smallSpacing),
-              _buildSocialLinksCard(),
-              SizedBox(height: isCompact ? 10 : 14),
-              _buildInstagramPreviewCard(fblaBlue),
-              SizedBox(height: isCompact ? 10 : 14),
-              _buildYouTubePreviewSection(fblaBlue),
-            ],
-          ),
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: listPadding,
+          children: [
+            _buildHeroCard(firstName, nextEvent),
+            SizedBox(height: blockSpacing),
+            _buildStatsRow(app, nextEvents, featuredNews),
+            SizedBox(height: sectionSpacing),
+            _buildSectionTitle(
+              title: 'Quick Actions',
+              subtitle: 'Jump into the areas members use most',
+            ),
+            SizedBox(height: smallSpacing),
+            _buildQuickActions(),
+            SizedBox(height: sectionSpacing),
+            _buildSectionTitle(
+              title: 'Upcoming Events',
+              subtitle: 'Keep track of deadlines, meetings, and reminders',
+            ),
+            SizedBox(height: smallSpacing),
+            if (nextEvents.isEmpty)
+              _buildEmptyStateCard(
+                icon: Icons.event_busy,
+                title: 'No upcoming events',
+                subtitle: 'New events will show up here as they are added.',
+              )
+            else
+              ...nextEvents.map((event) => _buildEventCard(app, event)),
+            SizedBox(height: sectionSpacing),
+            _buildSectionTitle(
+              title: 'Latest Updates',
+              subtitle: 'Announcements and chapter news at a glance',
+            ),
+            SizedBox(height: smallSpacing),
+            if (featuredNews.isEmpty)
+              _buildEmptyStateCard(
+                icon: Icons.campaign_outlined,
+                title: 'No announcements yet',
+                subtitle: 'Check back soon for chapter and national updates.',
+              )
+            else
+              ...featuredNews.map(_buildAnnouncementCard),
+            SizedBox(height: sectionSpacing),
+            _buildSectionTitle(
+              title: 'Stay Connected',
+              subtitle: 'Official FBLA social channels',
+            ),
+            SizedBox(height: smallSpacing),
+            _buildSocialLinksCard(),
+            SizedBox(height: isCompact ? 10 : 14),
+            _buildInstagramPreviewCard(fblaBlue),
+            SizedBox(height: isCompact ? 10 : 14),
+            _buildYouTubePreviewSection(fblaBlue),
+          ],
         ),
+      ),
     );
   }
 
@@ -1588,7 +1597,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
                     side: BorderSide(color: Colors.white.withOpacity(0.30)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
                     ),
@@ -1603,13 +1613,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const ResourcesScreen()),
+                      MaterialPageRoute(
+                          builder: (_) => const ResourcesScreen()),
                     );
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
                     side: BorderSide(color: Colors.white.withOpacity(0.30)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
                     ),
@@ -1705,6 +1717,20 @@ class _HomeScreenState extends State<HomeScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const ResourcesScreen()),
+            );
+          },
+        ),
+        _ModernQuickButton(
+          icon: Icons.business_center_outlined,
+          label: 'Official FBLA',
+          subtitle: 'Programs & NLC',
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1D4E89), Color(0xFFFDB913)],
+          ),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const FBLAOfficialHubScreen()),
             );
           },
         ),
@@ -1822,7 +1848,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               if (saved)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFDB913).withOpacity(0.16),
                     borderRadius: BorderRadius.circular(999),
@@ -1859,7 +1886,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     foregroundColor: Colors.white,
                     side: BorderSide(color: Colors.white.withOpacity(0.12)),
                   ),
-                  icon: Icon(saved ? Icons.notifications_off : Icons.notifications),
+                  icon: Icon(
+                      saved ? Icons.notifications_off : Icons.notifications),
                   label: Text(saved ? 'Remove Reminder' : 'Set Reminder'),
                 ),
               ),
@@ -1913,7 +1941,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: const Color(0xFF8E44AD).withOpacity(0.18),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: const Icon(Icons.campaign, color: Color(0xFFCB9FFF)),
+                      child:
+                          const Icon(Icons.campaign, color: Color(0xFFCB9FFF)),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -2263,7 +2292,8 @@ class _HomeScreenState extends State<HomeScreen> {
               else ...[
                 ...youtubeVideos
                     .take(4)
-                    .map((video) => _buildYouTubePostCard(context, video, accentColor))
+                    .map((video) =>
+                        _buildYouTubePostCard(context, video, accentColor))
                     .toList(),
               ],
             ],
@@ -2273,7 +2303,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildYouTubePostCard(BuildContext context, Video video, Color accentColor) {
+  Widget _buildYouTubePostCard(
+      BuildContext context, Video video, Color accentColor) {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       child: Material(
@@ -2283,7 +2314,8 @@ class _HomeScreenState extends State<HomeScreen> {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => VideoPlayerScreen(video: video)),
+              MaterialPageRoute(
+                  builder: (_) => VideoPlayerScreen(video: video)),
             );
           },
           child: Container(
@@ -2351,7 +2383,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       height: 190,
                       color: Colors.grey.shade800,
                       alignment: Alignment.center,
-                      child: Icon(Icons.broken_image, color: Colors.grey.shade500),
+                      child:
+                          Icon(Icons.broken_image, color: Colors.grey.shade500),
                     ),
                   ),
                 ),
@@ -2381,9 +2414,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    Icon(Icons.play_circle_outline, color: Colors.grey.shade300, size: 18),
+                    Icon(Icons.play_circle_outline,
+                        color: Colors.grey.shade300, size: 18),
                     const SizedBox(width: 6),
-                    Text('Watch', style: TextStyle(color: Colors.grey.shade300, fontSize: 12)),
+                    Text('Watch',
+                        style: TextStyle(
+                            color: Colors.grey.shade300, fontSize: 12)),
                     const Spacer(),
                     Icon(Icons.open_in_new, color: accentColor, size: 18),
                   ],
@@ -2577,7 +2613,8 @@ class _InstagramFeedEmbedState extends State<_InstagramFeedEmbed> {
       return false;
     }
 
-    final segments = uri.pathSegments.where((segment) => segment.isNotEmpty).toList();
+    final segments =
+        uri.pathSegments.where((segment) => segment.isNotEmpty).toList();
     if (segments.isEmpty) {
       return true;
     }
@@ -2778,7 +2815,7 @@ class _ModernQuickButton extends StatelessWidget {
   Widget build(BuildContext context) {
     // Extract the primary color from gradient for text and borders
     final primaryColor = gradient.colors.first;
-    
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -2906,14 +2943,15 @@ class _EventsScreenState extends State<EventsScreen> {
                 },
               )
             : null,
-        title: Text(_showDayEvents 
+        title: Text(_showDayEvents
             ? 'Events on ${_selectedDate.month}/${_selectedDate.day}/${_selectedDate.year}'
             : 'Events & Schedule'),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: Colors.white,
       ),
-      floatingActionButton: const AiAssistantFab(heroTag: 'events_ai_assistant_fab'),
+      floatingActionButton:
+          const AiAssistantFab(heroTag: 'events_ai_assistant_fab'),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: _showDayEvents
           ? _buildDayEventsView(context, dateFilteredEvents)
@@ -2921,7 +2959,8 @@ class _EventsScreenState extends State<EventsScreen> {
     );
   }
 
-  Widget _buildCalendarView(BuildContext context, List<Event> allEvents, Color fblaBlue) {
+  Widget _buildCalendarView(
+      BuildContext context, List<Event> allEvents, Color fblaBlue) {
     final selectedCount = _eventsForDay(allEvents, _selectedDate).length;
     return Column(
       children: [
@@ -2944,7 +2983,8 @@ class _EventsScreenState extends State<EventsScreen> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white,
                   side: BorderSide(color: fblaBlue.withOpacity(0.8)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 icon: const Icon(Icons.calendar_month, size: 16),
                 label: Text('$_selectedYear'),
@@ -2988,7 +3028,8 @@ class _EventsScreenState extends State<EventsScreen> {
     );
   }
 
-  Widget _buildMonthCard(int year, int month, List<Event> allEvents, Color fblaBlue) {
+  Widget _buildMonthCard(
+      int year, int month, List<Event> allEvents, Color fblaBlue) {
     final monthDate = DateTime(year, month, 1);
     final daysInMonth = DateTime(year, month + 1, 0).day;
     final firstWeekdayOffset = monthDate.weekday - DateTime.monday;
@@ -3088,12 +3129,16 @@ class _EventsScreenState extends State<EventsScreen> {
                   decoration: BoxDecoration(
                     color: isSelected
                         ? fblaBlue
-                        : (isToday ? fblaBlue.withOpacity(0.2) : const Color(0xFF1A2943)),
+                        : (isToday
+                            ? fblaBlue.withOpacity(0.2)
+                            : const Color(0xFF1A2943)),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: isSelected
                           ? fblaBlue
-                          : (isToday ? fblaBlue.withOpacity(0.9) : Colors.white10),
+                          : (isToday
+                              ? fblaBlue.withOpacity(0.9)
+                              : Colors.white10),
                       width: isToday ? 1.4 : 1,
                     ),
                   ),
@@ -3105,7 +3150,8 @@ class _EventsScreenState extends State<EventsScreen> {
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 12.5,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                            fontWeight:
+                                isSelected ? FontWeight.w700 : FontWeight.w600,
                           ),
                         ),
                       ),
@@ -3114,7 +3160,8 @@ class _EventsScreenState extends State<EventsScreen> {
                           right: 3,
                           top: 3,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 1),
                             decoration: BoxDecoration(
                               color: const Color(0xFFF6C500),
                               borderRadius: BorderRadius.circular(999),
@@ -3172,10 +3219,13 @@ class _EventsScreenState extends State<EventsScreen> {
                 },
                 child: Container(
                   decoration: BoxDecoration(
-                    color: selected ? const Color(0xFF1D4E89) : const Color(0xFF1A2640),
+                    color: selected
+                        ? const Color(0xFF1D4E89)
+                        : const Color(0xFF1A2640),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: selected ? const Color(0xFFF6C500) : Colors.white10,
+                      color:
+                          selected ? const Color(0xFFF6C500) : Colors.white10,
                     ),
                   ),
                   alignment: Alignment.center,
@@ -3214,7 +3264,8 @@ class _EventsScreenState extends State<EventsScreen> {
                   color: const Color(0xFF13243D),
                   border: Border.all(color: Colors.white12),
                 ),
-                child: Icon(Icons.event_busy, size: 42, color: Colors.grey.shade400),
+                child: Icon(Icons.event_busy,
+                    size: 42, color: Colors.grey.shade400),
               ),
               const SizedBox(height: 16),
               Text(
@@ -3242,8 +3293,10 @@ class _EventsScreenState extends State<EventsScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: fblaBlue,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ],
@@ -3290,7 +3343,8 @@ class _EventsScreenState extends State<EventsScreen> {
                 child: Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: typeColor.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(20),
@@ -3299,7 +3353,8 @@ class _EventsScreenState extends State<EventsScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(_filterIcon(eventType), size: 14, color: typeColor),
+                          Icon(_filterIcon(eventType),
+                              size: 14, color: typeColor),
                           const SizedBox(width: 6),
                           Text(
                             eventType,
@@ -3319,13 +3374,14 @@ class _EventsScreenState extends State<EventsScreen> {
                         color: fblaGold,
                       ),
                       onPressed: () {
-                        Provider.of<AppState>(context, listen: false).toggleSaveEvent(e.id);
+                        Provider.of<AppState>(context, listen: false)
+                            .toggleSaveEvent(e.id);
                       },
                     ),
                   ],
                 ),
               ),
-              
+
               // Event Title
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -3338,7 +3394,7 @@ class _EventsScreenState extends State<EventsScreen> {
                   ),
                 ),
               ),
-              
+
               // Time and Location
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -3346,7 +3402,8 @@ class _EventsScreenState extends State<EventsScreen> {
                   children: [
                     _buildEventInfoChip(
                       icon: Icons.schedule,
-                      text: '${_shortDateTime(e.start)} - ${_shortDateTime(e.end)}',
+                      text:
+                          '${_shortDateTime(e.start)} - ${_shortDateTime(e.end)}',
                     ),
                   ],
                 ),
@@ -3362,7 +3419,7 @@ class _EventsScreenState extends State<EventsScreen> {
                   ],
                 ),
               ),
-              
+
               // Description
               if (e.description.isNotEmpty)
                 Padding(
@@ -3378,7 +3435,7 @@ class _EventsScreenState extends State<EventsScreen> {
                     ),
                   ),
                 ),
-              
+
               // Action Button
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -3395,7 +3452,8 @@ class _EventsScreenState extends State<EventsScreen> {
                         ),
                       );
                     },
-                    icon: const Icon(Icons.notifications_active_outlined, size: 18),
+                    icon: const Icon(Icons.notifications_active_outlined,
+                        size: 18),
                     label: const Text('Set Reminder'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: fblaBlue,
@@ -3613,14 +3671,16 @@ class _AddEventScreenState extends State<AddEventScreen> {
               todayBorder: BorderSide(color: Colors.white.withOpacity(0.7)),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: Colors.white.withOpacity(0.35), width: 1.4),
+                side: BorderSide(
+                    color: Colors.white.withOpacity(0.35), width: 1.4),
               ),
             ),
             dialogTheme: DialogThemeData(
               backgroundColor: Colors.black,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: Colors.white.withOpacity(0.35), width: 1.4),
+                side: BorderSide(
+                    color: Colors.white.withOpacity(0.35), width: 1.4),
               ),
             ),
           ),
@@ -3677,7 +3737,8 @@ class _AddEventScreenState extends State<AddEventScreen> {
               entryModeIconColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: Colors.white.withOpacity(0.35), width: 1.4),
+                side: BorderSide(
+                    color: Colors.white.withOpacity(0.35), width: 1.4),
               ),
             ),
           ),
@@ -3758,7 +3819,20 @@ class _AddEventScreenState extends State<AddEventScreen> {
   }
 
   String _formatDate(DateTime date) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
     const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return '${weekdays[date.weekday - 1]}, ${months[date.month - 1]} ${date.day}, ${date.year}';
   }
@@ -3816,11 +3890,12 @@ class _AddEventScreenState extends State<AddEventScreen> {
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.event_note, color: Colors.white, size: 40),
+                  child: const Icon(Icons.event_note,
+                      color: Colors.white, size: 40),
                 ),
               ),
               const SizedBox(height: 24),
-              
+
               // Event Name Section
               _buildSectionLabel('Event Details', Icons.edit_note),
               const SizedBox(height: 12),
@@ -3851,13 +3926,13 @@ class _AddEventScreenState extends State<AddEventScreen> {
                 icon: Icons.notes,
                 maxLines: 3,
               ),
-              
+
               const SizedBox(height: 28),
-              
+
               // Date & Time Section
               _buildSectionLabel('Date & Time', Icons.schedule),
               const SizedBox(height: 12),
-              
+
               // Date Picker Card
               _buildDateTimeCard(
                 icon: Icons.calendar_today,
@@ -3866,12 +3941,13 @@ class _AddEventScreenState extends State<AddEventScreen> {
                 onTap: _pickDate,
                 color: fblaBlue,
               ),
-              
+
               const SizedBox(height: 12),
-              
+
               // Time Toggle
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
                   color: const Color(0xFF1A2640),
                   borderRadius: BorderRadius.circular(14),
@@ -3879,7 +3955,8 @@ class _AddEventScreenState extends State<AddEventScreen> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.access_time, color: Colors.grey.shade400, size: 22),
+                    Icon(Icons.access_time,
+                        color: Colors.grey.shade400, size: 22),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -3907,7 +3984,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
                   ],
                 ),
               ),
-              
+
               // Time Pickers (animated)
               AnimatedSize(
                 duration: const Duration(milliseconds: 200),
@@ -3920,7 +3997,8 @@ class _AddEventScreenState extends State<AddEventScreen> {
                               child: _buildDateTimeCard(
                                 icon: Icons.play_arrow_rounded,
                                 label: 'Start',
-                                value: _startTime?.format(context) ?? 'Set time',
+                                value:
+                                    _startTime?.format(context) ?? 'Set time',
                                 onTap: _pickStartTime,
                                 color: const Color(0xFF4CAF50),
                                 compact: true,
@@ -3942,9 +4020,9 @@ class _AddEventScreenState extends State<AddEventScreen> {
                       )
                     : const SizedBox.shrink(),
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               // Create Button
               Container(
                 height: 56,
@@ -4030,7 +4108,8 @@ class _AddEventScreenState extends State<AddEventScreen> {
           hintStyle: TextStyle(color: Colors.grey.shade600),
           prefixIcon: Icon(icon, color: Colors.grey.shade400, size: 22),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
       ),
     );
@@ -4136,8 +4215,18 @@ class _MonthYearPickerSheetState extends State<_MonthYearPickerSheet> {
     final currentYear = DateTime.now().year;
     final years = List.generate(11, (i) => currentYear - 2 + i);
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
     ];
 
     return Container(
@@ -4163,7 +4252,7 @@ class _MonthYearPickerSheetState extends State<_MonthYearPickerSheet> {
             ),
           ),
           const SizedBox(height: 20),
-          
+
           // Year Selector
           SizedBox(
             height: 50,
@@ -4177,10 +4266,12 @@ class _MonthYearPickerSheetState extends State<_MonthYearPickerSheet> {
                   onTap: () => setState(() => _selectedYear = year),
                   child: Container(
                     margin: const EdgeInsets.symmetric(horizontal: 6),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
                     decoration: BoxDecoration(
                       gradient: isSelected
-                          ? LinearGradient(colors: [fblaBlue, fblaBlue.withOpacity(0.7)])
+                          ? LinearGradient(
+                              colors: [fblaBlue, fblaBlue.withOpacity(0.7)])
                           : null,
                       color: isSelected ? null : const Color(0xFF1A2640),
                       borderRadius: BorderRadius.circular(12),
@@ -4193,7 +4284,8 @@ class _MonthYearPickerSheetState extends State<_MonthYearPickerSheet> {
                         '$year',
                         style: TextStyle(
                           color: Colors.white,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontWeight:
+                              isSelected ? FontWeight.bold : FontWeight.normal,
                           fontSize: 16,
                         ),
                       ),
@@ -4204,7 +4296,7 @@ class _MonthYearPickerSheetState extends State<_MonthYearPickerSheet> {
             ),
           ),
           const SizedBox(height: 20),
-          
+
           // Month Grid
           GridView.builder(
             shrinkWrap: true,
@@ -4224,7 +4316,8 @@ class _MonthYearPickerSheetState extends State<_MonthYearPickerSheet> {
                 child: Container(
                   decoration: BoxDecoration(
                     gradient: isSelected
-                        ? LinearGradient(colors: [fblaBlue, fblaBlue.withOpacity(0.7)])
+                        ? LinearGradient(
+                            colors: [fblaBlue, fblaBlue.withOpacity(0.7)])
                         : null,
                     color: isSelected ? null : const Color(0xFF1A2640),
                     borderRadius: BorderRadius.circular(10),
@@ -4237,7 +4330,8 @@ class _MonthYearPickerSheetState extends State<_MonthYearPickerSheet> {
                       months[index],
                       style: TextStyle(
                         color: Colors.white,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
                   ),
@@ -4246,13 +4340,14 @@ class _MonthYearPickerSheetState extends State<_MonthYearPickerSheet> {
             },
           ),
           const SizedBox(height: 24),
-          
+
           // Confirm Button
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                widget.onDateSelected(DateTime(_selectedYear, _selectedMonth, 1));
+                widget
+                    .onDateSelected(DateTime(_selectedYear, _selectedMonth, 1));
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: fblaBlue,
@@ -4472,348 +4567,364 @@ class ProfileScreen extends StatelessWidget {
               backgroundColor: Colors.transparent,
               elevation: 0,
               title: const Text('Profile'),
-            actions: [
-              IconButton(
-                icon: Icon(Icons.settings_outlined, color: Colors.white),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                  );
-                },
-              ),
-            ],
-          ),
+              actions: [
+                IconButton(
+                  icon: Icon(Icons.settings_outlined, color: Colors.white),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                    );
+                  },
+                ),
+              ],
+            ),
 
-          SliverToBoxAdapter(
-            child: Container(
-              decoration: const BoxDecoration(color: Colors.transparent),
-              child: SafeArea(
-                top: false,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SizedBox(height: 24),
-                    Stack(
-                      children: [
-                        Hero(
-                          tag: 'profile_avatar',
-                          child: Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: fblaGold.withOpacity(0.5),
-                                  blurRadius: 20,
-                                  spreadRadius: 5,
-                                ),
-                              ],
-                            ),
-                            child: CircleAvatar(
-                              radius: 60,
-                              backgroundColor: fblaGold,
-                              backgroundImage: app.localProfileImageBytes != null
-                                  ? MemoryImage(app.localProfileImageBytes!)
-                                  : (app.userProfile?.photoUrl != null &&
-                                          app.userProfile!.photoUrl!.isNotEmpty
-                                      ? NetworkImage(app.userProfile!.photoUrl!)
-                                      : null) as ImageProvider<Object>?,
-                              child: app.localProfileImageBytes == null &&
-                                      (app.userProfile?.photoUrl == null ||
-                                          app.userProfile!.photoUrl!.isEmpty)
-                                  ? Text(
-                                      app.displayName.isNotEmpty
-                                          ? app.displayName[0].toUpperCase()
-                                          : 'F',
-                                      style: TextStyle(
-                                        fontSize: 42,
-                                        fontWeight: FontWeight.bold,
-                                        color: fblaBlue,
-                                      ),
-                                    )
-                                  : null,
+            SliverToBoxAdapter(
+              child: Container(
+                decoration: const BoxDecoration(color: Colors.transparent),
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(height: 24),
+                      Stack(
+                        children: [
+                          Hero(
+                            tag: 'profile_avatar',
+                            child: Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: fblaGold.withOpacity(0.5),
+                                    blurRadius: 20,
+                                    spreadRadius: 5,
+                                  ),
+                                ],
+                              ),
+                              child: CircleAvatar(
+                                radius: 60,
+                                backgroundColor: fblaGold,
+                                backgroundImage: app.localProfileImageBytes !=
+                                        null
+                                    ? MemoryImage(app.localProfileImageBytes!)
+                                    : (app.userProfile?.photoUrl != null &&
+                                            app.userProfile!.photoUrl!
+                                                .isNotEmpty
+                                        ? NetworkImage(
+                                            app.userProfile!.photoUrl!)
+                                        : null) as ImageProvider<Object>?,
+                                child: app.localProfileImageBytes == null &&
+                                        (app.userProfile?.photoUrl == null ||
+                                            app.userProfile!.photoUrl!.isEmpty)
+                                    ? Text(
+                                        app.displayName.isNotEmpty
+                                            ? app.displayName[0].toUpperCase()
+                                            : 'F',
+                                        style: TextStyle(
+                                          fontSize: 42,
+                                          fontWeight: FontWeight.bold,
+                                          color: fblaBlue,
+                                        ),
+                                      )
+                                    : null,
+                              ),
                             ),
                           ),
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () => _selectProfileImage(context),
-                              customBorder: const CircleBorder(),
-                              child: Container(
-                                padding: EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: fblaGold,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 3),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.2),
-                                      blurRadius: 8,
-                                    ),
-                                  ],
-                                ),
-                                child: Icon(
-                                  Icons.camera_alt,
-                                  size: 18,
-                                  color: fblaBlue,
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => _selectProfileImage(context),
+                                customBorder: const CircleBorder(),
+                                child: Container(
+                                  padding: EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: fblaGold,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Colors.white, width: 3),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.2),
+                                        blurRadius: 8,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    Icons.camera_alt,
+                                    size: 18,
+                                    color: fblaBlue,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
+                        ],
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        app.displayName.isNotEmpty
+                            ? app.displayName
+                            : 'FBLA Member',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: -0.5,
                         ),
-                      ],
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      app.displayName.isNotEmpty
-                          ? app.displayName
-                          : 'FBLA Member',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: -0.5,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      app.userEmail.isNotEmpty ? app.userEmail : 'Not signed in',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.white.withOpacity(0.9),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    SizedBox(height: 8),
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: fblaGold.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: fblaGold.withOpacity(0.5),
-                          width: 1.5,
+                      SizedBox(height: 4),
+                      Text(
+                        app.userEmail.isNotEmpty
+                            ? app.userEmail
+                            : 'Not signed in',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.9),
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.verified, size: 16, color: fblaGold),
-                          SizedBox(width: 6),
-                          Text(
-                            'Active Member',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: fblaGold,
-                              fontWeight: FontWeight.w600,
-                            ),
+                      SizedBox(height: 8),
+                      Container(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: fblaGold.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: fblaGold.withOpacity(0.5),
+                            width: 1.5,
                           ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.verified, size: 16, color: fblaGold),
+                            SizedBox(width: 6),
+                            Text(
+                              'Active Member',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: fblaGold,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 14),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // Content
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Stats Row
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: _buildModernStatCard(
+                                '${app.savedEventIds.length}',
+                                'Events',
+                                Icons.event,
+                                fblaBlue,
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: _buildModernStatCard(
+                                '12',
+                                'Posts',
+                                Icons.post_add,
+                                Color(0xFF6C63FF),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: _buildModernStatCard(
+                                '5',
+                                'Badges',
+                                Icons.emoji_events,
+                                fblaGold,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    SizedBox(height: 28),
+
+                    // Badges Section
+                    _buildModernSectionHeader(
+                        'Achievements', Icons.emoji_events, isDark, fblaBlue),
+                    SizedBox(height: 16),
+                    SizedBox(
+                      height: 140,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          _buildModernBadge('First Event',
+                              'Attended first event', Icons.star, fblaGold),
+                          _buildModernBadge('Active', 'Participated 5+ events',
+                              Icons.group, Color(0xFF2196F3)),
+                          _buildModernBadge('Competitor', 'Joined competition',
+                              Icons.emoji_events, Color(0xFF4CAF50)),
+                          _buildModernBadge('Leader', 'Led chapter activity',
+                              Icons.leaderboard, Color(0xFF9C27B0)),
+                          _buildModernBadge('Scholar', 'Completed materials',
+                              Icons.school, Color(0xFFFF9800)),
                         ],
                       ),
                     ),
-                    SizedBox(height: 14),
+                    SizedBox(height: 28),
+
+                    // Quick Actions
+                    _buildModernSectionHeader(
+                        'Quick Actions', Icons.bolt, isDark, fblaBlue),
+                    SizedBox(height: 16),
+                    _buildModernActionCard(
+                      context,
+                      'Edit Profile',
+                      'Update your information',
+                      Icons.edit_outlined,
+                      fblaBlue,
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const EditProfileScreen()),
+                      ),
+                    ),
+                    _buildModernActionCard(
+                      context,
+                      'Membership Status',
+                      'View and renew membership',
+                      Icons.card_membership_outlined,
+                      Color(0xFF4CAF50),
+                      () {
+                        final url = Uri.parse('https://www.fbla-pbl.org/');
+                        launchUrl(url);
+                      },
+                    ),
+                    _buildModernActionCard(
+                      context,
+                      'Notification Settings',
+                      'Manage your preferences',
+                      Icons.notifications_outlined,
+                      Color(0xFFFF9800),
+                      () {},
+                    ),
+                    _buildModernActionCard(
+                      context,
+                      'Help & Support',
+                      'Get help or contact support',
+                      Icons.help_outline,
+                      Color(0xFF9C27B0),
+                      () {},
+                    ),
+                    SizedBox(height: 24),
+
+                    // Logout Button
+                    Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            const Color(0xFF7A1D1D),
+                            const Color(0xFF4A0F0F),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: const Color(0xFFFF6B6B).withOpacity(0.55),
+                          width: 1.2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFB71C1C).withOpacity(0.35),
+                            blurRadius: 14,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () async {
+                            await app.logout();
+                            if (!context.mounted) return;
+                            Navigator.of(context, rootNavigator: true)
+                                .popUntil((route) => route.isFirst);
+                          },
+                          borderRadius: BorderRadius.circular(18),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 15,
+                              horizontal: 18,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 34,
+                                  height: 34,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.14),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(
+                                    Icons.logout_rounded,
+                                    color: Colors.white,
+                                    size: 19,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Log Out',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 16),
                   ],
                 ),
               ),
             ),
-          ),
-
-          // Content
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Stats Row
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      return Row(
-                        children: [
-                          Expanded(
-                            child: _buildModernStatCard(
-                              '${app.savedEventIds.length}',
-                              'Events',
-                              Icons.event,
-                              fblaBlue,
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: _buildModernStatCard(
-                              '12',
-                              'Posts',
-                              Icons.post_add,
-                              Color(0xFF6C63FF),
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: _buildModernStatCard(
-                              '5',
-                              'Badges',
-                              Icons.emoji_events,
-                              fblaGold,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                  SizedBox(height: 28),
-
-                  // Badges Section
-                  _buildModernSectionHeader('Achievements', Icons.emoji_events, isDark, fblaBlue),
-                  SizedBox(height: 16),
-                  SizedBox(
-                    height: 140,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        _buildModernBadge('First Event', 'Attended first event', Icons.star, fblaGold),
-                        _buildModernBadge('Active', 'Participated 5+ events', Icons.group, Color(0xFF2196F3)),
-                        _buildModernBadge('Competitor', 'Joined competition', Icons.emoji_events, Color(0xFF4CAF50)),
-                        _buildModernBadge('Leader', 'Led chapter activity', Icons.leaderboard, Color(0xFF9C27B0)),
-                        _buildModernBadge('Scholar', 'Completed materials', Icons.school, Color(0xFFFF9800)),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: 28),
-
-                  // Quick Actions
-                  _buildModernSectionHeader('Quick Actions', Icons.bolt, isDark, fblaBlue),
-                  SizedBox(height: 16),
-                  _buildModernActionCard(
-                    context,
-                    'Edit Profile',
-                    'Update your information',
-                    Icons.edit_outlined,
-                    fblaBlue,
-                    () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const EditProfileScreen()),
-                    ),
-                  ),
-                  _buildModernActionCard(
-                    context,
-                    'Membership Status',
-                    'View and renew membership',
-                    Icons.card_membership_outlined,
-                    Color(0xFF4CAF50),
-                    () {
-                      final url = Uri.parse('https://www.fbla-pbl.org/');
-                      launchUrl(url);
-                    },
-                  ),
-                  _buildModernActionCard(
-                    context,
-                    'Notification Settings',
-                    'Manage your preferences',
-                    Icons.notifications_outlined,
-                    Color(0xFFFF9800),
-                    () {},
-                  ),
-                  _buildModernActionCard(
-                    context,
-                    'Help & Support',
-                    'Get help or contact support',
-                    Icons.help_outline,
-                    Color(0xFF9C27B0),
-                    () {},
-                  ),
-                  SizedBox(height: 24),
-
-                  // Logout Button
-                  Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          const Color(0xFF7A1D1D),
-                          const Color(0xFF4A0F0F),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: const Color(0xFFFF6B6B).withOpacity(0.55),
-                        width: 1.2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFB71C1C).withOpacity(0.35),
-                          blurRadius: 14,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () async {
-                          await app.logout();
-                          if (!context.mounted) return;
-                          Navigator.of(context, rootNavigator: true)
-                              .popUntil((route) => route.isFirst);
-                        },
-                        borderRadius: BorderRadius.circular(18),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 15,
-                            horizontal: 18,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.14),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: const Icon(
-                                  Icons.logout_rounded,
-                                  color: Colors.white,
-                                  size: 19,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Text(
-                                'Log Out',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                ],
-              ),
-            ),
-          ),
-        ],
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildModernStatCard(String value, String label, IconData icon, Color color) {
+  Widget _buildModernStatCard(
+      String value, String label, IconData icon, Color color) {
     return Container(
       padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -4852,7 +4963,8 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildModernSectionHeader(String title, IconData icon, bool isDark, Color fblaBlue) {
+  Widget _buildModernSectionHeader(
+      String title, IconData icon, bool isDark, Color fblaBlue) {
     return Row(
       children: [
         Container(
@@ -4876,7 +4988,8 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildModernBadge(String title, String description, IconData icon, Color color) {
+  Widget _buildModernBadge(
+      String title, String description, IconData icon, Color color) {
     return Container(
       width: 110,
       margin: EdgeInsets.only(right: 12),
@@ -5010,7 +5123,654 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
+}
 
+class FBLAOfficialHubScreen extends StatelessWidget {
+  const FBLAOfficialHubScreen({super.key});
+
+  static const List<_FBLALinkCardData> _divisions = [
+    _FBLALinkCardData(
+      title: 'FBLA Middle School',
+      subtitle: 'Grades 5-9',
+      body:
+          'Introduces middle and junior high school students to business, career exploration, leadership, teamwork, and technical problem-solving.',
+      icon: Icons.school_outlined,
+      color: Color(0xFF64B5F6),
+      url: 'https://www.fbla.org/middle-school/',
+    ),
+    _FBLALinkCardData(
+      title: 'FBLA High School',
+      subtitle: 'Career preparation',
+      body:
+          'Helps students prepare for careers in business through academic competitions, leadership development, educational programs, and career pathway exposure.',
+      icon: Icons.workspace_premium_outlined,
+      color: Color(0xFFFDB913),
+      url: 'https://www.fbla.org/high-school/',
+    ),
+    _FBLALinkCardData(
+      title: 'FBLA Collegiate',
+      subtitle: 'College and postsecondary',
+      body:
+          'Empowers the next generation of business and industry leaders through networking, skill building, competitive events, scholarships, and career experiences.',
+      icon: Icons.business_center_outlined,
+      color: Color(0xFF66BB6A),
+      url: 'https://www.fbla.org/collegiate/',
+    ),
+    _FBLALinkCardData(
+      title: 'FBLA Network',
+      subtitle: 'Alumni and professionals',
+      body:
+          'Connects alumni and industry professionals with opportunities to mentor, speak, judge events, sponsor programs, and support future business leaders.',
+      icon: Icons.hub_outlined,
+      color: Color(0xFFBA68C8),
+      url: 'https://www.fbla.org/alumni/',
+    ),
+  ];
+
+  static const List<_FBLALinkCardData> _connectLinks = [
+    _FBLALinkCardData(
+      title: 'News',
+      subtitle: 'Official announcements',
+      body: 'Read the latest national FBLA updates, stories, and releases.',
+      icon: Icons.newspaper_outlined,
+      color: Color(0xFF64B5F6),
+      url: 'https://www.fbla.org/news/',
+    ),
+    _FBLALinkCardData(
+      title: 'Brand Center',
+      subtitle: 'Logos and brand resources',
+      body: 'Access official identity resources for consistent FBLA branding.',
+      icon: Icons.palette_outlined,
+      color: Color(0xFFFDB913),
+      url: 'https://www.fbla.org/brand-center/',
+    ),
+    _FBLALinkCardData(
+      title: 'FBLA Help Desk',
+      subtitle: 'Support',
+      body: 'Get help with membership, conferences, resources, and questions.',
+      icon: Icons.support_agent_outlined,
+      color: Color(0xFF66BB6A),
+      url: 'https://www.fbla.org/help-desk/',
+    ),
+  ];
+
+  static const List<_FBLALinkCardData> _getInvolved = [
+    _FBLALinkCardData(
+      title: 'Volunteer',
+      subtitle: 'Support student success',
+      body:
+          'Help with judging, career networking, resume reviews, scholarships, workshops, and national conference opportunities.',
+      icon: Icons.volunteer_activism_outlined,
+      color: Color(0xFF66BB6A),
+      url: 'https://www.fbla.org/volunteer/',
+    ),
+    _FBLALinkCardData(
+      title: 'Sponsors & Partners',
+      subtitle: 'Partner with FBLA',
+      body:
+          'Support educational programs, scholarships, discount programs, exhibits, and NLC competitive event awards.',
+      icon: Icons.handshake_outlined,
+      color: Color(0xFFFDB913),
+      url: 'https://www.fbla.org/fbla-sponsors/',
+    ),
+    _FBLALinkCardData(
+      title: 'Get Involved',
+      subtitle: 'All ways to participate',
+      body:
+          'Explore volunteering, the FBLA Network, donations, sponsorships, adviser resources, and additional support options.',
+      icon: Icons.diversity_3_outlined,
+      color: Color(0xFF64B5F6),
+      url: 'https://www.fbla.org/get-involved/',
+    ),
+  ];
+
+  Future<void> _openExternalLink(BuildContext context, String url) async {
+    final uri = Uri.parse(url);
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open link right now.')),
+      );
+    }
+  }
+
+  Widget _sectionTitle(String title, String subtitle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.66),
+            fontSize: 13,
+            height: 1.35,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _hero(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF133A72), Color(0xFF0B2341), Color(0xFF101B32)],
+        ),
+        border: Border.all(color: Colors.white12),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1D4E89).withValues(alpha: 0.26),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+            decoration: BoxDecoration(
+              color: fblaGold.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: fblaGold.withValues(alpha: 0.36)),
+            ),
+            child: const Text(
+              'Official FBLA Homepage',
+              style: TextStyle(
+                color: fblaGold,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Future Business Leaders of America',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 28,
+              height: 1.08,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'FBLA is the largest business career and technical student organization in the world. Each year, FBLA helps more than 200,000 middle school, high school, and college students prepare for careers in business.',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.82),
+              fontSize: 14,
+              height: 1.48,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: _miniStat(
+                  icon: Icons.groups_rounded,
+                  value: '200K+',
+                  label: 'students helped yearly',
+                  color: fblaGold,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _miniStat(
+                  icon: Icons.school_rounded,
+                  value: '3',
+                  label: 'student divisions',
+                  color: const Color(0xFF64B5F6),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () =>
+                  _openExternalLink(context, 'https://www.fbla.org/'),
+              icon: const Icon(Icons.open_in_new_rounded),
+              label: const Text('Open FBLA Website'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: fblaGold,
+                foregroundColor: fblaNavy,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniStat({
+    required IconData icon,
+    required String value,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.62),
+              fontSize: 11,
+              height: 1.25,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _linkCard(BuildContext context, _FBLALinkCardData item) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.055),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: item.color.withValues(alpha: 0.26)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: item.color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Icon(item.icon, color: item.color, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      item.subtitle,
+                      style: TextStyle(
+                        color: item.color,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            item.body,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.74),
+              fontSize: 13,
+              height: 1.42,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => _openExternalLink(context, item.url),
+              icon: const Icon(Icons.open_in_new_rounded, size: 17),
+              label: const Text('Learn More'),
+              style: TextButton.styleFrom(foregroundColor: item.color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _conferenceCard({
+    required BuildContext context,
+    required String division,
+    required String date,
+    required String location,
+    required String venue,
+    required String body,
+    required String url,
+    required Color color,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: color.withValues(alpha: 0.32)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            division,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            date,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$location · $venue',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.72),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            body,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.76),
+              fontSize: 13,
+              height: 1.42,
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextButton.icon(
+            onPressed: () => _openExternalLink(context, url),
+            icon: const Icon(Icons.open_in_new_rounded, size: 17),
+            label: const Text('Conference Details'),
+            style: TextButton.styleFrom(foregroundColor: color),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _futureNlcCard() {
+    const futures = [
+      _FBLAFutureConference('2027', 'Columbus, Ohio', 'June 23-26'),
+      _FBLAFutureConference('2028', 'Anaheim, California', 'June 23-26'),
+      _FBLAFutureConference('2029', 'Indianapolis, Indiana', 'June 25-28'),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.055),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        children: [
+          for (final item in futures)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 58,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: fblaGold.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      item.year,
+                      style: const TextStyle(
+                        color: fblaGold,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.location,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          item.date,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.62),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _contactCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.055),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Send a Message',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'The official homepage includes a contact form for full name, email, subject, and message. Use the button below to open the live FBLA contact flow.',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.72),
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () =>
+                  _openExternalLink(context, 'https://www.fbla.org/contact/'),
+              icon: const Icon(Icons.mail_outline_rounded),
+              label: const Text('Contact FBLA'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.24)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF07111F),
+      appBar: AppBar(
+        title: const Text('Official FBLA'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.white,
+      ),
+      body: Container(
+        decoration: const BoxDecoration(gradient: appBackgroundGradient),
+        child: SafeArea(
+          top: false,
+          child: ListView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            children: [
+              _hero(context),
+              const SizedBox(height: 24),
+              _sectionTitle(
+                'FBLA Divisions',
+                'Explore the main pathways highlighted across FBLA: Middle School, High School, Collegiate, and the FBLA Network.',
+              ),
+              const SizedBox(height: 12),
+              for (final division in _divisions) _linkCard(context, division),
+              const SizedBox(height: 20),
+              _sectionTitle(
+                'Save the Date: Upcoming Conferences',
+                'National Leadership Conference information from the official FBLA homepage and NLC pages.',
+              ),
+              const SizedBox(height: 12),
+              _conferenceCard(
+                context: context,
+                division: 'Collegiate NLC',
+                date: 'June 6-8, 2026',
+                location: 'Las Vegas, Nevada',
+                venue: 'Westgate Las Vegas',
+                body:
+                    'FBLA members convene to compete in leadership events, share successes, attend workshops and exhibits, and learn new ideas for shaping their career future.',
+                color: const Color(0xFF66BB6A),
+                url: 'https://www.fbla.org/nlc-collegiate/',
+              ),
+              _conferenceCard(
+                context: context,
+                division: 'Middle School & High School NLC',
+                date: 'June 29 - July 2, 2026',
+                location: 'San Antonio, Texas',
+                venue: 'Henry B. Gonzalez Convention Center',
+                body:
+                    'The 2026 Middle School & High School NLC brings members together for competitions, workshops, exhibits, and activities designed to make the most of San Antonio.',
+                color: const Color(0xFF64B5F6),
+                url: 'https://www.fbla.org/nlc-ms-hs/',
+              ),
+              const SizedBox(height: 10),
+              _sectionTitle(
+                'Future NLCs',
+                'Official future National Leadership Conference locations and dates.',
+              ),
+              const SizedBox(height: 12),
+              _futureNlcCard(),
+              const SizedBox(height: 20),
+              _sectionTitle(
+                'Connect',
+                'The official homepage links members to news, brand resources, and support.',
+              ),
+              const SizedBox(height: 12),
+              for (final link in _connectLinks) _linkCard(context, link),
+              const SizedBox(height: 20),
+              _sectionTitle(
+                'Get Involved',
+                'Volunteer, join the FBLA Network, sponsor, partner, donate, or support students as an adviser.',
+              ),
+              const SizedBox(height: 12),
+              for (final item in _getInvolved) _linkCard(context, item),
+              const SizedBox(height: 20),
+              _contactCard(context),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FBLALinkCardData {
+  final String title;
+  final String subtitle;
+  final String body;
+  final IconData icon;
+  final Color color;
+  final String url;
+
+  const _FBLALinkCardData({
+    required this.title,
+    required this.subtitle,
+    required this.body,
+    required this.icon,
+    required this.color,
+    required this.url,
+  });
+}
+
+class _FBLAFutureConference {
+  final String year;
+  final String location;
+  final String date;
+
+  const _FBLAFutureConference(this.year, this.location, this.date);
 }
 
 /* ------------------------
@@ -5025,7 +5785,7 @@ class MoreScreen extends StatelessWidget {
     final app = context.watch<AppState>();
     final isDeveloperMode =
         app.signupRole.trim().toLowerCase() == 'developer' ||
-        app.userEmail.trim().toLowerCase() == 'demo@fbla.app';
+            app.userEmail.trim().toLowerCase() == 'demo@fbla.app';
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -5038,12 +5798,19 @@ class MoreScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _buildGroupHeader(context, 'Community & Connection', Icons.groups_outlined),
+          _buildGroupHeader(
+              context, 'Community & Connection', Icons.groups_outlined),
           _buildMoreTile(
             context,
             title: 'Find Members',
             subtitle: 'Search local members and officers',
             icon: Icons.badge_outlined,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const FindMembersScreen()),
+              );
+            },
           ),
           _buildMoreTile(
             context,
@@ -5063,9 +5830,22 @@ class MoreScreen extends StatelessWidget {
             subtitle: 'Connect with chapter officers or advisers',
             icon: Icons.mark_chat_unread_outlined,
           ),
+          _buildMoreTile(
+            context,
+            title: 'Official FBLA Hub',
+            subtitle: 'Divisions, NLC, network, and get involved',
+            icon: Icons.business_center_outlined,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const FBLAOfficialHubScreen()),
+              );
+            },
+          ),
           const SizedBox(height: 20),
-
-          _buildGroupHeader(context, 'Leadership & Growth', Icons.emoji_events_outlined),
+          _buildGroupHeader(
+              context, 'Leadership & Growth', Icons.emoji_events_outlined),
           _buildMoreTile(
             context,
             title: 'BAA Progress Tracker',
@@ -5085,8 +5865,8 @@ class MoreScreen extends StatelessWidget {
             icon: Icons.workspace_premium_outlined,
           ),
           const SizedBox(height: 20),
-
-          _buildGroupHeader(context, 'Administration', Icons.admin_panel_settings_outlined),
+          _buildGroupHeader(
+              context, 'Administration', Icons.admin_panel_settings_outlined),
           _buildMoreTile(
             context,
             title: 'Attendance Tracker',
@@ -5106,7 +5886,6 @@ class MoreScreen extends StatelessWidget {
             icon: Icons.folder_open_outlined,
           ),
           const SizedBox(height: 20),
-
           _buildGroupHeader(context, 'Support', Icons.support_agent_outlined),
           _buildMoreTile(
             context,
@@ -5319,11 +6098,13 @@ class FaqScreen extends StatelessWidget {
   static const List<Map<String, String>> _faqItems = [
     {
       'q': 'How do I join FBLA at my school?',
-      'a': 'Ask your chapter adviser about local membership steps and dues payment deadlines.'
+      'a':
+          'Ask your chapter adviser about local membership steps and dues payment deadlines.'
     },
     {
       'q': 'Where do I see upcoming chapter events?',
-      'a': 'Open the Events tab to view monthly and weekly schedules with event details.'
+      'a':
+          'Open the Events tab to view monthly and weekly schedules with event details.'
     },
     {
       'q': 'How do I RSVP to an event?',
@@ -5331,15 +6112,18 @@ class FaqScreen extends StatelessWidget {
     },
     {
       'q': 'Can I set reminders for competitions?',
-      'a': 'Yes, tap Remind on an event card to schedule a local notification reminder.'
+      'a':
+          'Yes, tap Remind on an event card to schedule a local notification reminder.'
     },
     {
       'q': 'How do I update my profile photo?',
-      'a': 'Go to Profile and tap the camera icon on your avatar to pick a new image.'
+      'a':
+          'Go to Profile and tap the camera icon on your avatar to pick a new image.'
     },
     {
       'q': 'Why is dark mode always on?',
-      'a': 'The app currently uses a fixed dark theme to keep the interface consistent.'
+      'a':
+          'The app currently uses a fixed dark theme to keep the interface consistent.'
     },
     {
       'q': 'Where can I find competitive event categories?',
@@ -5355,7 +6139,7 @@ class FaqScreen extends StatelessWidget {
     },
     {
       'q': 'What does the circle badge on event cards mean?',
-      'a': 'Badge letters indicate category type (for example Pr, Po, R, or V).' 
+      'a': 'Badge letters indicate category type (for example Pr, Po, R, or V).'
     },
     {
       'q': 'How do I access FBLA Connect?',
@@ -5367,7 +6151,8 @@ class FaqScreen extends StatelessWidget {
     },
     {
       'q': 'Why does AI chat say it cannot connect?',
-      'a': 'AI requires a running Ollama server endpoint reachable from your device.'
+      'a':
+          'AI requires a running Ollama server endpoint reachable from your device.'
     },
     {
       'q': 'How do I sign out of the app?',
@@ -5375,15 +6160,18 @@ class FaqScreen extends StatelessWidget {
     },
     {
       'q': 'Where are chapter documents stored?',
-      'a': 'Use More > Document Library for bylaws, minutes, and chapter resources.'
+      'a':
+          'Use More > Document Library for bylaws, minutes, and chapter resources.'
     },
     {
       'q': 'Can I use the app offline?',
-      'a': 'Some local content may remain visible, but most live features require internet.'
+      'a':
+          'Some local content may remain visible, but most live features require internet.'
     },
     {
       'q': 'How do I report incorrect event information?',
-      'a': 'Share details with your chapter officer or adviser to update official data.'
+      'a':
+          'Share details with your chapter officer or adviser to update official data.'
     },
     {
       'q': 'Where can I review scholarship opportunities?',
@@ -5395,7 +6183,8 @@ class FaqScreen extends StatelessWidget {
     },
     {
       'q': 'Who should I contact for app support?',
-      'a': 'Start with your chapter adviser or officer team for account and access help.'
+      'a':
+          'Start with your chapter adviser or officer team for account and access help.'
     },
   ];
 
@@ -5415,47 +6204,49 @@ class FaqScreen extends StatelessWidget {
       body: Container(
         decoration: const BoxDecoration(gradient: appBackgroundGradient),
         child: ListView.separated(
-        padding: EdgeInsets.fromLTRB(14, 14, 14, 20 + bottomSafe + 16),
-        itemCount: _faqItems.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (context, index) {
-          final item = _faqItems[index];
-          return Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF111111),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: fblaBlue.withOpacity(0.35), width: 1.1),
-            ),
-            child: ExpansionTile(
-              collapsedIconColor: Colors.white70,
-              iconColor: Colors.white,
-              tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-              childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-              title: Text(
-                item['q'] ?? '',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
+          padding: EdgeInsets.fromLTRB(14, 14, 14, 20 + bottomSafe + 16),
+          itemCount: _faqItems.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          itemBuilder: (context, index) {
+            final item = _faqItems[index];
+            return Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF111111),
+                borderRadius: BorderRadius.circular(14),
+                border:
+                    Border.all(color: fblaBlue.withOpacity(0.35), width: 1.1),
               ),
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    item['a'] ?? '',
-                    style: TextStyle(
-                      color: Colors.grey.shade300,
-                      fontSize: 13,
-                      height: 1.4,
-                    ),
+              child: ExpansionTile(
+                collapsedIconColor: Colors.white70,
+                iconColor: Colors.white,
+                tilePadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                title: Text(
+                  item['q'] ?? '',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-              ],
-            ),
-          );
-        },
-      ),
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      item['a'] ?? '',
+                      style: TextStyle(
+                        color: Colors.grey.shade300,
+                        fontSize: 13,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -5486,131 +6277,136 @@ class SettingsScreen extends StatelessWidget {
         child: ListView(
           padding: EdgeInsets.all(16),
           children: [
-          // General Settings Section
-          _buildSectionHeader('General Settings', Icons.settings_outlined, fblaBlue),
-          SizedBox(height: 16),
-          
-          // Dark Mode Toggle
-          _buildSettingsCard(
-            context,
-            'Dark Mode',
-            'Dark theme is always enabled',
-            Icons.dark_mode_outlined,
-            Switch(
-              value: app.isDarkMode,
-              onChanged: null,
-              activeColor: fblaBlue,
+            // General Settings Section
+            _buildSectionHeader(
+                'General Settings', Icons.settings_outlined, fblaBlue),
+            SizedBox(height: 16),
+
+            // Dark Mode Toggle
+            _buildSettingsCard(
+              context,
+              'Dark Mode',
+              'Dark theme is always enabled',
+              Icons.dark_mode_outlined,
+              Switch(
+                value: app.isDarkMode,
+                onChanged: null,
+                activeColor: fblaBlue,
+              ),
             ),
-          ),
-          
-          // Notifications Settings
-          _buildSettingsCard(
-            context,
-            'Push Notifications',
-            'Receive notifications for events and updates',
-            Icons.notifications_outlined,
-            Switch(
-              value: true, // Default to enabled
-              onChanged: (value) {},
-              activeColor: fblaBlue,
+
+            // Notifications Settings
+            _buildSettingsCard(
+              context,
+              'Push Notifications',
+              'Receive notifications for events and updates',
+              Icons.notifications_outlined,
+              Switch(
+                value: true, // Default to enabled
+                onChanged: (value) {},
+                activeColor: fblaBlue,
+              ),
             ),
-          ),
-          
-          // Email Notifications
-          _buildSettingsCard(
-            context,
-            'Email Notifications',
-            'Receive email updates about events',
-            Icons.email_outlined,
-            Switch(
-              value: true, // Default to enabled
-              onChanged: (value) {},
-              activeColor: fblaBlue,
+
+            // Email Notifications
+            _buildSettingsCard(
+              context,
+              'Email Notifications',
+              'Receive email updates about events',
+              Icons.email_outlined,
+              Switch(
+                value: true, // Default to enabled
+                onChanged: (value) {},
+                activeColor: fblaBlue,
+              ),
             ),
-          ),
-          
-          SizedBox(height: 32),
-          
-          // Privacy & Security Section
-          _buildSectionHeader('Privacy & Security', Icons.security_outlined, fblaBlue),
-          SizedBox(height: 16),
-          
-          _buildSettingsCard(
-            context,
-            'Data Privacy',
-            'Manage your data and privacy settings',
-            Icons.privacy_tip_outlined,
-            Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
-            onTap: () {},
-          ),
-          
-          _buildSettingsCard(
-            context,
-            'Account Security',
-            'Password and security settings',
-            Icons.lock_outline,
-            Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
-            onTap: () {},
-          ),
-          
-          SizedBox(height: 32),
-          
-          // App Information Section
-          _buildSectionHeader('App Information', Icons.info_outline, fblaBlue),
-          SizedBox(height: 16),
-          
-          _buildSettingsCard(
-            context,
-            'About FBLA App',
-            'Version 1.0.0 • Learn more about the app',
-            Icons.info_outlined,
-            Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
-            onTap: () {
-              showDialog(
-                context: context,
-                builder: (_) => AlertDialog(
-                  title: Text('About FBLA Member App'),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Version: 1.0.0'),
-                      SizedBox(height: 8),
-                      Text('The official FBLA Member App for staying connected with your chapter, events, and resources.'),
-                      SizedBox(height: 8),
-                      Text('Built with Flutter for the best mobile experience.'),
+
+            SizedBox(height: 32),
+
+            // Privacy & Security Section
+            _buildSectionHeader(
+                'Privacy & Security', Icons.security_outlined, fblaBlue),
+            SizedBox(height: 16),
+
+            _buildSettingsCard(
+              context,
+              'Data Privacy',
+              'Manage your data and privacy settings',
+              Icons.privacy_tip_outlined,
+              Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
+              onTap: () {},
+            ),
+
+            _buildSettingsCard(
+              context,
+              'Account Security',
+              'Password and security settings',
+              Icons.lock_outline,
+              Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
+              onTap: () {},
+            ),
+
+            SizedBox(height: 32),
+
+            // App Information Section
+            _buildSectionHeader(
+                'App Information', Icons.info_outline, fblaBlue),
+            SizedBox(height: 16),
+
+            _buildSettingsCard(
+              context,
+              'About FBLA App',
+              'Version 1.0.0 • Learn more about the app',
+              Icons.info_outlined,
+              Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: Text('About FBLA Member App'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Version: 1.0.0'),
+                        SizedBox(height: 8),
+                        Text(
+                            'The official FBLA Member App for staying connected with your chapter, events, and resources.'),
+                        SizedBox(height: 8),
+                        Text(
+                            'Built with Flutter for the best mobile experience.'),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: Text('Close'),
+                      ),
                     ],
                   ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text('Close'),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-          
-          _buildSettingsCard(
-            context,
-            'Help & Support',
-            'Get help or contact support',
-            Icons.help_outline,
-            Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
-            onTap: () {},
-          ),
-          
-          _buildSettingsCard(
-            context,
-            'Terms of Service',
-            'Read our terms and conditions',
-            Icons.description_outlined,
-            Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
-            onTap: () {},
-          ),
-          
-          SizedBox(height: 24),
+                );
+              },
+            ),
+
+            _buildSettingsCard(
+              context,
+              'Help & Support',
+              'Get help or contact support',
+              Icons.help_outline,
+              Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
+              onTap: () {},
+            ),
+
+            _buildSettingsCard(
+              context,
+              'Terms of Service',
+              'Read our terms and conditions',
+              Icons.description_outlined,
+              Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
+              onTap: () {},
+            ),
+
+            SizedBox(height: 24),
           ],
         ),
       ),
@@ -5650,7 +6446,7 @@ class SettingsScreen extends StatelessWidget {
     VoidCallback? onTap,
   }) {
     final Color fblaBlue = const Color(0xFF1D4E89);
-    
+
     return Container(
       margin: EdgeInsets.only(bottom: 12),
       child: Material(
