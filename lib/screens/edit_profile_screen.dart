@@ -51,14 +51,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (app.firebaseUser != null) {
       try {
         // Load Firebase user profile
-        final profileData = await FirebaseService.getUserProfile(app.firebaseUser!.uid);
+        final profileData =
+            await FirebaseService.getUserProfile(app.firebaseUser!.uid);
         if (profileData != null) {
+          final savedName = (profileData['name'] ?? '').toString().trim();
+          final fallbackName = app.displayName.trim().isNotEmpty
+              ? app.displayName.trim()
+              : (app.userEmail.split('@').first.trim());
           setState(() {
-            _nameController.text = profileData['name'] ?? app.displayName;
+            _nameController.text =
+                savedName.toLowerCase() == 'fbla member' || savedName.isEmpty
+                    ? fallbackName
+                    : savedName;
             _chapterController.text = profileData['chapter'] ?? 'Your Chapter';
             _schoolController.text = profileData['school'] ?? 'Your School';
-            _positionController.text = profileData['officerPosition'] ?? 'Member';
-            _biographyController.text = profileData['biography'] ?? 'FBLA Member';
+            _positionController.text =
+                profileData['officerPosition'] ?? 'Member';
+            _biographyController.text =
+                profileData['biography'] ?? 'FBLA Member';
             _currentImageUrl = profileData['photoUrl'];
           });
         } else {
@@ -114,7 +124,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('ML Kit image labeling runs on Android and iOS devices only.'),
+          content: Text(
+              'ML Kit image labeling runs on Android and iOS devices only.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -156,22 +167,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     try {
       final app = Provider.of<AppState>(context, listen: false);
-      
+
       if (app.firebaseUser != null) {
         // Save to Firebase
         String? photoUrl = _currentImageUrl;
-        
+
         // Upload new image if selected
         if (_selectedImageBytes != null) {
           photoUrl = await FirebaseService.uploadProfileImage(
-            app.firebaseUser!.uid, 
-            _selectedImageBytes!
+            app.firebaseUser!.uid,
+            _selectedImageBytes!,
           );
         }
 
+        final fullName = _nameController.text.trim();
+        await app.firebaseUser!.updateDisplayName(fullName);
+
         // Update user profile in Firestore
         await FirebaseService.updateUserProfile(app.firebaseUser!.uid, {
-          'name': _nameController.text.trim(),
+          'name': fullName,
           'chapter': _chapterController.text.trim(),
           'school': _schoolController.text.trim(),
           'officerPosition': _positionController.text.trim(),
@@ -288,7 +302,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                     const SizedBox(height: 6),
                     OutlinedButton.icon(
-                      onPressed: _isAnalyzingImage ? null : _analyzeSelectedImage,
+                      onPressed:
+                          _isAnalyzingImage ? null : _analyzeSelectedImage,
                       icon: _isAnalyzingImage
                           ? const SizedBox(
                               height: 16,
@@ -297,7 +312,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             )
                           : const Icon(Icons.auto_awesome),
                       label: Text(
-                        _isAnalyzingImage ? 'Analyzing...' : 'Analyze with ML Kit',
+                        _isAnalyzingImage
+                            ? 'Analyzing...'
+                            : 'Analyze with ML Kit',
                       ),
                     ),
                     if (_imageAnalysisError != null) ...[
@@ -328,7 +345,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ..._imageLabels.map(
                         (label) => Container(
                           margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.06),
                             borderRadius: BorderRadius.circular(12),

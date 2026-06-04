@@ -138,10 +138,14 @@ class AppState extends ChangeNotifier {
       await _loadAppDataFromFirestore();
 
       // Firebase auth state listener
-      FirebaseService.authStateChanges.listen((User? user) {
+      FirebaseService.authStateChanges.listen((User? user) async {
         firebaseUser = user;
         if (user != null) {
-          _loadUserProfile(user.uid);
+          userEmail = user.email ?? '';
+          final authDisplayName = user.displayName?.trim() ?? '';
+          displayName =
+              _isGenericDisplayName(authDisplayName) ? '' : authDisplayName;
+          await _loadUserProfile(user.uid);
         } else {
           userProfile = null;
           userChapter = null;
@@ -362,6 +366,44 @@ class AppState extends ChangeNotifier {
 
   bool get loggedIn => userEmail.isNotEmpty;
 
+  String get resolvedDisplayName {
+    final candidates = [
+      userProfile?.name ?? '',
+      displayName,
+      firebaseUser?.displayName ?? '',
+    ];
+
+    for (final candidate in candidates) {
+      final value = candidate.trim();
+      if (!_isGenericDisplayName(value)) {
+        return value;
+      }
+    }
+
+    final emailName = _nameFromEmail(userEmail);
+    return emailName.isNotEmpty ? emailName : 'Member';
+  }
+
+  String get profileInitial {
+    final name = resolvedDisplayName.trim();
+    if (name.isNotEmpty) return name[0].toUpperCase();
+    if (userEmail.isNotEmpty) return userEmail[0].toUpperCase();
+    return 'F';
+  }
+
+  String _nameFromEmail(String email) {
+    final localPart = email.split('@').first.trim();
+    if (localPart.isEmpty) return '';
+    return localPart
+        .replaceAll(RegExp(r'[._-]+'), ' ')
+        .split(' ')
+        .where((part) => part.trim().isNotEmpty)
+        .map((part) {
+      final value = part.trim();
+      return value[0].toUpperCase() + value.substring(1).toLowerCase();
+    }).join(' ');
+  }
+
   Future<void> login(String email, String name,
       {String role = '', String grade = ''}) async {
     userEmail = email;
@@ -471,11 +513,17 @@ class AppState extends ChangeNotifier {
   Future<void> setFirebaseUser(User user) async {
     firebaseUser = user;
     userEmail = user.email ?? '';
-    displayName = user.displayName ?? '';
+    final authDisplayName = user.displayName?.trim() ?? '';
+    displayName = _isGenericDisplayName(authDisplayName) ? '' : authDisplayName;
     signupRole = '';
     gradeLevel = '';
     await _loadUserProfile(user.uid);
     notifyListeners();
+  }
+
+  bool _isGenericDisplayName(String name) {
+    final normalized = name.trim().toLowerCase();
+    return normalized.isEmpty || normalized == 'fbla member';
   }
 
   Future<void> _loadUserProfile(String userId) async {
@@ -483,6 +531,16 @@ class AppState extends ChangeNotifier {
       final profileData = await FirebaseService.getUserProfile(userId);
       if (profileData != null) {
         userProfile = FBLAUser.fromFirestore(profileData);
+        final profileName = userProfile?.name.trim() ?? '';
+        if (!_isGenericDisplayName(profileName)) {
+          displayName = profileName;
+          await prefs.setString('displayName', displayName);
+        }
+        final profileEmail = userProfile?.email.trim() ?? '';
+        if (profileEmail.isNotEmpty) {
+          userEmail = profileEmail;
+          await prefs.setString('userEmail', userEmail);
+        }
         if (userProfile?.chapter != null) {
           final chapterData =
               await FirebaseService.getChapter(userProfile!.chapter!);
@@ -1803,19 +1861,22 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                   const SizedBox(height: 18),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
+                  Row(
                     children: [
-                      _buildNlcInfoChip(
-                        icon: Icons.calendar_month_outlined,
-                        label: 'June 29 - July 2, 2026',
-                        isDark: isDark,
+                      Expanded(
+                        child: _buildNlcInfoChip(
+                          icon: Icons.calendar_month_outlined,
+                          label: 'June 29 - July 2',
+                          isDark: isDark,
+                        ),
                       ),
-                      _buildNlcInfoChip(
-                        icon: Icons.location_on_outlined,
-                        label: 'San Antonio, TX',
-                        isDark: isDark,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _buildNlcInfoChip(
+                          icon: Icons.location_on_outlined,
+                          label: 'San Antonio, TX',
+                          isDark: isDark,
+                        ),
                       ),
                     ],
                   ),
@@ -2120,8 +2181,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 app.userProfile!.photoUrl!.isNotEmpty
             ? NetworkImage(app.userProfile!.photoUrl!)
             : null) as ImageProvider<Object>?;
-    final initial =
-        app.displayName.isNotEmpty ? app.displayName[0].toUpperCase() : 'F';
+    final initial = app.profileInitial;
 
     return Material(
       color: Colors.transparent,
@@ -5964,6 +6024,10 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  String _resolvedProfileDisplayName(AppState app) {
+    return app.resolvedDisplayName;
+  }
+
   Widget _buildProfileTabHeader(
     BuildContext context,
     AppState app,
@@ -5975,8 +6039,7 @@ class ProfileScreen extends StatelessWidget {
   ) {
     final headerColor =
         isDark ? const Color(0xFF0B1728) : const Color(0xFFF7FAFC);
-    final displayName =
-        app.displayName.isNotEmpty ? app.displayName : 'FBLA Member';
+    final displayName = _resolvedProfileDisplayName(app);
     final email = app.userEmail.isNotEmpty ? app.userEmail : 'Not signed in';
 
     return Container(
@@ -6090,9 +6153,7 @@ class ProfileScreen extends StatelessWidget {
     bool isDark,
   ) {
     final imageProvider = _profileImageProvider(app);
-    final initial = app.displayName.isNotEmpty
-        ? app.displayName[0].toUpperCase()
-        : (app.userEmail.isNotEmpty ? app.userEmail[0].toUpperCase() : 'F');
+    final initial = app.profileInitial;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -7348,9 +7409,7 @@ class ProfileScreen extends StatelessWidget {
                                         (app.userProfile?.photoUrl == null ||
                                             app.userProfile!.photoUrl!.isEmpty)
                                     ? Text(
-                                        app.displayName.isNotEmpty
-                                            ? app.displayName[0].toUpperCase()
-                                            : 'F',
+                                        app.profileInitial,
                                         style: TextStyle(
                                           fontSize: 42,
                                           fontWeight: FontWeight.bold,
