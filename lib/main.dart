@@ -16,6 +16,7 @@ import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/resources_screen.dart';
+import 'screens/nlc_detail_screen.dart';
 import 'screens/firebase_auth_screen.dart';
 import 'screens/edit_profile_screen.dart';
 import 'screens/chatbot_screen.dart';
@@ -31,6 +32,7 @@ import 'services/youtube_service.dart';
 
 // FBLA Colors Added
 const fblaNavy = Color(0xFF00274D);
+const fblaBlue = Color(0xFF1D4E89);
 const fblaGold = Color(0xFFFDB913);
 const fblaLightBackground = Color(0xFFEFF3F6);
 const fblaLightSurface = Color(0xFFFFFFFF);
@@ -97,6 +99,7 @@ class AppState extends ChangeNotifier {
   List<Competition> competitions;
   List<ChatThread> threads;
   Set<String> savedEventIds = {};
+  Set<String> participatingEventIds = {};
   bool hasSeenOnboarding;
   bool isDarkMode = true;
 
@@ -119,6 +122,8 @@ class AppState extends ChangeNotifier {
         hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false,
         isDarkMode = prefs.getBool('isDarkMode') ?? true {
     savedEventIds = prefs.getStringList('savedEvents')?.toSet() ?? {};
+    participatingEventIds =
+        prefs.getStringList('participatingEvents')?.toSet() ?? {};
     _initializeFirebase();
   }
 
@@ -505,6 +510,16 @@ class AppState extends ChangeNotifier {
       savedEventIds.add(eventId);
     }
     prefs.setStringList('savedEvents', savedEventIds.toList());
+    notifyListeners();
+  }
+
+  void toggleParticipatingEvent(String eventId) {
+    if (participatingEventIds.contains(eventId)) {
+      participatingEventIds.remove(eventId);
+    } else {
+      participatingEventIds.add(eventId);
+    }
+    prefs.setStringList('participatingEvents', participatingEventIds.toList());
     notifyListeners();
   }
 
@@ -1206,10 +1221,10 @@ class _RootScreenState extends State<RootScreen> {
           onTap: (i) => setState(() => _index = i),
           type: BottomNavigationBarType.fixed,
           iconSize: 30,
-          showSelectedLabels: false,
-          showUnselectedLabels: false,
-          selectedFontSize: 0,
-          unselectedFontSize: 0,
+          showSelectedLabels: true,
+          showUnselectedLabels: true,
+          selectedFontSize: 12,
+          unselectedFontSize: 11,
           elevation: isDark ? 0 : 14,
           selectedItemColor: isDark ? fblaGold : fblaNavy,
           unselectedItemColor: isDark ? Colors.grey : fblaLightDisabledText,
@@ -1294,6 +1309,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late final PageController _nlcHeroController;
   Timer? _nlcHeroTimer;
   int _nlcHeroIndex = 0;
+  bool _nlcSparkleBright = false;
   static const String _instagramProfileUrl =
       'https://www.instagram.com/fbla_national/';
   static const String _youtubeChannelUrl =
@@ -1431,6 +1447,8 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _buildNlcConferenceCard(isDark),
+                  SizedBox(height: sectionSpacing),
                   _buildStatsRow(app, nextEvents, featuredNews),
                   SizedBox(height: sectionSpacing),
                   _buildSectionTitle(
@@ -1527,15 +1545,15 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           Positioned(
             left: 10,
-            top: topPadding + 6,
+            top: topPadding + 22,
             child: Hero(
               tag: 'fbla_logo',
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                width: 104,
+                height: 32,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.94),
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.12),
@@ -1544,10 +1562,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
                 ),
-                child: Image.asset(
-                  'assets/fbla_logo.png',
-                  width: 90,
-                  fit: BoxFit.contain,
+                child: Center(
+                  child: Transform.scale(
+                    scale: 2,
+                    child: Image.asset(
+                      'assets/fbla_logo.png',
+                      width: 84,
+                      height: 28,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1637,6 +1661,421 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildNlcConferenceCard(bool isDark) {
+    final daysUntilNlc = _daysUntilNlc();
+    final titleColor = isDark ? Colors.white : fblaLightPrimaryText;
+    final accentColor = isDark ? fblaGold : const Color(0xFFB7791F);
+    final subtitleColor =
+        isDark ? Colors.white.withValues(alpha: 0.78) : fblaLightSecondaryText;
+    final cardBorderColor = isDark
+        ? fblaGold.withValues(alpha: 0.28)
+        : fblaGold.withValues(alpha: 0.34);
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? const [
+                  Color(0xFF102A4E),
+                  Color(0xFF0A192F),
+                  Color(0xFF1B2A44),
+                ]
+              : const [
+                  Color(0xFFFFFFFF),
+                  Color(0xFFFFFBEB),
+                  Color(0xFFEFF6FF),
+                ],
+        ),
+        border: Border.all(color: cardBorderColor),
+        boxShadow: [
+          BoxShadow(
+            color: (isDark ? fblaGold : fblaBlue).withValues(alpha: 0.16),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: Stack(
+          children: [
+            Positioned.fill(child: _buildNlcSparkleLayer(isDark)),
+            Positioned(
+              right: -46,
+              top: -52,
+              child: Container(
+                width: 150,
+                height: 150,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: fblaGold.withValues(alpha: isDark ? 0.14 : 0.20),
+                ),
+              ),
+            ),
+            Positioned(
+              left: -34,
+              bottom: -44,
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: (isDark ? Colors.white : fblaBlue)
+                      .withValues(alpha: isDark ? 0.06 : 0.08),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: accentColor.withValues(alpha: 0.16),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                'NLC 2026',
+                                style: TextStyle(
+                                  color: accentColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.7,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            RichText(
+                              text: TextSpan(
+                                style: TextStyle(
+                                  color: titleColor,
+                                  fontSize: 25,
+                                  height: 1.08,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                                children: [
+                                  const TextSpan(
+                                    text:
+                                        'FBLA National Leadership Conference ',
+                                  ),
+                                  TextSpan(
+                                    text: '2026',
+                                    style: TextStyle(color: accentColor),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Get ready for the biggest FBLA event of the year.',
+                              style: TextStyle(
+                                color: subtitleColor,
+                                fontSize: 14,
+                                height: 1.4,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      _buildNlcCountdownBox(daysUntilNlc, isDark),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _buildNlcInfoChip(
+                        icon: Icons.calendar_month_outlined,
+                        label: 'June 29 - July 2, 2026',
+                        isDark: isDark,
+                      ),
+                      _buildNlcInfoChip(
+                        icon: Icons.location_on_outlined,
+                        label: 'San Antonio, TX',
+                        isDark: isDark,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _openNlcDetails,
+                          icon:
+                              const Icon(Icons.info_outline_rounded, size: 19),
+                          label: const Text('Learn More'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isDark ? fblaGold : fblaBlue,
+                            foregroundColor: isDark ? fblaNavy : Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            textStyle: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _openCompetitions,
+                          icon:
+                              const Icon(Icons.emoji_events_outlined, size: 19),
+                          label: const Text('Competitions'),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            foregroundColor: isDark ? fblaGold : fblaBlue,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            side: BorderSide(
+                              color: isDark ? fblaGold : fblaBlue,
+                              width: 1.4,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            textStyle: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  int _daysUntilNlc() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final nlcStart = DateTime(2026, 6, 29);
+    final days = nlcStart.difference(today).inDays;
+    return days < 0 ? 0 : days;
+  }
+
+  Widget _buildNlcCountdownBox(int daysUntilNlc, bool isDark) {
+    final label = daysUntilNlc == 1 ? 'day to go' : 'days to go';
+
+    return Container(
+      width: 88,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withValues(alpha: 0.10) : Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: isDark
+              ? fblaGold.withValues(alpha: 0.32)
+              : fblaGold.withValues(alpha: 0.55),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: fblaGold.withValues(alpha: isDark ? 0.18 : 0.16),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Text(
+            '$daysUntilNlc',
+            style: TextStyle(
+              color: isDark ? fblaGold : fblaBlue,
+              fontSize: 31,
+              height: 0.95,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.76)
+                  : fblaLightSecondaryText,
+              fontSize: 11,
+              height: 1.1,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNlcInfoChip({
+    required IconData icon,
+    required String label,
+    required bool isDark,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.08)
+            : fblaLightBackground.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color:
+              isDark ? Colors.white.withValues(alpha: 0.10) : fblaLightBorder,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            color: isDark ? fblaGold : fblaBlue,
+            size: 17,
+          ),
+          const SizedBox(width: 7),
+          Text(
+            label,
+            style: TextStyle(
+              color: isDark ? Colors.white : fblaLightPrimaryText,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNlcSparkleLayer(bool isDark) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(
+        begin: _nlcSparkleBright ? 0.35 : 1.0,
+        end: _nlcSparkleBright ? 1.0 : 0.35,
+      ),
+      duration: const Duration(milliseconds: 1500),
+      curve: Curves.easeInOut,
+      onEnd: () {
+        if (mounted) {
+          setState(() => _nlcSparkleBright = !_nlcSparkleBright);
+        }
+      },
+      builder: (context, glow, _) {
+        final sparkleColor = isDark ? fblaGold : const Color(0xFFD69E2E);
+        return Stack(
+          children: [
+            _buildNlcSparkle(
+              right: 22,
+              top: 22,
+              size: 18,
+              opacity: glow,
+              color: sparkleColor,
+            ),
+            _buildNlcSparkle(
+              left: 28,
+              top: 78,
+              size: 12,
+              opacity: 1.15 - glow,
+              color: Colors.white,
+            ),
+            _buildNlcSparkle(
+              right: 126,
+              bottom: 44,
+              size: 14,
+              opacity: glow * 0.82,
+              color: sparkleColor,
+            ),
+            _buildNlcSparkle(
+              left: 124,
+              bottom: 28,
+              size: 10,
+              opacity: 1.05 - glow,
+              color: isDark ? Colors.white : fblaBlue,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildNlcSparkle({
+    double? left,
+    double? right,
+    double? top,
+    double? bottom,
+    required double size,
+    required double opacity,
+    required Color color,
+  }) {
+    return Positioned(
+      left: left,
+      right: right,
+      top: top,
+      bottom: bottom,
+      child: Opacity(
+        opacity: opacity.clamp(0.0, 1.0).toDouble(),
+        child: Icon(
+          Icons.auto_awesome,
+          color: color,
+          size: size,
+          shadows: [
+            Shadow(
+              color: color.withValues(alpha: 0.38),
+              blurRadius: 12,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openCompetitions() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => CompetitionsScreen()),
+    );
+  }
+
+  void _openNlcDetails() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NlcDetailScreen(
+          onViewCompetitions: () {
+            Navigator.pop(context);
+            _openCompetitions();
+          },
+        ),
       ),
     );
   }
@@ -5396,6 +5835,10 @@ class ProfileScreen extends StatelessWidget {
     final secondaryText = isDark ? Colors.white70 : fblaLightSecondaryText;
     final userStreak = app.userProfile?.streak ?? 0;
     final coinBalance = app.userProfile?.points ?? 0;
+    final participatingEvents = app.events
+        .where((event) => app.participatingEventIds.contains(event.id))
+        .toList()
+      ..sort((a, b) => a.start.compareTo(b.start));
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -5434,6 +5877,24 @@ class ProfileScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      _buildProfileSectionTitle(
+                        'Events',
+                        Icons.event_available_outlined,
+                        fblaBlue,
+                        primaryText,
+                      ),
+                      const SizedBox(height: 14),
+                      _buildProfileEventsSection(
+                        context,
+                        app,
+                        participatingEvents,
+                        isDark,
+                        fblaBlue,
+                        fblaGold,
+                        primaryText,
+                        secondaryText,
+                      ),
+                      const SizedBox(height: 28),
                       _buildProfileSectionTitle(
                         'Overview',
                         Icons.dashboard_outlined,
@@ -5738,6 +6199,435 @@ class ProfileScreen extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Widget _buildProfileEventsSection(
+    BuildContext context,
+    AppState app,
+    List<Event> participatingEvents,
+    bool isDark,
+    Color fblaBlue,
+    Color fblaGold,
+    Color primaryText,
+    Color secondaryText,
+  ) {
+    final cardColor = isDark ? const Color(0xFF101827) : fblaLightSurface;
+    final borderColor =
+        isDark ? Colors.white.withValues(alpha: 0.08) : fblaLightBorder;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: fblaGold.withValues(alpha: isDark ? 0.16 : 0.22),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  Icons.emoji_events_outlined,
+                  color: isDark ? fblaGold : fblaBlue,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      participatingEvents.isEmpty
+                          ? 'Track your competitions'
+                          : '${participatingEvents.length} event${participatingEvents.length == 1 ? '' : 's'} added',
+                      style: TextStyle(
+                        color: primaryText,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      participatingEvents.isEmpty
+                          ? 'Add the FBLA events you are participating in.'
+                          : 'Keep your active FBLA events visible here.',
+                      style: TextStyle(
+                        color: secondaryText,
+                        fontSize: 12.5,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Add events',
+                onPressed: () => _showParticipatingEventsSheet(
+                  context,
+                  isDark,
+                  fblaBlue,
+                  fblaGold,
+                  primaryText,
+                  secondaryText,
+                ),
+                icon: Icon(
+                  Icons.add_circle_rounded,
+                  color: isDark ? fblaGold : fblaBlue,
+                  size: 30,
+                ),
+              ),
+            ],
+          ),
+          if (participatingEvents.isEmpty) ...[
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () => _showParticipatingEventsSheet(
+                context,
+                isDark,
+                fblaBlue,
+                fblaGold,
+                primaryText,
+                secondaryText,
+              ),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Add Event'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: isDark ? fblaGold : fblaBlue,
+                side: BorderSide(color: isDark ? fblaGold : fblaBlue),
+                minimumSize: const Size(double.infinity, 46),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                textStyle: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 16),
+            ...participatingEvents.map(
+              (event) => _buildProfileEventCard(
+                app,
+                event,
+                isDark,
+                fblaBlue,
+                fblaGold,
+                primaryText,
+                secondaryText,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileEventCard(
+    AppState app,
+    Event event,
+    bool isDark,
+    Color fblaBlue,
+    Color fblaGold,
+    Color primaryText,
+    Color secondaryText,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.05)
+            : fblaLightBackground.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color:
+              isDark ? Colors.white.withValues(alpha: 0.08) : fblaLightBorder,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: fblaBlue.withValues(alpha: isDark ? 0.18 : 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(Icons.event_note_outlined, color: fblaBlue, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  event.title,
+                  style: TextStyle(
+                    color: primaryText,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${_formatProfileEventDate(event.start)} • ${event.location}',
+                  style: TextStyle(
+                    color: secondaryText,
+                    fontSize: 12,
+                    height: 1.25,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Remove event',
+            onPressed: () => app.toggleParticipatingEvent(event.id),
+            icon: Icon(
+              Icons.close_rounded,
+              color: isDark ? Colors.white70 : fblaLightSecondaryText,
+              size: 20,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showParticipatingEventsSheet(
+    BuildContext context,
+    bool isDark,
+    Color fblaBlue,
+    Color fblaGold,
+    Color primaryText,
+    Color secondaryText,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return Consumer<AppState>(
+          builder: (context, app, _) {
+            final events = [...app.events]
+              ..sort((a, b) => a.start.compareTo(b.start));
+            final sheetBackground =
+                isDark ? const Color(0xFF101827) : fblaLightSurface;
+
+            return SafeArea(
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(sheetContext).size.height * 0.72,
+                ),
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                decoration: BoxDecoration(
+                  color: sheetBackground,
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(28)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.18)
+                              : fblaLightBorder,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Add Events',
+                                style: TextStyle(
+                                  color: primaryText,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Tap events to add or remove them from your profile.',
+                                style: TextStyle(
+                                  color: secondaryText,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: Icon(Icons.close_rounded, color: primaryText),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: events.length,
+                        itemBuilder: (context, index) {
+                          final event = events[index];
+                          final selected =
+                              app.participatingEventIds.contains(event.id);
+                          return _buildEventPickerTile(
+                            app,
+                            event,
+                            selected,
+                            isDark,
+                            fblaBlue,
+                            fblaGold,
+                            primaryText,
+                            secondaryText,
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildEventPickerTile(
+    AppState app,
+    Event event,
+    bool selected,
+    bool isDark,
+    Color fblaBlue,
+    Color fblaGold,
+    Color primaryText,
+    Color secondaryText,
+  ) {
+    final accent = selected ? fblaGold : fblaBlue;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => app.toggleParticipatingEvent(event.id),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: selected
+                  ? accent.withValues(alpha: isDark ? 0.14 : 0.12)
+                  : (isDark
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : fblaLightBackground.withValues(alpha: 0.72)),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: selected
+                    ? accent.withValues(alpha: 0.55)
+                    : (isDark
+                        ? Colors.white.withValues(alpha: 0.08)
+                        : fblaLightBorder),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: selected ? 0.18 : 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    selected
+                        ? Icons.check_circle_rounded
+                        : Icons.add_circle_outline_rounded,
+                    color: accent,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        event.title,
+                        style: TextStyle(
+                          color: primaryText,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${_formatProfileEventDate(event.start)} • ${event.location}',
+                        style: TextStyle(
+                          color: secondaryText,
+                          fontSize: 12,
+                          height: 1.25,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatProfileEventDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
   Widget _buildOverviewGrid(
