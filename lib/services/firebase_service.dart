@@ -201,6 +201,8 @@ class FirebaseService {
     String? school,
     String? officerPosition,
     String? biography,
+    int points = 0,
+    int streak = 0,
   }) async {
     try {
       print('FirebaseService: Creating user profile for UID: $userId');
@@ -212,6 +214,8 @@ class FirebaseService {
         'school': school,
         'officerPosition': officerPosition,
         'biography': biography,
+        'points': points,
+        'streak': streak,
         'achievements': <String>[],
         'badges': <String>[],
         'createdAt': FieldValue.serverTimestamp(),
@@ -242,6 +246,43 @@ class FirebaseService {
     } catch (e) {
       print('Get user profile error: $e');
       return null;
+    }
+  }
+
+  static Future<Map<String, int>> getUserProgress(String userId) async {
+    final profile = await getUserProfile(userId);
+    return {
+      'points': int.tryParse((profile?['points'] ?? 0).toString()) ?? 0,
+      'streak': int.tryParse((profile?['streak'] ?? 0).toString()) ?? 0,
+    };
+  }
+
+  static Future<Map<String, int>> getCurrentUserProgress() async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) {
+      return {'points': 0, 'streak': 0};
+    }
+    return getUserProgress(userId);
+  }
+
+  static Future<void> ensureUserProgressDefaults(String userId) async {
+    try {
+      final profile = await getUserProfile(userId);
+      if (profile == null) return;
+
+      final updates = <String, dynamic>{};
+      if (!profile.containsKey('points')) {
+        updates['points'] = 0;
+      }
+      if (!profile.containsKey('streak')) {
+        updates['streak'] = 0;
+      }
+
+      if (updates.isNotEmpty) {
+        await updateUserProfile(userId, updates);
+      }
+    } catch (e) {
+      print('Ensure user progress defaults error: $e');
     }
   }
 

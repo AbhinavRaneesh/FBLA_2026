@@ -155,6 +155,8 @@ class _FirebaseAuthScreenState extends State<FirebaseAuthScreen>
               '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}'
                   .trim(),
           email: _emailController.text.trim(),
+          points: 0,
+          streak: 0,
         );
 
         final app = Provider.of<AppState>(context, listen: false);
@@ -206,6 +208,8 @@ class _FirebaseAuthScreenState extends State<FirebaseAuthScreen>
             name: userCredential.user!.displayName ?? 'FBLA Member',
             email: userCredential.user!.email ?? '',
             photoUrl: userCredential.user!.photoURL,
+            points: 0,
+            streak: 0,
           );
         }
 

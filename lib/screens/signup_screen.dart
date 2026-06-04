@@ -165,6 +165,8 @@ class _SignupScreenState extends State<SignupScreen>
           school: null,
           officerPosition: null,
           biography: null,
+           points: 0,
+           streak: 0,
         );
       }
       if (!mounted) return;

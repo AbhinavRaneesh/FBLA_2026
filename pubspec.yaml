@@ -31,8 +31,8 @@ dependencies:
   
   # Image handling
   image_picker: ^1.0.4
-  google_mlkit_image_labeling: ^0.14.2
   cached_network_image: ^3.3.0
+  google_mlkit_image_labeling: ^0.14.2
   
   # Local storage
   hive: ^2.2.3
@@ -74,10 +74,10 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   assets:
-    - .env
     - assets/fbla_logo.png
     - assets/fbla_header.png
+    - assets/coins.png
     - assets/logo.png
     - assets/Mobile-Application-Development.pdf
-    - assets/coins.png
+    - assets/Cybersecurity.pdf
     - assets/legal/

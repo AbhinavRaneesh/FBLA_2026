@@ -98,6 +98,8 @@ class _LoginScreenState extends State<LoginScreen>
             name: user.displayName ?? 'FBLA Member',
             email: user.email ?? email,
             photoUrl: user.photoURL,
+            points: 0,
+            streak: 0,
           );
         }
         if (!mounted) return;
@@ -161,6 +163,8 @@ class _LoginScreenState extends State<LoginScreen>
             name: user.displayName ?? 'FBLA Member',
             email: user.email ?? '',
             photoUrl: user.photoURL,
+            points: 0,
+            streak: 0,
           );
         }
 

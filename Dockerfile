@@ -18,3 +18,4 @@ ENV PORT=10000
 EXPOSE 10000
 
 CMD ["sh", "-c", "python -m http.server ${PORT} -d /app/build/web"]
+flutter run --dart-define=GEMINI_API_KEY=AIzaSyBGc2GDnEbFRlGauE7xc1FDfvnTO5PH-YU --dart-define=GEMINI_MODEL=gemini-2.5-flash

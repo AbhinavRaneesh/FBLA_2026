@@ -45,6 +45,8 @@ class MongoDbService {
       userId: userId,
       name: name,
       email: generatedEmail,
+      points: 0,
+      streak: 0,
     );
 
     return {
