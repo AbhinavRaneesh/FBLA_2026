@@ -11,6 +11,7 @@ class FBLAUser {
   final String? biography;
   final int points;
   final int streak;
+  final String rank;
   final List<String> achievements;
   final List<String> badges;
   final DateTime createdAt;
@@ -27,6 +28,7 @@ class FBLAUser {
     this.biography,
     this.points = 0,
     this.streak = 0,
+    this.rank = 'Intern',
     this.achievements = const [],
     this.badges = const [],
     required this.createdAt,
@@ -45,6 +47,7 @@ class FBLAUser {
       biography: data['biography'],
       points: int.tryParse((data['points'] ?? 0).toString()) ?? 0,
       streak: int.tryParse((data['streak'] ?? 0).toString()) ?? 0,
+      rank: (data['rank'] ?? 'Intern').toString(),
       achievements: List<String>.from(data['achievements'] ?? []),
       badges: List<String>.from(data['badges'] ?? []),
       createdAt: data['createdAt'] != null
@@ -67,6 +70,7 @@ class FBLAUser {
       'biography': biography,
       'points': points,
       'streak': streak,
+      'rank': rank,
       'achievements': achievements,
       'badges': badges,
       // Temporarily disabled Timestamp

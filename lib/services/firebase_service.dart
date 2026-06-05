@@ -214,6 +214,7 @@ class FirebaseService {
     String? biography,
     int points = 0,
     int streak = 0,
+    String rank = 'Intern',
   }) async {
     try {
       print('FirebaseService: Creating user profile for UID: $userId');
@@ -227,6 +228,7 @@ class FirebaseService {
         'biography': biography,
         'points': points,
         'streak': streak,
+        'rank': rank,
         'achievements': <String>[],
         'badges': <String>[],
         'createdAt': FieldValue.serverTimestamp(),
@@ -287,6 +289,9 @@ class FirebaseService {
       }
       if (!profile.containsKey('streak')) {
         updates['streak'] = 0;
+      }
+      if (!profile.containsKey('rank')) {
+        updates['rank'] = 'Intern';
       }
 
       if (updates.isNotEmpty) {
@@ -352,6 +357,232 @@ class FirebaseService {
 
   static Future<List<Map<String, dynamic>>> getUsers() async {
     return _getCollectionDocuments('users');
+  }
+
+  static String? get currentUserId => _auth.currentUser?.uid;
+
+  static String _friendRequestId(String fromUserId, String toUserId) =>
+      '${fromUserId}_$toUserId';
+
+  static String _friendshipId(String userId1, String userId2) {
+    final sorted = [userId1, userId2]..sort();
+    return '${sorted[0]}_${sorted[1]}';
+  }
+
+  static Future<bool> areFriends(String userId1, String userId2) async {
+    final doc = await _firestore
+        .collection('friendships')
+        .doc(_friendshipId(userId1, userId2))
+        .get();
+    return doc.exists;
+  }
+
+  static Future<String?> getFriendRelationStatus({
+    required String currentUserId,
+    required String otherUserId,
+  }) async {
+    if (currentUserId == otherUserId) return 'self';
+    if (await areFriends(currentUserId, otherUserId)) return 'friends';
+
+    final outgoing = await _firestore
+        .collection('friend_requests')
+        .doc(_friendRequestId(currentUserId, otherUserId))
+        .get();
+    if (outgoing.exists && outgoing.data()?['status'] == 'pending') {
+      return 'outgoing';
+    }
+
+    final incoming = await _firestore
+        .collection('friend_requests')
+        .doc(_friendRequestId(otherUserId, currentUserId))
+        .get();
+    if (incoming.exists && incoming.data()?['status'] == 'pending') {
+      return 'incoming';
+    }
+
+    return null;
+  }
+
+  static Future<Map<String, String>> getFriendRelationStatuses(
+    String currentUserId,
+    List<String> otherUserIds,
+  ) async {
+    final statuses = <String, String>{};
+    if (currentUserId.isEmpty) return statuses;
+
+    final friendships = await _firestore
+        .collection('friendships')
+        .where('userIds', arrayContains: currentUserId)
+        .get();
+    final friendIds = <String>{};
+    for (final doc in friendships.docs) {
+      for (final id in List<String>.from(doc.data()['userIds'] ?? const [])) {
+        if (id != currentUserId) friendIds.add(id);
+      }
+    }
+
+    final outgoingSnapshot = await _firestore
+        .collection('friend_requests')
+        .where('fromUserId', isEqualTo: currentUserId)
+        .where('status', isEqualTo: 'pending')
+        .get();
+    final outgoingIds = outgoingSnapshot.docs
+        .map((doc) => (doc.data()['toUserId'] ?? '').toString())
+        .toSet();
+
+    final incomingSnapshot = await _firestore
+        .collection('friend_requests')
+        .where('toUserId', isEqualTo: currentUserId)
+        .where('status', isEqualTo: 'pending')
+        .get();
+    final incomingIds = incomingSnapshot.docs
+        .map((doc) => (doc.data()['fromUserId'] ?? '').toString())
+        .toSet();
+
+    for (final otherUserId in otherUserIds) {
+      if (otherUserId == currentUserId) {
+        statuses[otherUserId] = 'self';
+      } else if (friendIds.contains(otherUserId)) {
+        statuses[otherUserId] = 'friends';
+      } else if (outgoingIds.contains(otherUserId)) {
+        statuses[otherUserId] = 'outgoing';
+      } else if (incomingIds.contains(otherUserId)) {
+        statuses[otherUserId] = 'incoming';
+      }
+    }
+
+    return statuses;
+  }
+
+  static Future<void> sendFriendRequest({
+    required String fromUserId,
+    required String toUserId,
+    required String fromUserName,
+    required String toUserName,
+  }) async {
+    if (fromUserId == toUserId) {
+      throw Exception('You cannot send a friend request to yourself.');
+    }
+    if (await areFriends(fromUserId, toUserId)) {
+      throw Exception('You are already friends with this member.');
+    }
+
+    final outgoingDoc = await _firestore
+        .collection('friend_requests')
+        .doc(_friendRequestId(fromUserId, toUserId))
+        .get();
+    if (outgoingDoc.exists && outgoingDoc.data()?['status'] == 'pending') {
+      throw Exception('Friend request already sent.');
+    }
+
+    final incomingDoc = await _firestore
+        .collection('friend_requests')
+        .doc(_friendRequestId(toUserId, fromUserId))
+        .get();
+    if (incomingDoc.exists && incomingDoc.data()?['status'] == 'pending') {
+      throw Exception(
+          'This member already sent you a request. Check the Requests tab.');
+    }
+
+    await _firestore
+        .collection('friend_requests')
+        .doc(_friendRequestId(fromUserId, toUserId))
+        .set({
+      'fromUserId': fromUserId,
+      'toUserId': toUserId,
+      'fromUserName': fromUserName,
+      'toUserName': toUserName,
+      'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  static Future<List<Map<String, dynamic>>> getOutgoingFriendRequests(
+      String userId) async {
+    final snapshot = await _firestore
+        .collection('friend_requests')
+        .where('fromUserId', isEqualTo: userId)
+        .where('status', isEqualTo: 'pending')
+        .get();
+    return snapshot.docs
+        .map((doc) => {'id': doc.id, ...doc.data()})
+        .toList(growable: false);
+  }
+
+  static Future<List<Map<String, dynamic>>> getIncomingFriendRequests(
+      String userId) async {
+    final snapshot = await _firestore
+        .collection('friend_requests')
+        .where('toUserId', isEqualTo: userId)
+        .where('status', isEqualTo: 'pending')
+        .get();
+    return snapshot.docs
+        .map((doc) => {'id': doc.id, ...doc.data()})
+        .toList(growable: false);
+  }
+
+  static Future<void> acceptFriendRequest(String requestId) async {
+    final doc =
+        await _firestore.collection('friend_requests').doc(requestId).get();
+    if (!doc.exists) {
+      throw Exception('Friend request not found.');
+    }
+
+    final data = doc.data()!;
+    final fromUserId = (data['fromUserId'] ?? '').toString();
+    final toUserId = (data['toUserId'] ?? '').toString();
+    if (fromUserId.isEmpty || toUserId.isEmpty) {
+      throw Exception('Friend request is missing user information.');
+    }
+
+    final batch = _firestore.batch();
+    batch.update(doc.reference, {
+      'status': 'accepted',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    batch.set(
+      _firestore.collection('friendships').doc(_friendshipId(fromUserId, toUserId)),
+      {
+        'userIds': [fromUserId, toUserId],
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+    );
+    await batch.commit();
+  }
+
+  static Future<void> declineFriendRequest(String requestId) async {
+    await _firestore.collection('friend_requests').doc(requestId).delete();
+  }
+
+  static Future<List<Map<String, dynamic>>> getFriendsForUser(
+      String userId) async {
+    final snapshot = await _firestore
+        .collection('friendships')
+        .where('userIds', arrayContains: userId)
+        .get();
+
+    final friendIds = <String>{};
+    for (final doc in snapshot.docs) {
+      for (final id in List<String>.from(doc.data()['userIds'] ?? const [])) {
+        if (id != userId) friendIds.add(id);
+      }
+    }
+
+    if (friendIds.isEmpty) return const [];
+
+    final users = await getUsers();
+    final friends = users
+        .where((user) => friendIds.contains((user['id'] ?? '').toString()))
+        .toList(growable: false);
+    friends.sort((left, right) {
+      final leftName =
+          (left['name'] ?? left['displayName'] ?? '').toString().toLowerCase();
+      final rightName =
+          (right['name'] ?? right['displayName'] ?? '').toString().toLowerCase();
+      return leftName.compareTo(rightName);
+    });
+    return friends;
   }
 
   static Future<void> ensureAppDataSeeded({

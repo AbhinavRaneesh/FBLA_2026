@@ -11,7 +11,6 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/onboarding_screen.dart';
@@ -21,6 +20,9 @@ import 'screens/firebase_auth_screen.dart';
 import 'screens/edit_profile_screen.dart';
 import 'screens/chatbot_screen.dart';
 import 'screens/find_members_screen.dart';
+import 'screens/instagram_feed_screen.dart';
+import 'screens/rank_screen.dart';
+import 'models/fbla_rank.dart';
 import 'ai/bloc/chat_bloc.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'services/firebase_service.dart';
@@ -366,6 +368,15 @@ class AppState extends ChangeNotifier {
 
   bool get loggedIn => userEmail.isNotEmpty;
 
+  String get userRank {
+    final stored = userProfile?.rank ?? FBLARankSystem.defaultRank;
+    final coins = userProfile?.points ?? 0;
+    final coinRank = FBLARankSystem.rankForCoins(coins).name;
+    final storedIndex = FBLARankSystem.indexForRank(stored);
+    final coinIndex = FBLARankSystem.indexForRank(coinRank);
+    return coinIndex >= storedIndex ? coinRank : stored;
+  }
+
   String get resolvedDisplayName {
     final candidates = [
       userProfile?.name ?? '',
@@ -547,6 +558,18 @@ class AppState extends ChangeNotifier {
           if (chapterData != null) {
             userChapter = Chapter.fromFirestore(chapterData);
           }
+        }
+
+        final coins = userProfile?.points ?? 0;
+        final effectiveRank = FBLARankSystem.rankForCoins(coins).name;
+        final storedRank = userProfile?.rank ?? FBLARankSystem.defaultRank;
+        if (FBLARankSystem.indexForRank(effectiveRank) >
+            FBLARankSystem.indexForRank(storedRank)) {
+          await FirebaseService.updateUserProfile(userId, {
+            'rank': effectiveRank,
+          });
+          profileData['rank'] = effectiveRank;
+          userProfile = FBLAUser.fromFirestore(profileData);
         }
       }
     } catch (e) {
@@ -2862,7 +2885,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     handle: '@fbla_national',
                     icon: Icons.camera_alt,
                     color: const Color(0xFFE1306C),
-                    onTap: () => _openExternalLink(_instagramProfileUrl),
+                    onTap: () => InstagramFeedScreen.open(context),
                   ),
                   _buildSocialLinkTile(
                     label: 'YouTube',
@@ -3002,7 +3025,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Instagram Preview',
+                  'FBLA Instagram',
                   style: TextStyle(
                     color: isDark ? Colors.white : fblaLightPrimaryText,
                     fontSize: 17,
@@ -3011,14 +3034,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               TextButton(
-                onPressed: () => _openExternalLink(_instagramProfileUrl),
-                child: const Text('Open Profile'),
+                onPressed: () => InstagramFeedScreen.open(context),
+                child: const Text('View Feed'),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            'Embedded preview of the official national FBLA Instagram page.',
+            'Browse the official national FBLA Instagram feed inside the app.',
             style: TextStyle(
               color: isDark
                   ? Colors.white.withValues(alpha: 0.68)
@@ -3030,9 +3053,18 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(18),
-            child: SizedBox(
-              height: 340,
-              child: _InstagramFeedEmbed(profileUrl: _instagramProfileUrl),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => InstagramFeedScreen.open(context),
+                child: SizedBox(
+                  height: 340,
+                  child: InstagramWebView(
+                    profileUrl: _instagramProfileUrl,
+                    height: 340,
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -3393,152 +3425,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _formatPostDate(DateTime date) {
     return '${date.month}/${date.day}/${date.year.toString().substring(2)}';
-  }
-}
-
-class _InstagramFeedEmbed extends StatefulWidget {
-  final String profileUrl;
-
-  const _InstagramFeedEmbed({required this.profileUrl});
-
-  @override
-  State<_InstagramFeedEmbed> createState() => _InstagramFeedEmbedState();
-}
-
-class _InstagramFeedEmbedState extends State<_InstagramFeedEmbed> {
-  static const List<String> _allowedHandles = ['fbla_national', 'fbla'];
-  late final WebViewController _controller;
-  bool _isLoading = true;
-  bool _hasError = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onNavigationRequest: (request) {
-            if (_isAllowedInstagramUrl(request.url)) {
-              return NavigationDecision.navigate;
-            }
-            return NavigationDecision.prevent;
-          },
-          onPageStarted: (_) {
-            if (mounted) {
-              setState(() {
-                _isLoading = true;
-                _hasError = false;
-              });
-            }
-          },
-          onPageFinished: (_) {
-            _removeInstagramSignupOverlay();
-            if (mounted) {
-              setState(() => _isLoading = false);
-            }
-          },
-          onWebResourceError: (_) {
-            if (mounted) {
-              setState(() {
-                _isLoading = false;
-                _hasError = true;
-              });
-            }
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse(widget.profileUrl));
-  }
-
-  Future<void> _removeInstagramSignupOverlay() async {
-    try {
-      await _controller.runJavaScript('''
-        (function() {
-          const selectors = [
-            'div[role="dialog"]',
-            'div[aria-label="Sign up"]',
-            'section main + div',
-            'div._a9_1',
-            'div.xixxii4',
-            'div.x1n2onr6'
-          ];
-
-          selectors.forEach((selector) => {
-            document.querySelectorAll(selector).forEach((el) => {
-              el.style.display = 'none';
-              el.remove();
-            });
-          });
-
-          document.body.style.overflow = 'auto';
-        })();
-      ''');
-    } catch (_) {
-      // Ignore JavaScript failures if Instagram changes its DOM.
-    }
-  }
-
-  bool _isAllowedInstagramUrl(String url) {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return false;
-
-    final host = uri.host.toLowerCase();
-    if (!host.contains('instagram.com')) {
-      return false;
-    }
-
-    final segments =
-        uri.pathSegments.where((segment) => segment.isNotEmpty).toList();
-    if (segments.isEmpty) {
-      return true;
-    }
-
-    final first = segments.first.toLowerCase();
-    if (_allowedHandles.contains(first)) {
-      return true;
-    }
-
-    if (first == 'p' || first == 'reel' || first == 'tv') {
-      return true;
-    }
-
-    return false;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_hasError) {
-      return Container(
-        color: const Color(0xFF0F0F0F),
-        alignment: Alignment.center,
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, color: Colors.grey.shade400),
-            const SizedBox(height: 8),
-            Text(
-              'Instagram preview could not be loaded right now.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade400),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Stack(
-      children: [
-        WebViewWidget(controller: _controller),
-        if (_isLoading)
-          Container(
-            color: const Color(0x99000000),
-            alignment: Alignment.center,
-            child: const CircularProgressIndicator(),
-          ),
-      ],
-    );
   }
 }
 
@@ -5609,6 +5495,11 @@ class _FeedsScreenState extends State<FeedsScreen> {
   }
 
   Future<void> _openFeed(_FeedItem feed) async {
+    if (feed.url.contains('instagram.com')) {
+      InstagramFeedScreen.open(context);
+      return;
+    }
+
     final launched = await launchUrl(
       Uri.parse(feed.url),
       mode: LaunchMode.externalApplication,
@@ -5895,6 +5786,7 @@ class ProfileScreen extends StatelessWidget {
     final secondaryText = isDark ? Colors.white70 : fblaLightSecondaryText;
     final userStreak = app.userProfile?.streak ?? 0;
     final coinBalance = app.userProfile?.points ?? 0;
+    final userRankLabel = FBLARankSystem.shortLabelFor(app.userRank);
     final participatingEvents = app.events
         .where((event) => app.participatingEventIds.contains(event.id))
         .toList()
@@ -5966,6 +5858,7 @@ class ProfileScreen extends StatelessWidget {
                         context,
                         userStreak,
                         coinBalance,
+                        userRankLabel,
                         fblaBlue,
                         fblaGold,
                         isDark,
@@ -6695,6 +6588,7 @@ class ProfileScreen extends StatelessWidget {
     BuildContext context,
     int userStreak,
     int coinBalance,
+    String userRankLabel,
     Color fblaBlue,
     Color fblaGold,
     bool isDark,
@@ -6720,11 +6614,11 @@ class ProfileScreen extends StatelessWidget {
           isDark: isDark,
         ),
         _buildOverviewTile(
-          value: '--',
-          icon: Icons.auto_awesome_outlined,
-          color: fblaBlue,
+          value: userRankLabel,
+          icon: Icons.leaderboard,
+          color: const Color(0xFF66BB6A),
           isDark: isDark,
-          muted: true,
+          onTap: () => RankScreen.open(context),
         ),
         _buildOverviewTile(
           value: '--',
@@ -6744,12 +6638,13 @@ class ProfileScreen extends StatelessWidget {
     IconData? icon,
     String? assetPath,
     bool muted = false,
+    VoidCallback? onTap,
   }) {
     final cardColor = isDark ? const Color(0xFF101827) : fblaLightSurface;
     final primaryText = isDark ? Colors.white : fblaLightPrimaryText;
     final secondaryText = isDark ? Colors.white70 : fblaLightSecondaryText;
 
-    return Container(
+    final tile = Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: cardColor,
@@ -6785,17 +6680,30 @@ class ProfileScreen extends StatelessWidget {
                 : Icon(icon, color: muted ? secondaryText : color, size: 26),
           ),
           const SizedBox(width: 12),
-          Text(
-            value,
-            style: TextStyle(
-              color: muted ? secondaryText : primaryText,
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
+          Flexible(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: muted ? secondaryText : primaryText,
+                fontSize: value.length > 8 ? 18 : 24,
+                fontWeight: FontWeight.w900,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
+      ),
+    );
+
+    if (onTap == null) return tile;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: tile,
       ),
     );
   }
@@ -7102,10 +7010,7 @@ class ProfileScreen extends StatelessWidget {
               icon: Icons.camera_alt_rounded,
               color: const Color(0xFFE1306C),
               isDark: isDark,
-              onTap: () => _openProfileSocial(
-                context,
-                'https://www.instagram.com/fbla_national/',
-              ),
+              onTap: () => InstagramFeedScreen.open(context),
             ),
           ],
         );

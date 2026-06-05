@@ -7,6 +7,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'chatbot_screen.dart';
+import 'rank_screen.dart';
+import '../main.dart'
+    show
+        AppState,
+        appBackgroundGradient,
+        fblaLightBackground,
+        fblaLightBorder,
+        fblaLightPrimaryText,
+        fblaLightSecondaryText,
+        fblaLightSurface;
 import '../models/fbla_events.dart';
 import '../services/firebase_service.dart';
 
@@ -14,12 +24,6 @@ import '../services/firebase_service.dart';
 const Color fblaGold = Color(0xFFFDB913);
 const Color fblaNavy = Color(0xFF1D4E89);
 const Color fblaAccent = Color(0xFF64B5F6);
-
-const LinearGradient appBackgroundGradient = LinearGradient(
-  begin: Alignment.topLeft,
-  end: Alignment.bottomRight,
-  colors: [Color(0xFF061726), Color(0xFF071A2A)],
-);
 
 IconData courseIconForName(String name) {
   final n = name.toLowerCase();
@@ -178,17 +182,24 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final app = Provider.of<AppState>(context);
+    final isDark = app.isDarkMode;
+
     return Scaffold(
+      backgroundColor: isDark ? null : fblaLightBackground,
       body: Container(
-        decoration: const BoxDecoration(gradient: appBackgroundGradient),
+        decoration: BoxDecoration(
+          gradient: isDark ? appBackgroundGradient : null,
+          color: isDark ? null : fblaLightBackground,
+        ),
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             child: Column(
               children: [
-                _buildTopStatsBar(),
+                _buildTopStatsBar(isDark),
                 const SizedBox(height: 12),
-                Expanded(child: _buildCourseJourney()),
+                Expanded(child: _buildCourseJourney(isDark)),
               ],
             ),
           ),
@@ -197,7 +208,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
     );
   }
 
-  Widget _buildCourseJourney() {
+  Widget _buildCourseJourney(bool isDark) {
     final course = _selectedCourse ??
         (_userCourses.isNotEmpty ? _userCourses.first : null);
 
@@ -205,11 +216,13 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
       return Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(28),
-          color: Colors.white.withOpacity(0.04),
-          border: Border.all(color: Colors.white12),
+          color: isDark ? Colors.white.withOpacity(0.04) : fblaLightSurface,
+          border: Border.all(
+            color: isDark ? Colors.white12 : fblaLightBorder,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.18),
+              color: Colors.black.withOpacity(isDark ? 0.18 : 0.06),
               blurRadius: 28,
               offset: const Offset(0, 14),
             ),
@@ -248,22 +261,22 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                 ),
               ),
               const SizedBox(height: 18),
-              const Text(
+              Text(
                 'Pick a course to begin',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: isDark ? Colors.white : fblaLightPrimaryText,
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: 8),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 28),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
                 child: Text(
                   'Choose one of your saved courses to unlock the level path and see your next step.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Colors.white70,
+                    color: isDark ? Colors.white70 : fblaLightSecondaryText,
                     fontSize: 13,
                     height: 1.45,
                   ),
@@ -443,11 +456,14 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
     item.onTap();
   }
 
-  Widget _buildTopStatsBar() {
+  Widget _buildTopStatsBar(bool isDark) {
     final rand = Random();
     final selectedCourseShortForm = _selectedCourse == null
         ? 'COURSE'
         : courseShortFormForName(_selectedCourse!);
+    final statTextColor = isDark ? Colors.white : fblaLightPrimaryText;
+    final chipFill = isDark ? Colors.white.withOpacity(0.08) : fblaLightSurface;
+    final chipBorder = isDark ? Colors.white12 : fblaLightBorder;
 
     Widget statInline(
       Widget iconWidget, {
@@ -468,8 +484,8 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                   const SizedBox(width: 6),
                   Text(
                     '$displayValue',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: statTextColor,
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
                     ),
@@ -518,14 +534,14 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.08),
+                        color: chipFill,
                         borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: Colors.white12),
+                        border: Border.all(color: chipBorder),
                       ),
                       child: Text(
                         selectedCourseShortForm,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: statTextColor,
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.5,
@@ -562,6 +578,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
             child: statInline(
               const Icon(Icons.leaderboard, color: Color(0xFF66BB6A), size: 31),
               hideValue: true,
+              onTap: () => RankScreen.open(context),
             ),
           ),
         ),
