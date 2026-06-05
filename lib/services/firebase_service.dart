@@ -651,6 +651,51 @@ class FirebaseService {
         .set(data, SetOptions(merge: true));
   }
 
+  // Direct Messaging Methods
+  static String _chatId(String userId1, String userId2) {
+    final sorted = [userId1, userId2]..sort();
+    return 'chat_${sorted[0]}_${sorted[1]}';
+  }
+
+  static Stream<List<Map<String, dynamic>>> getDirectMessages(
+      String userId1, String userId2) {
+    final chatId = _chatId(userId1, userId2);
+    return _firestore
+        .collection('direct_messages')
+        .doc(chatId)
+        .collection('messages')
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
+  }
+
+  static Future<void> sendDirectMessage({
+    required String fromUserId,
+    required String toUserId,
+    required String text,
+    required String fromUserName,
+  }) async {
+    final chatId = _chatId(fromUserId, toUserId);
+    final timestamp = FieldValue.serverTimestamp();
+
+    await _firestore
+        .collection('direct_messages')
+        .doc(chatId)
+        .collection('messages')
+        .add({
+      'senderId': fromUserId,
+      'senderName': fromUserName,
+      'text': text,
+      'timestamp': timestamp,
+    });
+
+    await _firestore.collection('direct_messages').doc(chatId).set({
+      'lastMessage': text,
+      'lastTimestamp': timestamp,
+      'participants': [fromUserId, toUserId],
+    }, SetOptions(merge: true));
+  }
+
   // Storage methods
   static Future<String?> uploadProfileImage(
       String userId, Uint8List imageBytes) async {

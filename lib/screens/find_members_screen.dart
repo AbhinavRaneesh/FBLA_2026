@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart';
 import '../services/firebase_service.dart';
+import 'direct_chat_screen.dart';
 
 enum _MembersTab { directory, friends, requests }
 
@@ -749,8 +750,44 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
         ),
         trailing: showAddButton
             ? _buildAddFriendButton(member, relation, isDark)
-            : Icon(Icons.check_circle, color: const Color(0xFF66BB6A)),
+            : _buildChatAction(member),
       ),
+    );
+  }
+
+  Widget _buildChatAction(Map<String, dynamic> member) {
+    final memberId = (member['id'] ?? '').toString();
+    final name = _displayName(member);
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.check_circle, color: const Color(0xFF66BB6A)),
+        const SizedBox(width: 8),
+        IconButton(
+          tooltip: 'Chat',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => DirectChatScreen(
+                  otherUserId: memberId,
+                  otherUserName: name,
+                ),
+              ),
+            );
+          },
+          icon: Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: fblaGold.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.chat_bubble_rounded, color: fblaGold, size: 18),
+          ),
+        ),
+      ],
     );
   }
 
@@ -762,7 +799,7 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
     if (relation == 'self') return null;
 
     if (relation == 'friends') {
-      return Icon(Icons.check_circle, color: const Color(0xFF66BB6A));
+      return _buildChatAction(member);
     }
 
     if (relation == 'outgoing') {
