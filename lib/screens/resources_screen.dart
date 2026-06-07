@@ -88,6 +88,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
   String? _selectedCourse;
   int _points = 0;
   int _streak = 0;
+  Set<int> _completedLevels = {};
   final GlobalKey _courseMenuButtonKey = GlobalKey();
   final GlobalKey _streakButtonKey = GlobalKey();
   DateTime _streakCalendarMonth =
@@ -132,14 +133,56 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
   }
 
   Future<void> _loadProgress() async {
+    int points = 0;
+    int streak = 0;
+    Set<int> completed = {};
     try {
-      final progress = await FirebaseService.getCurrentUserProgress();
-      if (!mounted) return;
-      setState(() {
-        _points = progress['points'] ?? 0;
-        _streak = progress['streak'] ?? 0;
-      });
+      final prefs = await SharedPreferences.getInstance();
+      completed = (prefs.getStringList('cyber_completed_levels') ?? const [])
+          .map(int.tryParse)
+          .whereType<int>()
+          .toSet();
+      points = prefs.getInt('cyber_xp') ?? 0;
     } catch (_) {}
+    if (points == 0) {
+      try {
+        final progress = await FirebaseService.getCurrentUserProgress();
+        points = progress['points'] ?? 0;
+        streak = progress['streak'] ?? 0;
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    setState(() {
+      _completedLevels = completed;
+      _points = points;
+      _streak = completed.isNotEmpty ? completed.length : streak;
+    });
+  }
+
+  Future<void> _onLevelCompleted(int level, int correct, int total) async {
+    final gained = correct * 10 + 20;
+    final firstTime = !_completedLevels.contains(level);
+    setState(() {
+      _completedLevels = {..._completedLevels, level};
+      _points += gained;
+      _streak = _completedLevels.length;
+    });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('cyber_completed_levels',
+          _completedLevels.map((e) => e.toString()).toList());
+      await prefs.setInt('cyber_xp', _points);
+    } catch (_) {}
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(firstTime
+            ? 'Level $level complete!  +$gained XP'
+            : 'Nice practice!  +$gained XP'),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xFF2E7D32),
+      ),
+    );
   }
 
   void _selectCourse(String course) {
@@ -299,6 +342,8 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
         icon: _courseIcon(course),
         onMoreMenu: () => _showCourseMenu(course),
         moreMenuButtonKey: _courseMenuButtonKey,
+        completedLevels: _completedLevels,
+        onLevelCompleted: _onLevelCompleted,
       ),
     );
   }
@@ -311,11 +356,25 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
         onTap: _showCoursePanel,
       ),
       _CourseMenuItem(
-        label: 'Concept Maps',
-        icon: Icons.account_tree_outlined,
-        onTap: () async {
+        label: 'Study Notes',
+        icon: Icons.menu_book_rounded,
+        onTap: () {
+          if (_isCybersecurityCourse(course)) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => CybersecurityModulesScreen(
+                  course: course,
+                  color: _courseColor(course),
+                ),
+              ),
+            );
+            return;
+          }
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Concept Maps are coming soon.')),
+            const SnackBar(
+                content: Text(
+                    'Study notes are available for the Cybersecurity course right now.')),
           );
         },
       ),
@@ -457,130 +516,83 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
   }
 
   Widget _buildTopStatsBar(bool isDark) {
-    final rand = Random();
-    final selectedCourseShortForm = _selectedCourse == null
-        ? 'COURSE'
-        : courseShortFormForName(_selectedCourse!);
-    final statTextColor = isDark ? Colors.white : fblaLightPrimaryText;
-    final chipFill = isDark ? Colors.white.withOpacity(0.08) : fblaLightSurface;
-    final chipBorder = isDark ? Colors.white12 : fblaLightBorder;
+    final courseName = _selectedCourse;
+    final courseLabel =
+        courseName == null ? 'Course' : courseShortFormForName(courseName);
+    final accent = courseName == null ? fblaGold : _courseColor(courseName);
 
-    Widget statInline(
-      Widget iconWidget, {
+    Widget statChip({
+      required Widget icon,
+      required String text,
       Key? key,
-      int? value,
-      bool hideValue = false,
       VoidCallback? onTap,
     }) {
-      final displayValue = value ?? rand.nextInt(1000);
-      final content = hideValue
-          ? iconWidget
-          : FittedBox(
+      return Expanded(
+        child: GestureDetector(
+          key: key,
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : fblaLightSurface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                  color: isDark ? Colors.white12 : fblaLightBorder),
+            ),
+            child: FittedBox(
               fit: BoxFit.scaleDown,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  iconWidget,
+                  icon,
                   const SizedBox(width: 6),
                   Text(
-                    '$displayValue',
+                    text,
                     style: TextStyle(
-                      color: statTextColor,
-                      fontSize: 15,
+                      color: isDark ? Colors.white : fblaLightPrimaryText,
+                      fontSize: 14,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                 ],
               ),
-            );
-
-      return GestureDetector(
-        key: key,
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: content,
+            ),
+          ),
         ),
       );
     }
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Expanded(
-          child: Center(
-            child: GestureDetector(
-              onTap: _openCoursePicker,
-              behavior: HitTestBehavior.opaque,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _selectedCourse == null
-                          ? Icons.school
-                          : courseIconForName(_selectedCourse!),
-                      color: _selectedCourse == null
-                          ? fblaGold
-                          : _courseColor(_selectedCourse!),
-                      size: 27,
-                    ),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: chipFill,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: chipBorder),
-                      ),
-                      child: Text(
-                        selectedCourseShortForm,
-                        style: TextStyle(
-                          color: statTextColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+        statChip(
+          icon: Icon(
+            courseName == null ? Icons.school : courseIconForName(courseName),
+            color: accent,
+            size: 22,
           ),
+          text: courseLabel,
+          onTap: _openCoursePicker,
         ),
-        Expanded(
-          child: Center(
-            child: statInline(
-              const Icon(Icons.local_fire_department,
-                  color: Color(0xFFFF7043), size: 31),
-              key: _streakButtonKey,
-              value: _streak,
-              onTap: _showStreakCalendar,
-            ),
-          ),
+        statChip(
+          key: _streakButtonKey,
+          icon: const Icon(Icons.local_fire_department,
+              color: Color(0xFFFF7043), size: 22),
+          text: '$_streak',
+          onTap: _showStreakCalendar,
         ),
-        Expanded(
-          child: Center(
-            child: statInline(
-              Image.asset('assets/coins.png', width: 30, height: 30),
-              value: _points,
-            ),
-          ),
+        statChip(
+          icon: Image.asset('assets/coins.png', width: 22, height: 22),
+          text: '$_points',
         ),
-        Expanded(
-          child: Center(
-            child: statInline(
-              const Icon(Icons.leaderboard, color: Color(0xFF66BB6A), size: 31),
-              hideValue: true,
-              onTap: () => RankScreen.open(context),
-            ),
-          ),
+        statChip(
+          icon: const Icon(Icons.emoji_events_rounded,
+              color: Color(0xFFFFD54F), size: 22),
+          text: 'Rank',
+          onTap: () => RankScreen.open(context),
         ),
       ],
     );
@@ -1084,6 +1096,8 @@ class _CourseJourneyPanel extends StatefulWidget {
   final IconData icon;
   final VoidCallback onMoreMenu;
   final GlobalKey moreMenuButtonKey;
+  final Set<int> completedLevels;
+  final void Function(int level, int correct, int total) onLevelCompleted;
 
   const _CourseJourneyPanel({
     super.key,
@@ -1092,6 +1106,8 @@ class _CourseJourneyPanel extends StatefulWidget {
     required this.icon,
     required this.onMoreMenu,
     required this.moreMenuButtonKey,
+    required this.completedLevels,
+    required this.onLevelCompleted,
   });
 
   @override
@@ -1208,55 +1224,203 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
               ),
             ),
           ),
-          Expanded(
-            child: ScrollConfiguration(
-              behavior: _NoGlowScrollBehavior(),
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                physics: const BouncingScrollPhysics(),
-                itemCount: 10,
-                itemBuilder: (context, index) {
-                  final level = index + 1;
-                  final status =
-                      level == 1 ? _LevelStatus.active : _LevelStatus.locked;
-                  final isCybersecurity = _isCybersecurityCourse(widget.course);
-                  final levelTap = level == 1 && isCybersecurity
-                      ? () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => CybersecurityModulesScreen(
-                                course: widget.course,
-                                color: widget.color,
-                              ),
-                            ),
-                          );
-                        }
-                      : null;
-
-                  const amplitude = 0.92;
-                  const step = 0.95;
-                  final xAlign = sin(index * step) * amplitude;
-
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Align(
-                        alignment: Alignment(xAlign, 0),
-                        child: _LevelNode(
-                          level: level,
-                          color: widget.color,
-                          status: status,
-                          onTap: levelTap,
-                        ),
-                      ),
-                      if (index < 9) const SizedBox(height: 8),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ),
+          Expanded(child: _buildJourney(context)),
         ],
+      ),
+    );
+  }
+
+  Widget _buildJourney(BuildContext context) {
+    if (!_isCybersecurityCourse(widget.course)) {
+      return _buildComingSoon();
+    }
+    final levels = _cyberLevels;
+    final count = levels.length;
+    final highestCompleted = widget.completedLevels.isEmpty
+        ? 0
+        : widget.completedLevels.reduce(max);
+
+    const nodeSize = 96.0;
+    const vSpacing = 140.0;
+    final totalHeight = vSpacing * count + 48;
+
+    return ScrollConfiguration(
+      behavior: _NoGlowScrollBehavior(),
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final centerX = width / 2;
+            final amp = (width / 2 - nodeSize / 2 - 6) * 0.66;
+            final centers = <Offset>[
+              for (int i = 0; i < count; i++)
+                Offset(
+                  centerX + sin(i * 0.9) * amp,
+                  28 + vSpacing * i + nodeSize / 2,
+                ),
+            ];
+            final children = <Widget>[
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _JourneyPathPainter(
+                    centers: centers,
+                    color: widget.color,
+                    highestUnlocked: highestCompleted,
+                  ),
+                ),
+              ),
+            ];
+            for (int i = 0; i < count; i++) {
+              children.addAll(
+                  _nodeWidgets(i, centers[i], levels[i], highestCompleted));
+            }
+            return SizedBox(
+              width: width,
+              height: totalHeight,
+              child: Stack(clipBehavior: Clip.none, children: children),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _nodeWidgets(
+      int i, Offset c, _CyberLevel level, int highestCompleted) {
+    const nodeSize = 96.0;
+    final levelNum = i + 1;
+    final isCompleted = widget.completedLevels.contains(levelNum);
+    final isActive = !isCompleted && levelNum == highestCompleted + 1;
+    final status = isCompleted
+        ? _LevelStatus.completed
+        : isActive
+            ? _LevelStatus.active
+            : _LevelStatus.locked;
+    return [
+      Positioned(
+        left: c.dx - nodeSize / 2,
+        top: c.dy - nodeSize / 2,
+        child: _LevelNode(
+          level: levelNum,
+          color: widget.color,
+          status: status,
+          onTap: () => _handleLevelTap(levelNum, status),
+        ),
+      ),
+      Positioned(
+        left: c.dx - 70,
+        top: c.dy + nodeSize / 2 - 8,
+        width: 140,
+        child: Text(
+          level.title,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color:
+                status == _LevelStatus.locked ? Colors.white38 : Colors.white,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            height: 1.15,
+          ),
+        ),
+      ),
+      if (isActive)
+        Positioned(
+          left: c.dx - 32,
+          top: c.dy - nodeSize / 2 - 18,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            decoration: BoxDecoration(
+              color: fblaGold,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: fblaGold.withValues(alpha: 0.5),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: const Text('START',
+                style: TextStyle(
+                  color: fblaNavy,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.5,
+                )),
+          ),
+        ),
+    ];
+  }
+
+  Future<void> _handleLevelTap(int levelNum, _LevelStatus status) async {
+    if (status == _LevelStatus.locked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('Complete Level ${levelNum - 1} to unlock this level.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    final level = _cyberLevels[levelNum - 1];
+    final questions = _questionsForTopic(level.topic);
+    if (questions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No questions available yet.')),
+      );
+      return;
+    }
+    final result = await Navigator.of(context).push<_LessonResult>(
+      MaterialPageRoute(
+        builder: (_) => LessonSessionScreen(
+          level: level,
+          levelNumber: levelNum,
+          questions: questions,
+          color: widget.color,
+        ),
+      ),
+    );
+    if (result != null && result.completed) {
+      widget.onLevelCompleted(levelNum, result.correct, result.total);
+    }
+  }
+
+  Widget _buildComingSoon() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 84,
+              height: 84,
+              decoration: BoxDecoration(
+                color: widget.color.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(26),
+              ),
+              child: Icon(Icons.auto_stories_outlined,
+                  color: widget.color, size: 40),
+            ),
+            const SizedBox(height: 18),
+            const Text('Lessons coming soon',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Text(
+              'Interactive lessons for ${widget.course} are on the way. Try the Cybersecurity course to experience the full learning path.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: Colors.white70, fontSize: 13.5, height: 1.45),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1302,115 +1466,215 @@ class CybersecurityModulesScreen extends StatelessWidget {
       {required this.course, required this.color, Key? key})
       : super(key: key);
 
+  static const List<Map<String, String>> _modules = [
+    {
+      'id': '1.1',
+      'title': 'Introduction to Cybersecurity',
+      'desc': 'Core concepts and the CIA triad'
+    },
+    {
+      'id': '1.2',
+      'title': 'Digital Threats 101',
+      'desc': 'Malware, phishing, and common attacks'
+    },
+    {
+      'id': '1.3',
+      'title': 'Vocabulary',
+      'desc': 'Key terms as quick flashcards',
+      'type': 'cards'
+    },
+    {
+      'id': '1.4',
+      'title': 'Basic Protection Techniques',
+      'desc': 'Defending devices and data'
+    },
+    {
+      'id': '1.5',
+      'title': 'Password & Authentication',
+      'desc': 'Strong credentials and MFA'
+    },
+    {
+      'id': '1.6',
+      'title': 'Safe Internet Practices',
+      'desc': 'Staying secure online'
+    },
+  ];
+
+  void _openModule(BuildContext context, String id) {
+    Widget? screen;
+    switch (id) {
+      case '1.1':
+        screen = CybersecurityLevelOneScreen(course: course, color: color);
+        break;
+      case '1.2':
+        screen = CybersecurityModuleOneTwoScreen(course: course, color: color);
+        break;
+      case '1.3':
+        screen = CybersecurityVocabularyScreen(course: course, color: color);
+        break;
+      case '1.4':
+        screen = CybersecurityModuleOneFourScreen(course: course, color: color);
+        break;
+      case '1.5':
+        screen = CybersecurityModuleOneFiveScreen(course: course, color: color);
+        break;
+      case '1.6':
+        screen = CybersecurityModuleOneSixScreen(course: course, color: color);
+        break;
+    }
+    final target = screen;
+    if (target != null) {
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => target));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final modules = [
-      {'id': '1.1', 'title': 'Introduction to Cybersecurity'},
-      {'id': '1.2', 'title': 'Digital Threats 101'},
-      {'id': '1.3', 'title': 'Vocabulary (Flashcards)'},
-      {'id': '1.4', 'title': 'Basic Protection Techniques'},
-      {'id': '1.5', 'title': 'Password & Authentication Basics'},
-      {'id': '1.6', 'title': 'Safe Internet Practices'},
-    ];
-
     return Scaffold(
-      backgroundColor: const Color(0xFF061726),
-      appBar: AppBar(
-        title: Text('$course Modules'),
-        backgroundColor: color,
-      ),
-      body: SafeArea(
-        child: Container(
-          decoration: const BoxDecoration(gradient: appBackgroundGradient),
-          child: ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: modules.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final mod = modules[index];
-              return Material(
-                color: Colors.white.withOpacity(0.02),
-                borderRadius: BorderRadius.circular(12),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () {
-                    // Route each module to its screen
-                    if (mod['id'] == '1.1') {
-                      Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => CybersecurityLevelOneScreen(
-                            course: course, color: color),
-                      ));
-                    } else if (mod['id'] == '1.2') {
-                      Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => CybersecurityModuleOneTwoScreen(
-                            course: course, color: color),
-                      ));
-                    } else if (mod['id'] == '1.3') {
-                      Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => CybersecurityVocabularyScreen(
-                            course: course, color: color),
-                      ));
-                    } else if (mod['id'] == '1.4') {
-                      Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => CybersecurityModuleOneFourScreen(
-                            course: course, color: color),
-                      ));
-                    } else if (mod['id'] == '1.5') {
-                      Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => CybersecurityModuleOneFiveScreen(
-                            course: course, color: color),
-                      ));
-                    } else if (mod['id'] == '1.6') {
-                      Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => CybersecurityModuleOneSixScreen(
-                            course: course, color: color),
-                      ));
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 16, horizontal: 16),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: color.withOpacity(0.18),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Center(
-                            child: Text(
-                              mod['id']!,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w800),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                mod['title']!,
-                                style: const TextStyle(
-                                    fontSize: 16, fontWeight: FontWeight.w700),
-                              ),
-                              const SizedBox(height: 4),
-                              Text('Tap to open the lesson',
-                                  style: TextStyle(
-                                      color: Colors.white.withOpacity(0.7))),
-                            ],
-                          ),
-                        ),
-                        const Icon(Icons.chevron_right, color: Colors.white70),
-                      ],
+      backgroundColor: const Color(0xFF07111F),
+      body: Container(
+        decoration: const BoxDecoration(gradient: appBackgroundGradient),
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(6, 6, 16, 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
                     ),
-                  ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Study Notes',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w900)),
+                          Text('$course · ${_modules.length} lessons',
+                              style: const TextStyle(
+                                  color: Colors.white60,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [color, color.withValues(alpha: 0.7)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.menu_book_rounded,
+                          color: Colors.white, size: 22),
+                    ),
+                  ],
                 ),
-              );
-            },
+              ),
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                  itemCount: _modules.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) =>
+                      _moduleCard(context, _modules[index]),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _moduleCard(BuildContext context, Map<String, String> mod) {
+    final isCards = mod['type'] == 'cards';
+    final tagColor = isCards ? fblaGold : color;
+    return Material(
+      color: Colors.white.withValues(alpha: 0.05),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _openModule(context, mod['id']!),
+        child: Container(
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [color, color.withValues(alpha: 0.7)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Center(
+                  child: Text(mod['id']!,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14)),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(mod['title']!,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 3),
+                    Text(mod['desc'] ?? '',
+                        style: const TextStyle(
+                            color: Colors.white60,
+                            fontSize: 12.5,
+                            height: 1.3)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: tagColor.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(isCards ? Icons.style_rounded : Icons.menu_book_rounded,
+                        size: 13, color: tagColor),
+                    const SizedBox(width: 4),
+                    Text(isCards ? 'Cards' : 'Lesson',
+                        style: TextStyle(
+                            color: tagColor,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800)),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -6844,11 +7108,16 @@ class _CourseSelectionScreenState extends State<CourseSelectionScreen> {
         grouped.entries.where((entry) => entry.value.isNotEmpty).toList();
 
     return Scaffold(
-      appBar:
-          AppBar(title: const Text('Add Course'), backgroundColor: fblaNavy),
-      backgroundColor: const Color(0xFF0B1624),
-      body: Column(
-        children: [
+      appBar: AppBar(
+        title: const Text('Add Course'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      backgroundColor: const Color(0xFF07111F),
+      body: Container(
+        decoration: const BoxDecoration(gradient: appBackgroundGradient),
+        child: Column(
+          children: [
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: TextField(
@@ -6876,6 +7145,10 @@ class _CourseSelectionScreenState extends State<CourseSelectionScreen> {
                 return ExpansionTile(
                   backgroundColor: Colors.transparent,
                   collapsedBackgroundColor: Colors.transparent,
+                  shape: const Border(),
+                  collapsedShape: const Border(),
+                  iconColor: fblaAccent,
+                  collapsedIconColor: Colors.white54,
                   tilePadding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   childrenPadding:
@@ -6884,7 +7157,9 @@ class _CourseSelectionScreenState extends State<CourseSelectionScreen> {
                     category,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.2,
                     ),
                   ),
                   children: list.map((eventName) {
@@ -6977,6 +7252,7 @@ class _CourseSelectionScreenState extends State<CourseSelectionScreen> {
               ),
             ),
         ],
+        ),
       ),
     );
   }
@@ -8146,4 +8422,775 @@ class _CourseMenuItem {
     required this.icon,
     required this.onTap,
   });
+}
+
+/* ============================================================
+   Duolingo-style interactive learning (Cybersecurity)
+   ============================================================ */
+
+// Parse the bundled question bank once for reuse across the journey.
+final List<_CyberQuestion> _allCyberQuestions = _cyberQuestionSeed
+    .trim()
+    .split('\n')
+    .where((line) => line.trim().isNotEmpty)
+    .map((line) {
+  final parts = line.split('|');
+  return _CyberQuestion(
+    id: int.parse(parts[0]),
+    topic: parts[1],
+    difficulty: parts[2],
+    answerIndex: 'ABCD'.indexOf(parts[3]),
+    prompt: parts[4],
+    options: parts.sublist(5, 9),
+  );
+}).toList(growable: false);
+
+List<_CyberQuestion> _questionsForTopic(String topic) =>
+    _allCyberQuestions.where((q) => q.topic == topic).toList();
+
+class _CyberLevel {
+  final String title;
+  final String tagline;
+  final String intro;
+  final List<String> keyPoints;
+  final String topic; // must match a topic in the question bank
+  final IconData icon;
+
+  const _CyberLevel({
+    required this.title,
+    required this.tagline,
+    required this.intro,
+    required this.keyPoints,
+    required this.topic,
+    required this.icon,
+  });
+}
+
+const List<_CyberLevel> _cyberLevels = [
+  _CyberLevel(
+    title: 'Cybersecurity Fundamentals',
+    tagline: 'The core ideas',
+    icon: Icons.shield_outlined,
+    intro:
+        'Cybersecurity is the practice of protecting systems, networks, and data from digital threats. Start with the foundations everything else builds on.',
+    keyPoints: [
+      'The CIA triad — Confidentiality, Integrity, Availability — defines what we protect.',
+      'Authentication proves who you are; authorization controls what you can do.',
+      'Encryption makes data unreadable without the correct key.',
+    ],
+    topic: 'Cybersecurity Fundamentals',
+  ),
+  _CyberLevel(
+    title: 'Threats & Attacks',
+    tagline: 'Know your enemy',
+    icon: Icons.bug_report_outlined,
+    intro:
+        'Attackers use many techniques to steal data or disrupt systems. Learn to recognize the most common threats so you can defend against them.',
+    keyPoints: [
+      'Phishing and social engineering target people, not machines.',
+      'Malware includes viruses, worms, ransomware, trojans, and spyware.',
+      'A zero-day exploits a flaw before a patch exists.',
+    ],
+    topic: 'Threats and Attacks',
+  ),
+  _CyberLevel(
+    title: 'Security Technologies',
+    tagline: 'Tools of defense',
+    icon: Icons.security_outlined,
+    intro:
+        'Defenders rely on layered tools to detect and stop attacks. Get familiar with the technologies that keep networks safe.',
+    keyPoints: [
+      'Firewalls filter traffic; IDS/IPS detect and block intrusions.',
+      'A SIEM collects and analyzes security events across systems.',
+      'Honeypots and sandboxes safely study malicious activity.',
+    ],
+    topic: 'Security Technologies',
+  ),
+  _CyberLevel(
+    title: 'Practices & Management',
+    tagline: 'Staying secure',
+    icon: Icons.policy_outlined,
+    intro:
+        'Strong security is a process, not a product. Policies, audits, and training keep an organization protected over time.',
+    keyPoints: [
+      'Security policies define the rules that protect assets.',
+      'Penetration tests and audits find weaknesses before attackers do.',
+      'Patch management and awareness training reduce real-world risk.',
+    ],
+    topic: 'Security Practices and Management',
+  ),
+  _CyberLevel(
+    title: 'Network Security',
+    tagline: 'Securing the wire',
+    icon: Icons.lan_outlined,
+    intro:
+        'Most attacks travel across networks. Protecting how data moves is essential to keeping systems safe.',
+    keyPoints: [
+      'HTTPS and TLS secure data in transit.',
+      'VPNs create encrypted tunnels over untrusted networks.',
+      'Segmentation and DMZs isolate sensitive systems.',
+    ],
+    topic: 'Network Security',
+  ),
+  _CyberLevel(
+    title: 'Data Protection & Compliance',
+    tagline: 'Guarding the data',
+    icon: Icons.gpp_good_outlined,
+    intro:
+        'Data is what attackers want. Laws and best practices govern how we protect it and prove we are doing so.',
+    keyPoints: [
+      'Encryption at rest protects stored data.',
+      'GDPR and PCI DSS set rules for personal and payment data.',
+      'Hashing verifies integrity; DLP prevents leaks.',
+    ],
+    topic: 'Data Protection and Compliance',
+  ),
+  _CyberLevel(
+    title: 'Latest Features & Updates',
+    tagline: 'Modern defense',
+    icon: Icons.auto_awesome_outlined,
+    intro:
+        'Cybersecurity evolves fast. Explore the modern frameworks and AI-driven tools shaping defense today.',
+    keyPoints: [
+      'Zero Trust verifies every user and device continuously.',
+      'AI powers real-time threat detection and UEBA.',
+      'XDR and SASE unify security across systems and the cloud.',
+    ],
+    topic: 'Latest Cybersecurity Features and Updates',
+  ),
+  _CyberLevel(
+    title: 'Final Review',
+    tagline: 'Put it all together',
+    icon: Icons.emoji_events_outlined,
+    intro:
+        'You have covered the essentials. This mixed review reinforces everything and gets you competition-ready.',
+    keyPoints: [
+      'Mixes questions from every topic you have learned.',
+      'Great for quick daily practice before a competition.',
+      'Aim for a perfect score to master the material.',
+    ],
+    topic: 'Cybersecurity Quick Review',
+  ),
+];
+
+class _LessonResult {
+  final bool completed;
+  final int correct;
+  final int total;
+  const _LessonResult({
+    required this.completed,
+    required this.correct,
+    required this.total,
+  });
+}
+
+const Color _duoGreen = Color(0xFF58CC02);
+const Color _duoGreenDark = Color(0xFF4CAF00);
+const Color _wrongRed = Color(0xFFE53935);
+
+class LessonSessionScreen extends StatefulWidget {
+  final _CyberLevel level;
+  final int levelNumber;
+  final List<_CyberQuestion> questions;
+  final Color color;
+
+  const LessonSessionScreen({
+    super.key,
+    required this.level,
+    required this.levelNumber,
+    required this.questions,
+    required this.color,
+  });
+
+  @override
+  State<LessonSessionScreen> createState() => _LessonSessionScreenState();
+}
+
+class _LessonSessionScreenState extends State<LessonSessionScreen> {
+  static const int _maxQuestions = 7;
+
+  late final List<_CyberQuestion> _quiz;
+  int _index = 0;
+  int? _selected;
+  bool _checked = false;
+  int _correct = 0;
+  bool _showIntro = true;
+  bool _finished = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final pool = [...widget.questions]..shuffle();
+    final count = pool.length < _maxQuestions ? pool.length : _maxQuestions;
+    _quiz = pool.take(count).toList();
+  }
+
+  double get _progress {
+    if (_quiz.isEmpty) return 1;
+    if (_finished) return 1;
+    return _index / _quiz.length;
+  }
+
+  void _check() {
+    if (_selected == null || _checked) return;
+    setState(() {
+      _checked = true;
+      if (_selected == _quiz[_index].answerIndex) _correct++;
+    });
+  }
+
+  void _next() {
+    if (_index + 1 >= _quiz.length) {
+      setState(() => _finished = true);
+      return;
+    }
+    setState(() {
+      _index++;
+      _selected = null;
+      _checked = false;
+    });
+  }
+
+  Future<void> _onClose() async {
+    if (_finished) {
+      Navigator.of(context).pop();
+      return;
+    }
+    final quit = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF0E1B2C),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Quit lesson?',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+        content: const Text('Your progress in this lesson will be lost.',
+            style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep going'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Quit', style: TextStyle(color: _wrongRed)),
+          ),
+        ],
+      ),
+    );
+    if (quit == true && mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _onClose();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF07111F),
+        body: Container(
+          decoration: const BoxDecoration(gradient: appBackgroundGradient),
+          child: SafeArea(
+            child: Column(
+              children: [
+                _buildTopBar(),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 260),
+                    child: _finished
+                        ? _buildResults()
+                        : _showIntro
+                            ? _buildIntro()
+                            : _buildQuestion(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: _onClose,
+            child: const Icon(Icons.close_rounded, color: Colors.white70),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: _progress),
+                duration: const Duration(milliseconds: 300),
+                builder: (context, value, _) => LinearProgressIndicator(
+                  value: value,
+                  minHeight: 12,
+                  backgroundColor: Colors.white.withValues(alpha: 0.10),
+                  valueColor: const AlwaysStoppedAnimation(_duoGreen),
+                ),
+              ),
+            ),
+          ),
+          if (!_showIntro && !_finished) ...[
+            const SizedBox(width: 14),
+            const Icon(Icons.check_circle, color: _duoGreen, size: 18),
+            const SizedBox(width: 4),
+            Text('$_correct',
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w800)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIntro() {
+    final level = widget.level;
+    return SingleChildScrollView(
+      key: const ValueKey('intro'),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [widget.color, widget.color.withValues(alpha: 0.7)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.color.withValues(alpha: 0.4),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Icon(level.icon, color: Colors.white, size: 38),
+          ),
+          const SizedBox(height: 18),
+          Text('LEVEL ${widget.levelNumber}',
+              style: TextStyle(
+                color: widget.color,
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
+              )),
+          const SizedBox(height: 4),
+          Text(level.title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+                height: 1.1,
+              )),
+          const SizedBox(height: 12),
+          Text(level.intro,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 15,
+                height: 1.5,
+              )),
+          const SizedBox(height: 20),
+          ...level.keyPoints.map((p) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.check_circle_rounded,
+                        color: _duoGreen, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(p,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14.5,
+                            height: 1.4,
+                          )),
+                    ),
+                  ],
+                ),
+              )),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: widget.color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+              border:
+                  Border.all(color: widget.color.withValues(alpha: 0.45)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.quiz_outlined, color: widget.color, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${_quiz.length} practice question${_quiz.length == 1 ? '' : 's'} — answer to earn XP.',
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 22),
+          _bigButton(
+            label: 'Start lesson',
+            enabled: _quiz.isNotEmpty,
+            onTap: () => setState(() => _showIntro = false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuestion() {
+    final q = _quiz[_index];
+    return Column(
+      key: ValueKey('q$_index'),
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('QUESTION ${_index + 1} OF ${_quiz.length}',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1,
+                    )),
+                const SizedBox(height: 10),
+                Text(q.prompt,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 21,
+                      fontWeight: FontWeight.w800,
+                      height: 1.25,
+                    )),
+                const SizedBox(height: 22),
+                ...List.generate(q.options.length, (i) => _optionCard(q, i)),
+              ],
+            ),
+          ),
+        ),
+        _buildFeedbackAndButton(q),
+      ],
+    );
+  }
+
+  Widget _optionCard(_CyberQuestion q, int i) {
+    final isSelected = _selected == i;
+    final isAnswer = q.answerIndex == i;
+
+    Color border = Colors.white24;
+    Color bg = Colors.white.withValues(alpha: 0.04);
+    Color fg = Colors.white;
+    if (_checked) {
+      if (isAnswer) {
+        border = _duoGreen;
+        bg = _duoGreen.withValues(alpha: 0.16);
+        fg = Colors.white;
+      } else if (isSelected) {
+        border = _wrongRed;
+        bg = _wrongRed.withValues(alpha: 0.16);
+      }
+    } else if (isSelected) {
+      border = widget.color;
+      bg = widget.color.withValues(alpha: 0.16);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GestureDetector(
+        onTap: _checked ? null : () => setState(() => _selected = i),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: border, width: 2),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: border, width: 2),
+                ),
+                child: Text(String.fromCharCode(65 + i),
+                    style: TextStyle(
+                        color: fg, fontWeight: FontWeight.w800, fontSize: 13)),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(q.options[i],
+                    style: TextStyle(
+                        color: fg, fontSize: 15, fontWeight: FontWeight.w600)),
+              ),
+              if (_checked && isAnswer)
+                const Icon(Icons.check_circle, color: _duoGreen, size: 22)
+              else if (_checked && isSelected)
+                const Icon(Icons.cancel, color: _wrongRed, size: 22),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeedbackAndButton(_CyberQuestion q) {
+    final showFeedback = _checked;
+    final correct = _selected == q.answerIndex;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
+      decoration: BoxDecoration(
+        color: showFeedback
+            ? (correct
+                ? _duoGreen.withValues(alpha: 0.14)
+                : _wrongRed.withValues(alpha: 0.14))
+            : Colors.transparent,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (showFeedback) ...[
+            Row(
+              children: [
+                Icon(correct ? Icons.check_circle : Icons.cancel,
+                    color: correct ? _duoGreen : _wrongRed, size: 22),
+                const SizedBox(width: 8),
+                Text(correct ? 'Correct!' : 'Not quite',
+                    style: TextStyle(
+                      color: correct ? _duoGreen : _wrongRed,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    )),
+              ],
+            ),
+            if (!correct) ...[
+              const SizedBox(height: 6),
+              Text('Correct answer: ${q.options[q.answerIndex]}',
+                  style: const TextStyle(color: Colors.white, fontSize: 13.5)),
+            ],
+            const SizedBox(height: 12),
+          ],
+          _bigButton(
+            label: _checked
+                ? (_index + 1 >= _quiz.length ? 'Finish' : 'Continue')
+                : 'Check',
+            enabled: _selected != null,
+            color: showFeedback && !correct ? _wrongRed : _duoGreen,
+            onTap: _checked ? _next : _check,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResults() {
+    final total = _quiz.length;
+    final pct = total == 0 ? 0 : (_correct / total);
+    final xp = _correct * 10 + 20;
+    final perfect = _correct == total && total > 0;
+    final passed = pct >= 0.6;
+    return SingleChildScrollView(
+      key: const ValueKey('results'),
+      padding: const EdgeInsets.fromLTRB(24, 30, 24, 24),
+      child: Column(
+        children: [
+          Container(
+            width: 110,
+            height: 110,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: perfect
+                    ? [fblaGold, const Color(0xFFFFD54F)]
+                    : [_duoGreen, _duoGreenDark],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: (perfect ? fblaGold : _duoGreen)
+                      .withValues(alpha: 0.45),
+                  blurRadius: 28,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: Icon(perfect ? Icons.emoji_events : Icons.check_rounded,
+                color: Colors.white, size: 58),
+          ),
+          const SizedBox(height: 22),
+          Text(perfect ? 'Perfect!' : (passed ? 'Lesson Complete!' : 'Lesson Done'),
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900)),
+          const SizedBox(height: 8),
+          Text('${widget.level.title} · Level ${widget.levelNumber}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white60, fontSize: 14)),
+          const SizedBox(height: 26),
+          Row(
+            children: [
+              Expanded(
+                child: _resultStat(
+                    '$_correct / $total', 'Correct', Icons.task_alt_rounded,
+                    color: _duoGreen),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _resultStat('+$xp', 'XP Earned',
+                    Icons.bolt_rounded,
+                    color: fblaGold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 30),
+          _bigButton(
+            label: 'Claim XP & Continue',
+            enabled: true,
+            onTap: () => Navigator.of(context).pop(
+              _LessonResult(completed: true, correct: _correct, total: total),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _resultStat(String value, String label, IconData icon,
+      {required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 26),
+          const SizedBox(height: 8),
+          Text(value,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900)),
+          const SizedBox(height: 2),
+          Text(label,
+              style: const TextStyle(color: Colors.white60, fontSize: 12.5)),
+        ],
+      ),
+    );
+  }
+
+  Widget _bigButton({
+    required String label,
+    required bool enabled,
+    required VoidCallback onTap,
+    Color color = _duoGreen,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: ElevatedButton(
+        onPressed: enabled ? onTap : null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          disabledBackgroundColor: Colors.white.withValues(alpha: 0.08),
+          foregroundColor: Colors.white,
+          disabledForegroundColor: Colors.white38,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16)),
+        ),
+        child: Text(label,
+            style: const TextStyle(
+                fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 0.3)),
+      ),
+    );
+  }
+}
+
+/// Draws the winding Duolingo-style path connecting level nodes.
+class _JourneyPathPainter extends CustomPainter {
+  final List<Offset> centers;
+  final Color color;
+  final int highestUnlocked; // levels <= this are reached
+
+  _JourneyPathPainter({
+    required this.centers,
+    required this.color,
+    required this.highestUnlocked,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (int i = 0; i < centers.length - 1; i++) {
+      final a = centers[i];
+      final b = centers[i + 1];
+      // segment i connects level (i+1) -> (i+2); "reached" if level i+1 done
+      final reached = (i + 1) <= highestUnlocked;
+      final paint = Paint()
+        ..strokeWidth = 6
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke
+        ..color = reached
+            ? color.withValues(alpha: 0.85)
+            : Colors.white.withValues(alpha: 0.12);
+
+      if (reached) {
+        canvas.drawLine(a, b, paint);
+      } else {
+        // dashed for locked-ahead segments
+        _drawDashed(canvas, a, b, paint);
+      }
+    }
+  }
+
+  void _drawDashed(Canvas canvas, Offset a, Offset b, Paint paint) {
+    const dash = 9.0;
+    const gap = 8.0;
+    final total = (b - a).distance;
+    final dir = (b - a) / total;
+    double drawn = 0;
+    while (drawn < total) {
+      final start = a + dir * drawn;
+      final end = a + dir * (drawn + dash).clamp(0, total);
+      canvas.drawLine(start, end, paint);
+      drawn += dash + gap;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _JourneyPathPainter old) =>
+      old.highestUnlocked != highestUnlocked ||
+      old.color != color ||
+      old.centers != centers;
 }

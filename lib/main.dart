@@ -11,6 +11,9 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:table_calendar/table_calendar.dart';
+import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/onboarding_screen.dart';
@@ -667,6 +670,14 @@ class AppState extends ChangeNotifier {
     events.sort((a, b) => a.start.compareTo(b.start));
     notifyListeners();
   }
+
+  void removeUserEvent(String eventId) {
+    events.removeWhere((e) => e.id == eventId);
+    if (savedEventIds.remove(eventId)) {
+      prefs.setStringList('savedEvents', savedEventIds.toList());
+    }
+    notifyListeners();
+  }
 }
 
 /* ------------------------
@@ -795,6 +806,51 @@ final sampleEvents = [
     end: DateTime(2026, 4, 24, 17, 0),
     location: 'Spokane Convention Center',
     description: 'Washington SLC hosted at Spokane Convention Center.',
+  ),
+  Event(
+    id: 'e_officer_jun',
+    title: 'Chapter Officer Meeting',
+    start: DateTime(2026, 6, 9, 15, 30),
+    end: DateTime(2026, 6, 9, 16, 30),
+    location: 'Room 204',
+    description:
+        'Monthly officer sync to plan summer outreach and finalize NLC logistics.',
+  ),
+  Event(
+    id: 'e_madpractice_jun',
+    title: 'Mobile App Dev Practice Run',
+    start: DateTime(2026, 6, 12, 16, 0),
+    end: DateTime(2026, 6, 12, 18, 0),
+    location: 'Computer Lab B',
+    description:
+        'Dry-run of the 7-minute presentation with Q&A. Bring laptops and demo devices.',
+  ),
+  Event(
+    id: 'e_nlc_reg_deadline',
+    title: 'NLC Registration Deadline',
+    start: DateTime(2026, 6, 19, 23, 59),
+    end: DateTime(2026, 6, 19, 23, 59),
+    location: 'Online',
+    description:
+        'Final day to confirm National Leadership Conference registration and housing.',
+  ),
+  Event(
+    id: 'e_awards_banquet_jun',
+    title: 'Chapter Awards Banquet (Social)',
+    start: DateTime(2026, 6, 26, 18, 0),
+    end: DateTime(2026, 6, 26, 21, 0),
+    location: 'School Cafeteria',
+    description:
+        'End-of-year celebration recognizing competitors and graduating seniors.',
+  ),
+  Event(
+    id: 'e_nlc_2026',
+    title: 'FBLA National Leadership Conference',
+    start: DateTime(2026, 6, 29, 8, 0),
+    end: DateTime(2026, 7, 2, 17, 0),
+    location: 'San Antonio, TX',
+    description:
+        'Compete at the national level, attend workshops, and network with members nationwide.',
   ),
 ];
 
@@ -3690,661 +3746,760 @@ class _ModernQuickButton extends StatelessWidget {
 // Login screen moved to lib/screens/login_screen.dart
 
 /* ------------------------
-   Events Screen
+   Events Screen (calendar)
    ------------------------ */
 
+/// Visual classification for an event, derived from its title.
+class _EventKind {
+  final String label;
+  final Color color;
+  final IconData icon;
+  const _EventKind(this.label, this.color, this.icon);
+}
+
+const _EventKind _kindDeadline =
+    _EventKind('Deadline', Color(0xFFFF6B6B), Icons.flag_rounded);
+const _EventKind _kindCompetition =
+    _EventKind('Competition', Color(0xFFF6C500), Icons.emoji_events_rounded);
+const _EventKind _kindMeeting =
+    _EventKind('Meeting', Color(0xFF64B5F6), Icons.groups_2_rounded);
+const _EventKind _kindWorkshop =
+    _EventKind('Workshop', Color(0xFF81C784), Icons.school_rounded);
+const _EventKind _kindSocial =
+    _EventKind('Social', Color(0xFFBA68C8), Icons.celebration_rounded);
+const _EventKind _kindGeneral =
+    _EventKind('Event', Color(0xFF7CB6F2), Icons.event_rounded);
+
+_EventKind _kindForEvent(Event e) {
+  final t = e.title.toLowerCase();
+  if (t.contains('deadline') ||
+      t.contains('due') ||
+      t.contains('registration') ||
+      t.contains('dues') ||
+      t.contains('rsvp')) {
+    return _kindDeadline;
+  }
+  if (t.contains('conference') ||
+      t.contains('slc') ||
+      t.contains('nlc') ||
+      t.contains('competition') ||
+      t.contains('competitive') ||
+      t.contains('compete') ||
+      t.contains('regional') ||
+      t.contains('nationals')) {
+    return _kindCompetition;
+  }
+  if (t.contains('meeting') || t.contains('officer')) {
+    return _kindMeeting;
+  }
+  if (t.contains('workshop') ||
+      t.contains('training') ||
+      t.contains('practice') ||
+      t.contains('session') ||
+      t.contains('prep') ||
+      t.contains('study')) {
+    return _kindWorkshop;
+  }
+  if (t.contains('social') ||
+      t.contains('party') ||
+      t.contains('celebration') ||
+      t.contains('banquet') ||
+      t.contains('mixer') ||
+      t.contains('fundrais')) {
+    return _kindSocial;
+  }
+  return _kindGeneral;
+}
+
+/// Seeded FBLA events use stable ids; user-created ones are prefixed `custom_`.
+bool _isOfficialEvent(Event e) => !e.id.startsWith('custom_');
+
 class EventsScreen extends StatefulWidget {
+  const EventsScreen({super.key});
+
   @override
   State<EventsScreen> createState() => _EventsScreenState();
 }
 
 class _EventsScreenState extends State<EventsScreen> {
-  DateTime _selectedDate = DateTime.now();
-  late int _selectedYear;
-  bool _showDayEvents = false;
+  static const Color _fblaBlue = Color(0xFF1D4E89);
+  static const Color _fblaGold = Color(0xFFF6C500);
+
+  late DateTime _focusedDay;
+  late DateTime _selectedDay;
+  CalendarFormat _format = CalendarFormat.month;
+  String _filter = 'all';
 
   @override
   void initState() {
     super.initState();
-    _selectedYear = DateTime.now().year;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final app = Provider.of<AppState>(context);
-    final upcoming = app.events..sort((a, b) => a.start.compareTo(b.start));
-    final dateFilteredEvents = upcoming.where((event) {
-      return event.start.year == _selectedDate.year &&
-          event.start.month == _selectedDate.month &&
-          event.start.day == _selectedDate.day;
-    }).toList();
-    final Color fblaBlue = const Color(0xFF1D4E89);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Scaffold(
-      backgroundColor: isDark ? Colors.transparent : fblaLightBackground,
-      resizeToAvoidBottomInset: false,
-      appBar: AppBar(
-        leading: _showDayEvents
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                tooltip: 'Back to calendar',
-                onPressed: () {
-                  setState(() => _showDayEvents = false);
-                },
-              )
-            : null,
-        title: Text(_showDayEvents
-            ? 'Events on ${_selectedDate.month}/${_selectedDate.day}/${_selectedDate.year}'
-            : 'Events & Schedule'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: isDark ? Colors.white : fblaLightPrimaryText,
-      ),
-      body: _showDayEvents
-          ? _buildDayEventsView(context, dateFilteredEvents)
-          : _buildCalendarView(context, upcoming, fblaBlue),
-    );
-  }
-
-  Widget _buildCalendarView(
-      BuildContext context, List<Event> allEvents, Color fblaBlue) {
-    final selectedCount = _eventsForDay(allEvents, _selectedDate).length;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Column(
-      children: [
-        Container(
-          margin: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-          decoration: BoxDecoration(
-            color: isDark ? null : fblaLightSurface,
-            gradient: isDark
-                ? const LinearGradient(
-                    colors: [Color(0xFF0F1C31), Color(0xFF0A1628)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : null,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isDark
-                  ? Colors.white12
-                  : fblaLightBorder.withValues(alpha: 0.8),
-            ),
-            boxShadow: isDark
-                ? null
-                : [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 14,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-          ),
-          child: Row(
-            children: [
-              OutlinedButton.icon(
-                onPressed: _showYearPicker,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: fblaBlue,
-                  backgroundColor:
-                      isDark ? Colors.transparent : fblaLightSelectedNav,
-                  side: BorderSide(color: fblaBlue.withOpacity(0.8)),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-                icon: const Icon(Icons.calendar_month, size: 16),
-                label: Text('$_selectedYear'),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  '${selectedCount} event${selectedCount == 1 ? '' : 's'} on ${_selectedDate.month}/${_selectedDate.day}',
-                  style: TextStyle(
-                    color: isDark ? Colors.grey.shade200 : fblaLightPrimaryText,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              IconButton(
-                onPressed: _showAddEventDialog,
-                tooltip: 'Add event',
-                icon: const Icon(Icons.add_circle, color: Color(0xFFF6C500)),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: _buildScrollableYearMonths(allEvents, fblaBlue),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildScrollableYearMonths(List<Event> allEvents, Color fblaBlue) {
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
-      itemCount: 12,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final month = index + 1;
-        return _buildMonthCard(_selectedYear, month, allEvents, fblaBlue);
-      },
-    );
-  }
-
-  Widget _buildMonthCard(
-      int year, int month, List<Event> allEvents, Color fblaBlue) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final monthDate = DateTime(year, month, 1);
-    final daysInMonth = DateTime(year, month + 1, 0).day;
-    final firstWeekdayOffset = monthDate.weekday - DateTime.monday;
-    final totalCells = (((firstWeekdayOffset + daysInMonth) / 7).ceil()) * 7;
     final now = DateTime.now();
-    const weekdayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    _focusedDay = now;
+    _selectedDay = DateTime(now.year, now.month, now.day);
+  }
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
-      decoration: BoxDecoration(
+  // ---- data helpers ----
+
+  bool _passesFilter(Event e) {
+    switch (_filter) {
+      case 'official':
+        return _isOfficialEvent(e);
+      case 'mine':
+        return !_isOfficialEvent(e);
+      case 'competition':
+        return identical(_kindForEvent(e), _kindCompetition);
+      case 'deadline':
+        return identical(_kindForEvent(e), _kindDeadline);
+      default:
+        return true;
+    }
+  }
+
+  List<Event> _visibleEvents(AppState app) =>
+      app.events.where(_passesFilter).toList();
+
+  bool _occursOn(Event e, DateTime day) {
+    final d = DateTime(day.year, day.month, day.day);
+    final s = DateTime(e.start.year, e.start.month, e.start.day);
+    final en = DateTime(e.end.year, e.end.month, e.end.day);
+    return !d.isBefore(s) && !d.isAfter(en);
+  }
+
+  List<Event> _eventsForDay(List<Event> source, DateTime day) =>
+      source.where((e) => _occursOn(e, day)).toList()
+        ..sort((a, b) => a.start.compareTo(b.start));
+
+  String _eventTimeText(Event e) {
+    if (isSameDay(e.start, e.end)) {
+      return '${DateFormat('h:mm a').format(e.start)} – ${DateFormat('h:mm a').format(e.end)}';
+    }
+    return '${DateFormat('MMM d').format(e.start)} – ${DateFormat('MMM d').format(e.end)}';
+  }
+
+  // ---- decorations ----
+
+  BoxDecoration _panelDecoration(bool isDark) => BoxDecoration(
         color: isDark ? null : fblaLightSurface,
         gradient: isDark
             ? const LinearGradient(
-                colors: [Color(0xFF0F1B2D), Color(0xFF152744)],
+                colors: [Color(0xFF0F1C31), Color(0xFF0A1628)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               )
             : null,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color:
-              isDark ? Colors.white12 : fblaLightBorder.withValues(alpha: 0.9),
+          color: isDark
+              ? Colors.white12
+              : fblaLightBorder.withValues(alpha: 0.85),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.06),
-            blurRadius: isDark ? 10 : 14,
+            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.06),
+            blurRadius: 14,
             offset: const Offset(0, 6),
           ),
         ],
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final app = Provider.of<AppState>(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final visible = _visibleEvents(app);
+    final dayEvents = _eventsForDay(visible, _selectedDay);
+
+    return Scaffold(
+      backgroundColor: isDark ? Colors.transparent : fblaLightBackground,
+      resizeToAvoidBottomInset: false,
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'events_fab',
+        onPressed: () => _addEvent(app),
+        backgroundColor: _fblaBlue,
+        foregroundColor: Colors.white,
+        tooltip: 'Add event',
+        child: const Icon(Icons.add, size: 28),
       ),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            _buildHeader(isDark, visible),
+            const SizedBox(height: 2),
+            _buildFilterChips(isDark),
+            _buildCalendarCard(isDark, visible),
+            const SizedBox(height: 2),
+            Expanded(child: _buildAgenda(isDark, app, dayEvents)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---- header ----
+
+  Widget _buildHeader(bool isDark, List<Event> visible) {
+    final now = DateTime.now();
+    final upcoming =
+        visible.where((e) => e.end.isAfter(now)).length;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+      padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
+      decoration: _panelDecoration(isDark),
       child: Column(
         children: [
           Row(
             children: [
-              Container(
-                width: 5,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF6C500),
-                  borderRadius: BorderRadius.circular(999),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      DateFormat('MMMM').format(_focusedDay),
+                      style: TextStyle(
+                        color: isDark ? Colors.white : fblaLightPrimaryText,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        height: 1.0,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${DateFormat('yyyy').format(_focusedDay)}  •  $upcoming upcoming',
+                      style: TextStyle(
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : fblaLightSecondaryText,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              _circleNavButton(Icons.chevron_left, isDark, () => _shiftMonth(-1)),
+              const SizedBox(width: 6),
+              _circleNavButton(Icons.chevron_right, isDark, () => _shiftMonth(1)),
               const SizedBox(width: 8),
-              Text(
-                _monthYearLabel(monthDate),
-                style: TextStyle(
-                  color: isDark ? Colors.white : fblaLightPrimaryText,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                ),
-              ),
+              _todayButton(isDark),
             ],
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: weekdayLabels
-                .map((label) => Expanded(
-                      child: Center(
-                        child: Text(
-                          label,
-                          style: TextStyle(
-                            color: isDark
-                                ? Colors.grey.shade400
-                                : fblaLightSecondaryText,
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ))
-                .toList(),
-          ),
-          const SizedBox(height: 7),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              crossAxisSpacing: 6,
-              mainAxisSpacing: 6,
-              childAspectRatio: 1.04,
-            ),
-            itemCount: totalCells,
-            itemBuilder: (context, cellIndex) {
-              final dayNumber = cellIndex - firstWeekdayOffset + 1;
-              final isInMonth = dayNumber >= 1 && dayNumber <= daysInMonth;
-              if (!isInMonth) return const SizedBox.shrink();
-
-              final dayDate = DateTime(year, month, dayNumber);
-              final isSelected = _isSameDate(dayDate, _selectedDate);
-              final isToday = _isSameDate(dayDate, now);
-              final dayEvents = _eventsForDay(allEvents, dayDate);
-              final hasEvents = dayEvents.isNotEmpty;
-
-              return InkWell(
-                borderRadius: BorderRadius.circular(10),
-                onTap: () {
-                  setState(() {
-                    _selectedDate = dayDate;
-                    _showDayEvents = true;
-                  });
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? fblaBlue
-                        : (isToday
-                            ? fblaBlue.withValues(alpha: isDark ? 0.2 : 0.1)
-                            : (isDark
-                                ? const Color(0xFF1A2943)
-                                : const Color(0xFFF7FAFC))),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: isSelected
-                          ? fblaBlue
-                          : (isToday
-                              ? fblaBlue.withValues(alpha: 0.9)
-                              : (isDark ? Colors.white10 : fblaLightBorder)),
-                      width: isToday ? 1.4 : 1,
-                    ),
-                  ),
-                  child: Stack(
-                    children: [
-                      Center(
-                        child: Text(
-                          '$dayNumber',
-                          style: TextStyle(
-                            color: isSelected
-                                ? Colors.white
-                                : (isDark
-                                    ? Colors.white
-                                    : fblaLightPrimaryText),
-                            fontSize: 12.5,
-                            fontWeight:
-                                isSelected ? FontWeight.w700 : FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      if (hasEvents)
-                        Positioned(
-                          right: 3,
-                          top: 3,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 4, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF6C500),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              '${dayEvents.length}',
-                              style: const TextStyle(
-                                color: Color(0xFF0A1422),
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
+          const SizedBox(height: 12),
+          _buildFormatToggle(isDark),
         ],
       ),
     );
   }
 
-  void _showYearPicker() {
-    final currentYear = DateTime.now().year;
-    final years = List<int>.generate(16, (i) => currentYear - 5 + i);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: isDark ? const Color(0xFF0F1623) : fblaLightSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => SafeArea(
+  Widget _circleNavButton(IconData icon, bool isDark, VoidCallback onTap) {
+    return Material(
+      color: isDark ? Colors.white.withValues(alpha: 0.06) : fblaLightBackground,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 18),
-          child: GridView.builder(
-            shrinkWrap: true,
-            itemCount: years.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 2,
-            ),
-            itemBuilder: (context, i) {
-              final y = years[i];
-              final selected = y == _selectedYear;
-              return InkWell(
-                borderRadius: BorderRadius.circular(10),
-                onTap: () {
-                  setState(() => _selectedYear = y);
-                  Navigator.pop(context);
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? const Color(0xFF1D4E89)
-                        : (isDark
-                            ? const Color(0xFF1A2640)
-                            : fblaLightBackground),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: selected
-                          ? const Color(0xFFF6C500)
-                          : (isDark ? Colors.white10 : fblaLightBorder),
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '$y',
-                    style: TextStyle(
-                      color: selected
-                          ? Colors.white
-                          : (isDark ? Colors.white : fblaLightPrimaryText),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              );
-            },
+          padding: const EdgeInsets.all(8),
+          child: Icon(
+            icon,
+            size: 20,
+            color: isDark ? Colors.white : fblaLightPrimaryText,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildDayEventsView(BuildContext context, List<Event> events) {
-    final Color fblaBlue = const Color(0xFF1D4E89);
-    final Color fblaGold = const Color(0xFFF6C500);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  Widget _todayButton(bool isDark) {
+    return OutlinedButton(
+      onPressed: () {
+        final now = DateTime.now();
+        setState(() {
+          _focusedDay = now;
+          _selectedDay = DateTime(now.year, now.month, now.day);
+          _format = CalendarFormat.month;
+        });
+      },
+      style: OutlinedButton.styleFrom(
+        foregroundColor: isDark ? _fblaGold : _fblaBlue,
+        side: BorderSide(
+            color: (isDark ? _fblaGold : _fblaBlue).withValues(alpha: 0.7)),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+      ),
+      child: const Text('Today',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+    );
+  }
 
-    if (events.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 86,
-                height: 86,
+  void _shiftMonth(int delta) {
+    setState(() {
+      _focusedDay = DateTime(_focusedDay.year, _focusedDay.month + delta, 1);
+    });
+  }
+
+  Widget _buildFormatToggle(bool isDark) {
+    const formats = <CalendarFormat, String>{
+      CalendarFormat.month: 'Month',
+      CalendarFormat.twoWeeks: '2 Weeks',
+      CalendarFormat.week: 'Week',
+    };
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color:
+            isDark ? Colors.white.withValues(alpha: 0.06) : fblaLightBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? Colors.white12 : fblaLightBorder),
+      ),
+      child: Row(
+        children: formats.entries.map((entry) {
+          final selected = _format == entry.key;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _format = entry.key),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isDark ? const Color(0xFF13243D) : fblaLightSurface,
-                  border: Border.all(
-                    color: isDark ? Colors.white12 : fblaLightBorder,
+                  color: selected ? _fblaBlue : Colors.transparent,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Text(
+                  entry.value,
+                  style: TextStyle(
+                    color: selected
+                        ? Colors.white
+                        : (isDark
+                            ? Colors.grey.shade400
+                            : fblaLightSecondaryText),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
                   ),
                 ),
-                child: Icon(Icons.event_busy,
-                    size: 42,
-                    color:
-                        isDark ? Colors.grey.shade400 : fblaLightSecondaryText),
               ),
-              const SizedBox(height: 16),
-              Text(
-                'No events on this day',
-                style: TextStyle(
-                  color: isDark ? Colors.grey.shade200 : fblaLightPrimaryText,
-                  fontSize: 19,
-                  fontWeight: FontWeight.w700,
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // ---- filter chips ----
+
+  Widget _buildFilterChips(bool isDark) {
+    const chips = <List<String>>[
+      ['all', 'All'],
+      ['official', 'FBLA Official'],
+      ['mine', 'My Events'],
+      ['competition', 'Competitions'],
+      ['deadline', 'Deadlines'],
+    ];
+    return SizedBox(
+      height: 42,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        itemCount: chips.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final id = chips[i][0];
+          final label = chips[i][1];
+          final selected = _filter == id;
+          return Center(
+            child: GestureDetector(
+              onTap: () => setState(() => _filter = id),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? _fblaBlue
+                      : (isDark
+                          ? Colors.white.withValues(alpha: 0.05)
+                          : fblaLightSurface),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(
+                    color: selected
+                        ? _fblaBlue
+                        : (isDark ? Colors.white12 : fblaLightBorder),
+                  ),
+                ),
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: selected
+                        ? Colors.white
+                        : (isDark
+                            ? Colors.grey.shade300
+                            : fblaLightPrimaryText),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                  ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Create one now and set a reminder in seconds.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: isDark ? Colors.grey.shade500 : fblaLightSecondaryText,
-                  fontSize: 13.5,
-                ),
-              ),
-              const SizedBox(height: 18),
-              ElevatedButton.icon(
-                onPressed: _showAddEventDialog,
-                icon: const Icon(Icons.add),
-                label: const Text('Add New Event'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: fblaBlue,
-                  foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ---- calendar ----
+
+  Widget _buildCalendarCard(bool isDark, List<Event> visible) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+      padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
+      decoration: _panelDecoration(isDark),
+      child: TableCalendar<Event>(
+        firstDay: DateTime.utc(2020, 1, 1),
+        lastDay: DateTime.utc(2035, 12, 31),
+        focusedDay: _focusedDay,
+        calendarFormat: _format,
+        availableGestures: AvailableGestures.horizontalSwipe,
+        headerVisible: false,
+        daysOfWeekHeight: 26,
+        rowHeight: 48,
+        startingDayOfWeek: StartingDayOfWeek.sunday,
+        selectedDayPredicate: (d) => isSameDay(_selectedDay, d),
+        eventLoader: (day) => _eventsForDay(visible, day),
+        onDaySelected: (selected, focused) {
+          setState(() {
+            _selectedDay = selected;
+            _focusedDay = focused;
+          });
+        },
+        onPageChanged: (focused) => setState(() => _focusedDay = focused),
+        onFormatChanged: (f) => setState(() => _format = f),
+        daysOfWeekStyle: DaysOfWeekStyle(
+          weekdayStyle: TextStyle(
+            color: isDark ? Colors.grey.shade400 : fblaLightSecondaryText,
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+          ),
+          weekendStyle: TextStyle(
+            color: isDark ? _fblaGold.withValues(alpha: 0.85) : _fblaBlue,
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
           ),
         ),
-      );
+        calendarBuilders: CalendarBuilders<Event>(
+          defaultBuilder: (c, day, focused) => _dayCell(day, isDark,
+              selected: false, today: false, outside: false),
+          outsideBuilder: (c, day, focused) => _dayCell(day, isDark,
+              selected: false, today: false, outside: true),
+          todayBuilder: (c, day, focused) => _dayCell(day, isDark,
+              selected: false, today: true, outside: false),
+          selectedBuilder: (c, day, focused) => _dayCell(day, isDark,
+              selected: true, today: false, outside: false),
+          markerBuilder: (c, day, events) {
+            if (events.isEmpty) return null;
+            final onSelected = isSameDay(_selectedDay, day);
+            return Positioned(
+              bottom: 6,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: events.take(3).map((e) {
+                  final k = _kindForEvent(e);
+                  return Container(
+                    width: 6,
+                    height: 6,
+                    margin: const EdgeInsets.symmetric(horizontal: 1.3),
+                    decoration: BoxDecoration(
+                      color: onSelected ? Colors.white : k.color,
+                      shape: BoxShape.circle,
+                    ),
+                  );
+                }).toList(),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _dayCell(
+    DateTime day,
+    bool isDark, {
+    required bool selected,
+    required bool today,
+    required bool outside,
+  }) {
+    Color bg;
+    Color border;
+    Color text;
+    FontWeight weight;
+
+    if (selected) {
+      bg = _fblaBlue;
+      border = _fblaBlue;
+      text = Colors.white;
+      weight = FontWeight.w800;
+    } else if (today) {
+      bg = _fblaBlue.withValues(alpha: isDark ? 0.22 : 0.12);
+      border = _fblaGold;
+      text = isDark ? Colors.white : fblaLightPrimaryText;
+      weight = FontWeight.w800;
+    } else {
+      bg = Colors.transparent;
+      border = Colors.transparent;
+      weight = FontWeight.w600;
+      text = outside
+          ? (isDark ? Colors.white24 : fblaLightDisabledText)
+          : (isDark ? Colors.white : fblaLightPrimaryText);
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-      itemCount: events.length,
-      itemBuilder: (context, idx) {
-        final e = events[idx];
-        final eventType = _getEventType(e.title);
-        final typeColor = _eventTypeColor(eventType);
-        final saved = Provider.of<AppState>(context, listen: false)
-            .savedEventIds
-            .contains(e.id);
-        final cardColor = isDark ? null : fblaLightSurface;
-        final primaryText = isDark ? Colors.white : fblaLightPrimaryText;
-        final secondaryText =
-            isDark ? Colors.grey.shade300 : fblaLightSecondaryText;
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          decoration: BoxDecoration(
-            color: cardColor,
-            gradient: isDark
-                ? const LinearGradient(
-                    colors: [Color(0xFF0F1B2D), Color(0xFF162236)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : null,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isDark ? fblaBlue.withValues(alpha: 0.3) : fblaLightBorder,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.06),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header with type badge and save button
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 14, 12, 0),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: typeColor.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: typeColor.withOpacity(0.5)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(_filterIcon(eventType),
-                              size: 14, color: typeColor),
-                          const SizedBox(width: 6),
-                          Text(
-                            eventType,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: typeColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: Icon(
-                        saved ? Icons.bookmark : Icons.bookmark_outline,
-                        color: fblaGold,
-                      ),
-                      onPressed: () {
-                        Provider.of<AppState>(context, listen: false)
-                            .toggleSaveEvent(e.id);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-
-              // Event Title
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Text(
-                  e.title,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: primaryText,
-                  ),
-                ),
-              ),
-
-              // Time and Location
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Row(
-                  children: [
-                    _buildEventInfoChip(
-                      icon: Icons.schedule,
-                      text:
-                          '${_shortDateTime(e.start)} - ${_shortDateTime(e.end)}',
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Row(
-                  children: [
-                    _buildEventInfoChip(
-                      icon: Icons.location_on_outlined,
-                      text: e.location,
-                    ),
-                  ],
-                ),
-              ),
-
-              // Description
-              if (e.description.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Text(
-                    e.description,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: secondaryText,
-                      fontSize: 14,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-
-              // Action Button
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      await scheduleEventReminder(e);
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Reminder set for ${e.title}'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.notifications_active_outlined,
-                        size: 18),
-                    label: const Text('Set Reminder'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: fblaBlue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    return Container(
+      margin: const EdgeInsets.all(4),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: border, width: today ? 1.5 : 1),
+      ),
+      child: Text(
+        '${day.day}',
+        style: TextStyle(color: text, fontWeight: weight, fontSize: 13.5),
+      ),
     );
   }
 
-  Widget _buildEventInfoChip({required IconData icon, required String text}) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.05)
-              : fblaLightBackground,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color:
-                isDark ? Colors.white.withValues(alpha: 0.1) : fblaLightBorder,
+  // ---- agenda ----
+
+  Widget _buildAgenda(bool isDark, AppState app, List<Event> dayEvents) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+          child: Row(
+            children: [
+              Icon(Icons.event_note_rounded,
+                  size: 18, color: isDark ? _fblaGold : _fblaBlue),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  DateFormat('EEEE, MMMM d').format(_selectedDay),
+                  style: TextStyle(
+                    color: isDark ? Colors.white : fblaLightPrimaryText,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              Text(
+                '${dayEvents.length} event${dayEvents.length == 1 ? '' : 's'}',
+                style: TextStyle(
+                  color: isDark ? Colors.grey.shade400 : fblaLightSecondaryText,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12.5,
+                ),
+              ),
+            ],
           ),
         ),
-        child: Row(
+        Expanded(
+          child: dayEvents.isEmpty
+              ? _emptyDay(isDark)
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 100),
+                  itemCount: dayEvents.length,
+                  itemBuilder: (c, i) => _eventCard(isDark, app, dayEvents[i]),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _emptyDay(bool isDark) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isDark ? Colors.grey.shade400 : fblaLightSecondaryText,
+            Container(
+              width: 78,
+              height: 78,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isDark ? const Color(0xFF13243D) : fblaLightSurface,
+                border:
+                    Border.all(color: isDark ? Colors.white12 : fblaLightBorder),
+              ),
+              child: Icon(Icons.event_available_outlined,
+                  size: 38,
+                  color: isDark ? Colors.grey.shade400 : fblaLightSecondaryText),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(height: 16),
+            Text(
+              'Nothing scheduled',
+              style: TextStyle(
+                color: isDark ? Colors.grey.shade200 : fblaLightPrimaryText,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Tap the + button to schedule something\nand set a reminder in seconds.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isDark ? Colors.grey.shade500 : fblaLightSecondaryText,
+                fontSize: 13.5,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _eventCard(bool isDark, AppState app, Event e) {
+    final kind = _kindForEvent(e);
+    final official = _isOfficialEvent(e);
+    final saved = app.savedEventIds.contains(e.id);
+    final primary = isDark ? Colors.white : fblaLightPrimaryText;
+    final secondary = isDark ? Colors.grey.shade300 : fblaLightSecondaryText;
+    final hasDescription =
+        e.description.isNotEmpty && e.description != 'User-created event';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: isDark ? null : fblaLightSurface,
+        gradient: isDark
+            ? const LinearGradient(
+                colors: [Color(0xFF0F1B2D), Color(0xFF162236)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: isDark ? Colors.white10 : fblaLightBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 6,
+              decoration: BoxDecoration(
+                color: kind.color,
+                borderRadius:
+                    const BorderRadius.horizontal(left: Radius.circular(18)),
+              ),
+            ),
             Expanded(
-              child: Text(
-                text,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: isDark ? Colors.grey.shade300 : fblaLightPrimaryText,
-                  fontSize: 13,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        _kindBadge(kind),
+                        const SizedBox(width: 8),
+                        if (official) _officialTag(isDark),
+                        const Spacer(),
+                        _iconBtn(
+                          saved ? Icons.bookmark : Icons.bookmark_outline,
+                          _fblaGold,
+                          () async {
+                            app.toggleSaveEvent(e.id);
+                            if (!saved) {
+                              await scheduleEventReminder(e);
+                            } else {
+                              await flutterLocalNotificationsPlugin
+                                  .cancel(e.id.hashCode);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      e.title,
+                      style: TextStyle(
+                        color: primary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _infoRow(Icons.schedule_rounded, _eventTimeText(e), isDark),
+                    const SizedBox(height: 6),
+                    _infoRow(Icons.location_on_outlined, e.location, isDark),
+                    if (hasDescription) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        e.description,
+                        style: TextStyle(
+                          color: secondary,
+                          fontSize: 13.5,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              await scheduleEventReminder(e);
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Reminder set for ${e.title}'),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            },
+                            icon: const Icon(
+                                Icons.notifications_active_outlined,
+                                size: 16),
+                            label: const Text('Remind me'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: isDark ? Colors.white : _fblaBlue,
+                              side: BorderSide(
+                                color: isDark
+                                    ? Colors.white24
+                                    : _fblaBlue.withValues(alpha: 0.5),
+                              ),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                        ),
+                        if (!official) ...[
+                          const SizedBox(width: 8),
+                          _iconBtn(
+                            Icons.delete_outline_rounded,
+                            isDark ? Colors.red.shade300 : fblaLightDestructive,
+                            () => _confirmDelete(app, e),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -4354,103 +4509,145 @@ class _EventsScreenState extends State<EventsScreen> {
     );
   }
 
-  Future<void> _showAddEventDialog() async {
-    final app = Provider.of<AppState>(context, listen: false);
-    final initialDate = DateTime(
-      _selectedDate.year,
-      _selectedDate.month,
-      _selectedDate.day,
+  Widget _kindBadge(_EventKind k) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: k.color.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: k.color.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(k.icon, size: 13, color: k.color),
+          const SizedBox(width: 5),
+          Text(
+            k.label,
+            style: TextStyle(
+                color: k.color, fontWeight: FontWeight.w700, fontSize: 11.5),
+          ),
+        ],
+      ),
     );
-    final createdEvent = await Navigator.push<Event>(
+  }
+
+  Widget _officialTag(bool isDark) {
+    final c = isDark ? const Color(0xFF7CB6F2) : _fblaBlue;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: _fblaBlue.withValues(alpha: isDark ? 0.25 : 0.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.verified_rounded, size: 12, color: c),
+          const SizedBox(width: 4),
+          Text('FBLA',
+              style: TextStyle(
+                  color: c, fontWeight: FontWeight.w800, fontSize: 10.5)),
+        ],
+      ),
+    );
+  }
+
+  Widget _iconBtn(IconData icon, Color color, VoidCallback onTap) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(icon, color: color, size: 22),
+        ),
+      ),
+    );
+  }
+
+  Widget _infoRow(IconData icon, String text, bool isDark) {
+    return Row(
+      children: [
+        Icon(icon,
+            size: 15,
+            color: isDark ? Colors.grey.shade400 : fblaLightSecondaryText),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: isDark ? Colors.grey.shade300 : fblaLightPrimaryText,
+              fontSize: 13,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ---- actions ----
+
+  Future<void> _addEvent(AppState app) async {
+    final created = await Navigator.push<Event>(
       context,
       MaterialPageRoute(
-        builder: (_) => AddEventScreen(initialDate: initialDate),
+        builder: (_) => AddEventScreen(initialDate: _selectedDay),
+      ),
+    );
+    if (created == null || !mounted) return;
+    app.addUserEvent(created);
+    setState(() {
+      _selectedDay =
+          DateTime(created.start.year, created.start.month, created.start.day);
+      _focusedDay = _selectedDay;
+    });
+    await scheduleNearEventReminder(created);
+  }
+
+  Future<void> _confirmDelete(AppState app, Event e) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF12203A) : Colors.white,
+        title: Text('Delete event?',
+            style: TextStyle(
+                color: isDark ? Colors.white : fblaLightPrimaryText)),
+        content: Text(
+          'Remove "${e.title}" from your calendar? This cannot be undone.',
+          style: TextStyle(
+              color: isDark ? Colors.grey.shade300 : fblaLightSecondaryText),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Delete',
+                style: TextStyle(
+                    color: isDark ? Colors.red.shade300 : fblaLightDestructive,
+                    fontWeight: FontWeight.w700)),
+          ),
+        ],
       ),
     );
 
-    if (createdEvent == null) {
-      return;
-    }
-
-    app.addUserEvent(createdEvent);
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _selectedDate = DateTime(
-        createdEvent.start.year,
-        createdEvent.start.month,
-        createdEvent.start.day,
-      );
-      _selectedYear = createdEvent.start.year;
-      _showDayEvents = true;
-    });
-  }
-
-  IconData _filterIcon(String filter) {
-    switch (filter) {
-      case 'Meetings':
-        return Icons.groups_2_outlined;
-      case 'Competitions':
-        return Icons.emoji_events_outlined;
-      case 'Social':
-        return Icons.celebration_outlined;
-      case 'Workshops':
-        return Icons.school_outlined;
-      default:
-        return Icons.grid_view_rounded;
-    }
-  }
-
-  String _monthYearLabel(DateTime date) {
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-    return '${months[date.month - 1]} ${date.year}';
-  }
-
-  bool _isSameDate(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
-
-  List<Event> _eventsForDay(List<Event> allEvents, DateTime day) {
-    return allEvents.where((event) => _isSameDate(event.start, day)).toList();
-  }
-
-  Color _eventTypeColor(String eventType) {
-    switch (eventType) {
-      case 'Meeting':
-        return const Color(0xFF64B5F6);
-      case 'Competition':
-        return const Color(0xFFFFD54F);
-      case 'Workshop':
-        return const Color(0xFF81C784);
-      case 'Social':
-        return const Color(0xFFBA68C8);
-      default:
-        return const Color(0xFF90CAF9);
-    }
-  }
-
-  String _getEventType(String title) {
-    if (title.toLowerCase().contains('meeting')) return 'Meeting';
-    if (title.toLowerCase().contains('competition')) return 'Competition';
-    if (title.toLowerCase().contains('workshop')) return 'Workshop';
-    if (title.toLowerCase().contains('social')) return 'Social';
-    return 'Event';
+    if (confirmed != true) return;
+    await flutterLocalNotificationsPlugin.cancel(e.id.hashCode);
+    app.removeUserEvent(e.id);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Event deleted'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 }
 
@@ -5432,142 +5629,100 @@ class FeedsScreen extends StatefulWidget {
   State<FeedsScreen> createState() => _FeedsScreenState();
 }
 
-class _FeedsScreenState extends State<FeedsScreen> {
-  final TextEditingController _searchController = TextEditingController();
-  String _query = '';
+class _FeedsScreenState extends State<FeedsScreen>
+    with SingleTickerProviderStateMixin {
+  static const Color _fblaBlue = Color(0xFF1D4E89);
+  static const Color _fblaGold = Color(0xFFF6C500);
 
-  static const List<_FeedItem> _feeds = [
-    _FeedItem(
-      title: 'YouTube',
-      description: 'Official videos and shorts',
-      icon: Icons.play_circle_fill_rounded,
-      color: Color(0xFFFF0000),
-      url: 'https://www.youtube.com/@fbla_national',
-    ),
-    _FeedItem(
-      title: 'Instagram',
-      description: 'Posts, reels, and updates',
-      icon: Icons.camera_alt_rounded,
-      color: Color(0xFFE1306C),
-      url: 'https://www.instagram.com/fbla_national/',
-    ),
-    _FeedItem(
-      title: 'FBLA News',
-      description: 'National announcements',
-      icon: Icons.newspaper_rounded,
-      color: Color(0xFF1D4E89),
-      url: 'https://www.fbla.org/news/',
-    ),
-    _FeedItem(
-      title: 'Facebook',
-      description: 'Community updates',
-      icon: Icons.facebook_rounded,
-      color: Color(0xFF1877F2),
-      url: 'https://www.facebook.com/FBLAPBL/',
-    ),
-    _FeedItem(
-      title: 'LinkedIn',
-      description: 'Professional network',
-      icon: Icons.business_center_rounded,
-      color: Color(0xFF0A66C2),
-      url: 'https://www.linkedin.com/company/fbla-pbl/',
-    ),
-    _FeedItem(
-      title: 'X',
-      description: 'Quick updates',
-      icon: Icons.alternate_email_rounded,
-      color: Color(0xFF64748B),
-      url: 'https://twitter.com/FBLA_National',
-    ),
-    _FeedItem(
-      title: 'FBLA Link Hub',
-      description: 'Official links',
-      icon: Icons.hub_rounded,
-      color: Color(0xFFFDB913),
-      url: 'https://linktr.ee/FBLA_National',
-    ),
+  static const List<_SocialPlatform> _platforms = [
+    _SocialPlatform('Instagram', Icons.camera_alt_rounded, Color(0xFFE1306C),
+        'https://www.instagram.com/fbla_national/',
+        inApp: true),
+    _SocialPlatform('YouTube', Icons.smart_display_rounded, Color(0xFFFF0000),
+        'https://www.youtube.com/@fbla_national'),
+    _SocialPlatform('Facebook', Icons.facebook_rounded, Color(0xFF1877F2),
+        'https://www.facebook.com/FBLAPBL/'),
+    _SocialPlatform('LinkedIn', Icons.business_center_rounded, Color(0xFF0A66C2),
+        'https://www.linkedin.com/company/fbla-pbl/'),
+    _SocialPlatform('X', Icons.alternate_email_rounded, Color(0xFF1DA1F2),
+        'https://twitter.com/FBLA_National'),
+    _SocialPlatform('Links', Icons.link_rounded, Color(0xFFFDB913),
+        'https://linktr.ee/FBLA_National'),
   ];
+
+  late final TabController _tab;
+  late Future<List<Video>> _videosFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 2, vsync: this);
+    _videosFuture = YouTubeService().fetchVideos(maxResults: 15);
+  }
 
   @override
   void dispose() {
-    _searchController.dispose();
+    _tab.dispose();
     super.dispose();
   }
 
-  Future<void> _openFeed(_FeedItem feed) async {
-    if (feed.url.contains('instagram.com')) {
+  Future<void> _refreshVideos() async {
+    setState(() {
+      _videosFuture = YouTubeService().fetchVideos(maxResults: 15);
+    });
+    await _videosFuture;
+  }
+
+  Future<void> _openPlatform(_SocialPlatform p) async {
+    if (p.inApp) {
       InstagramFeedScreen.open(context);
       return;
     }
-
-    final launched = await launchUrl(
-      Uri.parse(feed.url),
-      mode: LaunchMode.externalApplication,
-    );
-
+    final launched =
+        await launchUrl(Uri.parse(p.url), mode: LaunchMode.externalApplication);
     if (!launched && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to open feed right now.')),
+        SnackBar(
+          content: Text('Could not open ${p.name} right now.'),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
   }
 
-  List<_FeedItem> get _filteredFeeds {
-    final normalizedQuery = _query.trim().toLowerCase();
-    if (normalizedQuery.isEmpty) return _feeds;
-
-    return _feeds.where((feed) {
-      return feed.title.toLowerCase().contains(normalizedQuery) ||
-          feed.description.toLowerCase().contains(normalizedQuery);
-    }).toList(growable: false);
+  void _playVideo(Video video) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => VideoPlayerScreen(video: video)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final app = Provider.of<AppState>(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDark ? appBackgroundColor : fblaLightBackground;
-    final primaryText = isDark ? Colors.white : fblaLightPrimaryText;
-    final secondaryText = isDark ? Colors.white70 : fblaLightSecondaryText;
-    final filteredFeeds = _filteredFeeds;
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: isDark ? Colors.transparent : fblaLightBackground,
       body: Container(
         decoration: BoxDecoration(
           gradient: isDark ? appBackgroundGradient : null,
-          color: isDark ? null : fblaLightBackground,
         ),
         child: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          bottom: false,
+          child: Column(
             children: [
-              Text(
-                'Feeds',
-                style: TextStyle(
-                  color: primaryText,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.5,
+              _buildHeader(isDark),
+              _buildConnectRow(isDark),
+              const SizedBox(height: 4),
+              _buildTabBar(isDark),
+              Expanded(
+                child: TabBarView(
+                  controller: _tab,
+                  children: [
+                    _buildVideosTab(isDark),
+                    _buildNewsTab(isDark, app),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 14),
-              _buildSearchBar(isDark),
-              const SizedBox(height: 18),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
-                child: filteredFeeds.isEmpty
-                    ? _buildNoFeedsState(isDark, secondaryText)
-                    : Column(
-                        key: ValueKey(_query),
-                        children: filteredFeeds
-                            .map((feed) => _buildFeedCard(
-                                  feed,
-                                  isDark,
-                                  primaryText,
-                                  secondaryText,
-                                ))
-                            .toList(),
-                      ),
               ),
             ],
           ),
@@ -5576,168 +5731,678 @@ class _FeedsScreenState extends State<FeedsScreen> {
     );
   }
 
-  Widget _buildSearchBar(bool isDark) {
-    return TextField(
-      controller: _searchController,
-      onChanged: (value) => setState(() => _query = value),
-      style: TextStyle(color: isDark ? Colors.white : fblaLightPrimaryText),
-      decoration: InputDecoration(
-        hintText: 'Search feeds',
-        prefixIcon: const Icon(Icons.search_rounded),
-        suffixIcon: _query.isEmpty
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.close_rounded),
-                onPressed: () {
-                  _searchController.clear();
-                  setState(() => _query = '');
-                },
-              ),
-        filled: true,
-        fillColor: isDark ? const Color(0xFF101827) : fblaLightSurface,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(
-            color:
-                isDark ? Colors.white.withValues(alpha: 0.08) : fblaLightBorder,
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: fblaNavy, width: 1.4),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFeedCard(
-    _FeedItem feed,
-    bool isDark,
-    Color primaryText,
-    Color secondaryText,
-  ) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _openFeed(feed),
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF101827) : fblaLightSurface,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : fblaLightBorder,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.05),
-                  blurRadius: 14,
-                  offset: const Offset(0, 7),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 58,
-                  height: 58,
-                  decoration: BoxDecoration(
-                    color: feed.color.withValues(alpha: isDark ? 0.18 : 0.12),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Icon(feed.icon, color: feed.color, size: 32),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        feed.title,
-                        style: TextStyle(
-                          color: primaryText,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        feed.description,
-                        style: TextStyle(
-                          color: secondaryText,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  color: isDark ? Colors.white38 : fblaLightDisabledText,
-                  size: 16,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNoFeedsState(bool isDark, Color secondaryText) {
-    return Container(
-      key: const ValueKey('no-feeds'),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF101827) : fblaLightSurface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color:
-              isDark ? Colors.white.withValues(alpha: 0.08) : fblaLightBorder,
-        ),
-      ),
+  Widget _buildHeader(bool isDark) {
+    final primary = isDark ? Colors.white : fblaLightPrimaryText;
+    final secondary = isDark ? Colors.grey.shade400 : fblaLightSecondaryText;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.search_off_rounded, color: secondaryText, size: 36),
-          const SizedBox(height: 10),
           Text(
-            'No feeds found',
+            'FBLA Feed',
             style: TextStyle(
-              color: secondaryText,
-              fontWeight: FontWeight.w700,
+              color: primary,
+              fontSize: 26,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Watch, read, and connect with FBLA',
+            style: TextStyle(
+              color: secondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
       ),
     );
   }
+
+  Widget _buildConnectRow(bool isDark) {
+    return SizedBox(
+      height: 92,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _platforms.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 14),
+        itemBuilder: (context, i) {
+          final p = _platforms[i];
+          return GestureDetector(
+            onTap: () => _openPlatform(p),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [p.color, p.color.withValues(alpha: 0.72)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: p.color.withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: Icon(p.icon, color: Colors.white, size: 28),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  p.name,
+                  style: TextStyle(
+                    color: isDark ? Colors.grey.shade300 : fblaLightPrimaryText,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTabBar(bool isDark) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withValues(alpha: 0.06) : fblaLightSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: isDark ? Colors.white12 : fblaLightBorder),
+      ),
+      child: TabBar(
+        controller: _tab,
+        indicator: BoxDecoration(
+          color: _fblaBlue,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
+        labelColor: Colors.white,
+        unselectedLabelColor:
+            isDark ? Colors.grey.shade400 : fblaLightSecondaryText,
+        labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+        tabs: const [
+          Tab(text: 'Videos', height: 40),
+          Tab(text: 'News', height: 40),
+        ],
+      ),
+    );
+  }
+
+  // ---- Videos tab ----
+
+  Widget _buildVideosTab(bool isDark) {
+    return FutureBuilder<List<Video>>(
+      future: _videosFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: _fblaBlue),
+          );
+        }
+        if (snapshot.hasError) {
+          return _videosError(isDark);
+        }
+        final videos = snapshot.data ?? const <Video>[];
+        if (videos.isEmpty) {
+          return _videosError(isDark);
+        }
+        final featured = videos.first;
+        final rest = videos.skip(1).toList();
+        return RefreshIndicator(
+          onRefresh: _refreshVideos,
+          color: _fblaBlue,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+            children: [
+              _featuredVideoCard(isDark, featured),
+              if (rest.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                Text(
+                  'More from FBLA',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : fblaLightPrimaryText,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ...rest.map((v) => _videoRow(isDark, v)),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _featuredVideoCard(bool isDark, Video v) {
+    return GestureDetector(
+      onTap: () => _playVideo(v),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.32 : 0.12),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            children: [
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: CachedNetworkImage(
+                  imageUrl: v.thumbnailUrl,
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) => Container(color: Colors.black26),
+                  errorWidget: (_, __, ___) => Container(
+                    color: Colors.black26,
+                    child:
+                        const Icon(Icons.broken_image, color: Colors.white54),
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.85),
+                      ],
+                      stops: const [0.4, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+              const Positioned.fill(
+                child: Center(child: _PlayBadge(size: 64)),
+              ),
+              Positioned(
+                left: 12,
+                top: 12,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: _fblaGold,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'LATEST',
+                    style: TextStyle(
+                      color: Color(0xFF0A1422),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 14,
+                right: 14,
+                bottom: 12,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      v.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        const Icon(Icons.smart_display_rounded,
+                            color: Color(0xFFFF5252), size: 14),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            'FBLA National  •  ${_relativeDate(v.publishedAt)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _videoRow(bool isDark, Video v) {
+    return GestureDetector(
+      onTap: () => _playVideo(v),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color:
+              isDark ? Colors.white.withValues(alpha: 0.04) : fblaLightSurface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isDark ? Colors.white10 : fblaLightBorder),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Stack(
+                children: [
+                  CachedNetworkImage(
+                    imageUrl: v.thumbnailUrl,
+                    width: 132,
+                    height: 78,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) =>
+                        Container(width: 132, height: 78, color: Colors.black26),
+                    errorWidget: (_, __, ___) => Container(
+                      width: 132,
+                      height: 78,
+                      color: Colors.black26,
+                      child: const Icon(Icons.broken_image,
+                          color: Colors.white54),
+                    ),
+                  ),
+                  const Positioned.fill(
+                    child: Center(child: _PlayBadge(size: 34)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    v.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isDark ? Colors.white : fblaLightPrimaryText,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      height: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _relativeDate(v.publishedAt),
+                    style: TextStyle(
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : fblaLightSecondaryText,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _videosError(bool isDark) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        SizedBox(
+          height: 360,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.wifi_off_rounded,
+                      size: 40,
+                      color: isDark
+                          ? Colors.grey.shade500
+                          : fblaLightSecondaryText),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Couldn\'t load videos',
+                    style: TextStyle(
+                      color: isDark ? Colors.white : fblaLightPrimaryText,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Check your connection and pull to retry.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: isDark
+                          ? Colors.grey.shade500
+                          : fblaLightSecondaryText,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: _refreshVideos,
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: const Text('Retry'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _fblaBlue,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ---- News tab ----
+
+  Widget _buildNewsTab(bool isDark, AppState app) {
+    final news = [...app.news]..sort((a, b) => b.date.compareTo(a.date));
+    if (news.isEmpty) {
+      return Center(
+        child: Text(
+          'No announcements yet.',
+          style: TextStyle(
+              color: isDark ? Colors.grey.shade400 : fblaLightSecondaryText),
+        ),
+      );
+    }
+    return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+      itemCount: news.length,
+      itemBuilder: (context, i) =>
+          _newsCard(isDark, news[i], featured: i == 0),
+    );
+  }
+
+  Widget _newsCard(bool isDark, NewsItem n, {required bool featured}) {
+    return GestureDetector(
+      onTap: () => _showNews(isDark, n),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color:
+              isDark ? Colors.white.withValues(alpha: 0.04) : fblaLightSurface,
+          gradient: featured && isDark
+              ? LinearGradient(
+                  colors: [
+                    _fblaBlue.withValues(alpha: 0.35),
+                    Colors.white.withValues(alpha: 0.03),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: featured
+                ? _fblaGold.withValues(alpha: 0.5)
+                : (isDark ? Colors.white10 : fblaLightBorder),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: (featured ? _fblaGold : _fblaBlue)
+                        .withValues(alpha: isDark ? 0.22 : 0.14),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        featured
+                            ? Icons.campaign_rounded
+                            : Icons.article_rounded,
+                        size: 13,
+                        color: featured ? _fblaGold : _fblaBlue,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        featured ? 'Announcement' : 'Update',
+                        style: TextStyle(
+                          color: featured
+                              ? (isDark
+                                  ? _fblaGold
+                                  : const Color(0xFF8A6D00))
+                              : _fblaBlue,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  _relativeDate(n.date),
+                  style: TextStyle(
+                    color: isDark
+                        ? Colors.grey.shade500
+                        : fblaLightSecondaryText,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              n.title,
+              style: TextStyle(
+                color: isDark ? Colors.white : fblaLightPrimaryText,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                height: 1.2,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              n.body,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: isDark ? Colors.grey.shade300 : fblaLightSecondaryText,
+                fontSize: 13.5,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Text(
+                  'Read more',
+                  style: TextStyle(
+                    color: _fblaBlue,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const Icon(Icons.arrow_forward_rounded,
+                    size: 14, color: _fblaBlue),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showNews(bool isDark, NewsItem n) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF11203A) : Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.85,
+        builder: (context, controller) => SingleChildScrollView(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(22, 14, 22, 30),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.black26,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                _relativeDate(n.date),
+                style: TextStyle(
+                  color: isDark ? _fblaGold : _fblaBlue,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                n.title,
+                style: TextStyle(
+                  color: isDark ? Colors.white : fblaLightPrimaryText,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w900,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                n.body,
+                style: TextStyle(
+                  color: isDark ? Colors.grey.shade300 : fblaLightSecondaryText,
+                  fontSize: 15,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---- helpers ----
+
+  String _relativeDate(DateTime date) {
+    final diff = DateTime.now().difference(date);
+    if (diff.inDays >= 365) {
+      final y = (diff.inDays / 365).floor();
+      return '$y year${y == 1 ? '' : 's'} ago';
+    }
+    if (diff.inDays >= 30) {
+      final m = (diff.inDays / 30).floor();
+      return '$m month${m == 1 ? '' : 's'} ago';
+    }
+    if (diff.inDays >= 1) {
+      return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
+    }
+    if (diff.inHours >= 1) {
+      return '${diff.inHours} hour${diff.inHours == 1 ? '' : 's'} ago';
+    }
+    if (diff.inMinutes >= 1) {
+      return '${diff.inMinutes} min ago';
+    }
+    return 'Just now';
+  }
 }
 
-class _FeedItem {
-  final String title;
-  final String description;
+class _SocialPlatform {
+  final String name;
   final IconData icon;
   final Color color;
   final String url;
+  final bool inApp;
+  const _SocialPlatform(this.name, this.icon, this.color, this.url,
+      {this.inApp = false});
+}
 
-  const _FeedItem({
-    required this.title,
-    required this.description,
-    required this.icon,
-    required this.color,
-    required this.url,
-  });
+class _PlayBadge extends StatelessWidget {
+  final double size;
+  const _PlayBadge({required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.45),
+        shape: BoxShape.circle,
+        border:
+            Border.all(color: Colors.white.withValues(alpha: 0.9), width: 2),
+      ),
+      child: Icon(Icons.play_arrow_rounded,
+          color: Colors.white, size: size * 0.6),
+    );
+  }
 }
 
 /* ------------------------
