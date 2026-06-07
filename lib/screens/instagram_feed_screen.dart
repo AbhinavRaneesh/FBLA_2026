@@ -124,25 +124,38 @@ class _InstagramWebViewState extends State<InstagramWebView> {
 
   Future<void> _removeInstagramSignupOverlay() async {
     try {
+      // Instagram injects a "See full profile in the app" / login modal a
+      // moment after the page settles, so a one-shot removal misses it.
+      // Run cleanup immediately and then on a short interval to keep the
+      // profile grid browsable in-app.
       await _controller.runJavaScript('''
         (function() {
-          const selectors = [
-            'div[role="dialog"]',
-            'div[aria-label="Sign up"]',
-            'section main + div',
-            'div._a9_1',
-            'div.xixxii4',
-            'div.x1n2onr6'
-          ];
-
-          selectors.forEach((selector) => {
-            document.querySelectorAll(selector).forEach((el) => {
-              el.style.display = 'none';
+          function cleanup() {
+            // Centered login / "open in app" modals.
+            document.querySelectorAll('div[role="dialog"]').forEach(function(el) {
               el.remove();
             });
-          });
+            // Fixed full-screen backdrops that block scrolling/taps.
+            document.querySelectorAll('div[role="presentation"]').forEach(function(el) {
+              var s = window.getComputedStyle(el);
+              if (s && s.position === 'fixed') { el.remove(); }
+            });
+            // Sticky bottom "Log in" / "Sign up" bar.
+            document.querySelectorAll('div[aria-label="Sign up"]').forEach(function(el) {
+              el.remove();
+            });
+            // Restore scrolling Instagram disables behind the modal.
+            document.documentElement.style.overflow = 'auto';
+            document.body.style.overflow = 'auto';
+            document.body.style.position = 'static';
+          }
 
-          document.body.style.overflow = 'auto';
+          cleanup();
+          var runs = 0;
+          var timer = setInterval(function() {
+            cleanup();
+            if (++runs > 40) clearInterval(timer);
+          }, 500);
         })();
       ''');
     } catch (_) {

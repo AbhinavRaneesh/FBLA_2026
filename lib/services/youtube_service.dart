@@ -11,9 +11,11 @@ class YouTubeService {
     'YOUTUBE_API_KEY',
     defaultValue: 'AIzaSyAZbFcu5hj6n7j7UddXA3e8WKQZpzTrQ9E',
   );
+  // Official "Future Business Leaders of America, Inc. (FBLA)" channel
+  // (@fbla_national). The previous default pointed at an unrelated channel.
   static const String channelId = String.fromEnvironment(
     'YOUTUBE_CHANNEL_ID',
-    defaultValue: 'UCt2JXOLNxqry7B_4rRZME3Q',
+    defaultValue: 'UCsojHDEYGNSZ_qVuRSkj8sg',
   );
 
   final http.Client _client;
