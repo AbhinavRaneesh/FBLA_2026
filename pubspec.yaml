@@ -49,9 +49,7 @@ dependencies:
   http: ^1.2.2
   xml: ^6.5.0
   crypto: ^3.0.6
-
-# (add assets if you include images)
-
+  video_player: ^2.11.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -81,4 +79,6 @@ flutter:
     - assets/San Antonio Pictures/
     - assets/Mobile-Application-Development.pdf
     - assets/Cybersecurity.pdf
+    - assets/cybersecurity_speaking_final.mp4
+    - assets/practice.png
     - assets/legal/

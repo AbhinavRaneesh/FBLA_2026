@@ -1443,9 +1443,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late Future<List<Video>> _youtubeVideosFuture;
-  late final PageController _nlcHeroController;
-  Timer? _nlcHeroTimer;
-  int _nlcHeroIndex = 0;
   bool _nlcSparkleBright = false;
   static const String _instagramProfileUrl =
       'https://www.instagram.com/fbla_national/';
@@ -1456,37 +1453,14 @@ class _HomeScreenState extends State<HomeScreen> {
       'https://www.linkedin.com/company/fbla-pbl/';
   static const String _xUrl = 'https://x.com/FBLA_National';
   static const String _linktreeUrl = 'https://linktr.ee/FBLA_National';
-  static const List<String> _nlcHeroImages = [
-    'assets/San Antonio Pictures/picture1.jpg',
-    'assets/San Antonio Pictures/picture2.jpg',
-    'assets/San Antonio Pictures/picture3.jpg',
-    'assets/San Antonio Pictures/picture4.jpg',
-    'assets/San Antonio Pictures/picture5.jpg',
-    'assets/San Antonio Pictures/picture6.jpg',
-    'assets/San Antonio Pictures/picture7.jpg',
-    'assets/San Antonio Pictures/picture8.jpg',
-  ];
-
   @override
   void initState() {
     super.initState();
-    _nlcHeroController = PageController();
     _youtubeVideosFuture = YouTubeService().fetchVideos(maxResults: 8);
-    _nlcHeroTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      if (!mounted || !_nlcHeroController.hasClients) return;
-      final nextIndex = (_nlcHeroIndex + 1) % _nlcHeroImages.length;
-      _nlcHeroController.animateToPage(
-        nextIndex,
-        duration: const Duration(milliseconds: 520),
-        curve: Curves.easeInOut,
-      );
-    });
   }
 
   @override
   void dispose() {
-    _nlcHeroTimer?.cancel();
-    _nlcHeroController.dispose();
     super.dispose();
   }
 
@@ -1572,71 +1546,81 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: RefreshIndicator(
-        onRefresh: _refreshYouTubeVideos,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.zero,
+      body: SafeArea(
+        child: Column(
           children: [
-            _buildNlcHero(app, isDark),
-            Padding(
-              padding: listPadding,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildNlcConferenceCard(isDark),
-                  SizedBox(height: sectionSpacing),
-                  _buildStatsRow(app, nextEvents, featuredNews),
-                  SizedBox(height: sectionSpacing),
-                  _buildSectionTitle(
-                    title: 'Quick Actions',
-                    subtitle: 'Jump into the areas members use most',
-                  ),
-                  SizedBox(height: smallSpacing),
-                  _buildQuickActions(),
-                  SizedBox(height: sectionSpacing),
-                  _buildSectionTitle(
-                    title: 'Upcoming Events',
-                    subtitle:
-                        'Keep track of deadlines, meetings, and reminders',
-                  ),
-                  SizedBox(height: smallSpacing),
-                  if (nextEvents.isEmpty)
-                    _buildEmptyStateCard(
-                      icon: Icons.event_busy,
-                      title: 'No upcoming events',
-                      subtitle:
-                          'New events will show up here as they are added.',
-                    )
-                  else
-                    ...nextEvents.map((event) => _buildEventCard(app, event)),
-                  SizedBox(height: sectionSpacing),
-                  _buildSectionTitle(
-                    title: 'Latest Updates',
-                    subtitle: 'Announcements and chapter news at a glance',
-                  ),
-                  SizedBox(height: smallSpacing),
-                  if (featuredNews.isEmpty)
-                    _buildEmptyStateCard(
-                      icon: Icons.campaign_outlined,
-                      title: 'No announcements yet',
-                      subtitle:
-                          'Check back soon for chapter and national updates.',
-                    )
-                  else
-                    ...featuredNews.map(_buildAnnouncementCard),
-                  SizedBox(height: sectionSpacing),
-                  _buildSectionTitle(
-                    title: 'Stay Connected',
-                    subtitle: 'Official FBLA social channels',
-                  ),
-                  SizedBox(height: smallSpacing),
-                  _buildSocialLinksCard(),
-                  SizedBox(height: isCompact ? 10 : 14),
-                  _buildInstagramPreviewCard(fblaBlue),
-                  SizedBox(height: isCompact ? 10 : 14),
-                  _buildYouTubePreviewSection(fblaBlue),
-                ],
+            _buildHomeTopBar(app, isDark),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _refreshYouTubeVideos,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.zero,
+                  children: [
+                    Padding(
+                      padding: listPadding,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildNlcConferenceCard(isDark),
+                          SizedBox(height: sectionSpacing),
+                          _buildStatsRow(app, nextEvents, featuredNews),
+                          SizedBox(height: sectionSpacing),
+                          _buildSectionTitle(
+                            title: 'Quick Actions',
+                            subtitle: 'Jump into the areas members use most',
+                          ),
+                          SizedBox(height: smallSpacing),
+                          _buildQuickActions(),
+                          SizedBox(height: sectionSpacing),
+                          _buildSectionTitle(
+                            title: 'Upcoming Events',
+                            subtitle:
+                                'Keep track of deadlines, meetings, and reminders',
+                          ),
+                          SizedBox(height: smallSpacing),
+                          if (nextEvents.isEmpty)
+                            _buildEmptyStateCard(
+                              icon: Icons.event_busy,
+                              title: 'No upcoming events',
+                              subtitle:
+                                  'New events will show up here as they are added.',
+                            )
+                          else
+                            ...nextEvents
+                                .map((event) => _buildEventCard(app, event)),
+                          SizedBox(height: sectionSpacing),
+                          _buildSectionTitle(
+                            title: 'Latest Updates',
+                            subtitle:
+                                'Announcements and chapter news at a glance',
+                          ),
+                          SizedBox(height: smallSpacing),
+                          if (featuredNews.isEmpty)
+                            _buildEmptyStateCard(
+                              icon: Icons.campaign_outlined,
+                              title: 'No announcements yet',
+                              subtitle:
+                                  'Check back soon for chapter and national updates.',
+                            )
+                          else
+                            ...featuredNews.map(_buildAnnouncementCard),
+                          SizedBox(height: sectionSpacing),
+                          _buildSectionTitle(
+                            title: 'Stay Connected',
+                            subtitle: 'Official FBLA social channels',
+                          ),
+                          SizedBox(height: smallSpacing),
+                          _buildSocialLinksCard(),
+                          SizedBox(height: isCompact ? 10 : 14),
+                          _buildInstagramPreviewCard(fblaBlue),
+                          SizedBox(height: isCompact ? 10 : 14),
+                          _buildYouTubePreviewSection(fblaBlue),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -1645,158 +1629,77 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildNlcHero(AppState app, bool isDark) {
-    final topPadding = MediaQuery.of(context).padding.top;
-    final heroHeight = (MediaQuery.of(context).size.height * 0.36)
-        .clamp(260.0, 330.0)
-        .toDouble();
-
-    return SizedBox(
-      height: heroHeight,
-      child: Stack(
-        fit: StackFit.expand,
+  Widget _buildHomeTopBar(AppState app, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      decoration: BoxDecoration(
+        color: isDark ? appBackgroundColor : fblaLightBackground,
+        border: Border(
+          bottom: BorderSide(
+            color:
+                isDark ? Colors.white.withValues(alpha: 0.08) : fblaLightBorder,
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
         children: [
-          PageView.builder(
-            controller: _nlcHeroController,
-            itemCount: _nlcHeroImages.length,
-            onPageChanged: (index) => setState(() => _nlcHeroIndex = index),
-            itemBuilder: (context, index) {
-              return Image.asset(
-                _nlcHeroImages[index],
-                fit: BoxFit.cover,
+          Hero(
+            tag: 'fbla_logo',
+            child: Container(
+              width: 104,
+              height: 34,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.96),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 12,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Transform.scale(
+                  scale: 2,
+                  child: Image.asset(
+                    'assets/fbla_logo.png',
+                    width: 84,
+                    height: 28,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const Spacer(),
+          _buildHeroCircleButton(
+            icon: Icons.chat_bubble_outline_rounded,
+            tooltip: 'AI Assistant',
+            onTap: _openChatbot,
+          ),
+          const SizedBox(width: 10),
+          _buildHeroCircleButton(
+            icon: Icons.notifications_none_rounded,
+            tooltip: 'Notifications',
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Notifications are coming soon.'),
+                  behavior: SnackBarBehavior.floating,
+                ),
               );
             },
           ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.20),
-                  Colors.black.withValues(alpha: 0.04),
-                  Colors.black.withValues(alpha: isDark ? 0.42 : 0.16),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            left: 10,
-            top: topPadding + 22,
-            child: Hero(
-              tag: 'fbla_logo',
-              child: Container(
-                width: 104,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.94),
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.12),
-                      blurRadius: 12,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Transform.scale(
-                    scale: 2,
-                    child: Image.asset(
-                      'assets/fbla_logo.png',
-                      width: 84,
-                      height: 28,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            right: 14,
-            top: topPadding + 16,
-            child: Row(
-              children: [
-                _buildHeroCircleButton(
-                  icon: Icons.chat_bubble_outline_rounded,
-                  tooltip: 'AI Assistant',
-                  onTap: _openChatbot,
-                ),
-                const SizedBox(width: 10),
-                _buildHeroCircleButton(
-                  icon: Icons.notifications_none_rounded,
-                  tooltip: 'Notifications',
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Notifications are coming soon.'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(width: 10),
-                _buildHeroProfileButton(app),
-              ],
-            ),
-          ),
-          Positioned(
-            left: 18,
-            right: 18,
-            bottom: 18,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.48),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.location_on, color: Colors.white, size: 16),
-                        SizedBox(width: 6),
-                        Text(
-                          'San Antonio, TX',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: IgnorePointer(
-              child: Container(
-                height: 28,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      isDark ? appBackgroundColor : fblaLightBackground,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
+          const SizedBox(width: 10),
+          _buildHeroProfileButton(app),
         ],
       ),
     );
@@ -3889,9 +3792,8 @@ class _EventsScreenState extends State<EventsScreen> {
             : null,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isDark
-              ? Colors.white12
-              : fblaLightBorder.withValues(alpha: 0.85),
+          color:
+              isDark ? Colors.white12 : fblaLightBorder.withValues(alpha: 0.85),
         ),
         boxShadow: [
           BoxShadow(
@@ -3940,8 +3842,7 @@ class _EventsScreenState extends State<EventsScreen> {
 
   Widget _buildHeader(bool isDark, List<Event> visible) {
     final now = DateTime.now();
-    final upcoming =
-        visible.where((e) => e.end.isAfter(now)).length;
+    final upcoming = visible.where((e) => e.end.isAfter(now)).length;
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 10, 14, 8),
       padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
@@ -3977,9 +3878,11 @@ class _EventsScreenState extends State<EventsScreen> {
                   ],
                 ),
               ),
-              _circleNavButton(Icons.chevron_left, isDark, () => _shiftMonth(-1)),
+              _circleNavButton(
+                  Icons.chevron_left, isDark, () => _shiftMonth(-1)),
               const SizedBox(width: 6),
-              _circleNavButton(Icons.chevron_right, isDark, () => _shiftMonth(1)),
+              _circleNavButton(
+                  Icons.chevron_right, isDark, () => _shiftMonth(1)),
               const SizedBox(width: 8),
               _todayButton(isDark),
             ],
@@ -3993,7 +3896,8 @@ class _EventsScreenState extends State<EventsScreen> {
 
   Widget _circleNavButton(IconData icon, bool isDark, VoidCallback onTap) {
     return Material(
-      color: isDark ? Colors.white.withValues(alpha: 0.06) : fblaLightBackground,
+      color:
+          isDark ? Colors.white.withValues(alpha: 0.06) : fblaLightBackground,
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
@@ -4025,8 +3929,7 @@ class _EventsScreenState extends State<EventsScreen> {
         side: BorderSide(
             color: (isDark ? _fblaGold : _fblaBlue).withValues(alpha: 0.7)),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
       ),
       child: const Text('Today',
           style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
@@ -4330,12 +4233,13 @@ class _EventsScreenState extends State<EventsScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: isDark ? const Color(0xFF13243D) : fblaLightSurface,
-                border:
-                    Border.all(color: isDark ? Colors.white12 : fblaLightBorder),
+                border: Border.all(
+                    color: isDark ? Colors.white12 : fblaLightBorder),
               ),
               child: Icon(Icons.event_available_outlined,
                   size: 38,
-                  color: isDark ? Colors.grey.shade400 : fblaLightSecondaryText),
+                  color:
+                      isDark ? Colors.grey.shade400 : fblaLightSecondaryText),
             ),
             const SizedBox(height: 16),
             Text(
@@ -4476,14 +4380,14 @@ class _EventsScreenState extends State<EventsScreen> {
                                 size: 16),
                             label: const Text('Remind me'),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: isDark ? Colors.white : _fblaBlue,
+                              foregroundColor:
+                                  isDark ? Colors.white : _fblaBlue,
                               side: BorderSide(
                                 color: isDark
                                     ? Colors.white24
                                     : _fblaBlue.withValues(alpha: 0.5),
                               ),
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 10),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10)),
                             ),
@@ -4615,8 +4519,8 @@ class _EventsScreenState extends State<EventsScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: isDark ? const Color(0xFF12203A) : Colors.white,
         title: Text('Delete event?',
-            style: TextStyle(
-                color: isDark ? Colors.white : fblaLightPrimaryText)),
+            style:
+                TextStyle(color: isDark ? Colors.white : fblaLightPrimaryText)),
         content: Text(
           'Remove "${e.title}" from your calendar? This cannot be undone.',
           style: TextStyle(
@@ -5642,8 +5546,8 @@ class _FeedsScreenState extends State<FeedsScreen>
         'https://www.youtube.com/@fbla_national'),
     _SocialPlatform('Facebook', Icons.facebook_rounded, Color(0xFF1877F2),
         'https://www.facebook.com/FBLAPBL/'),
-    _SocialPlatform('LinkedIn', Icons.business_center_rounded, Color(0xFF0A66C2),
-        'https://www.linkedin.com/company/fbla-pbl/'),
+    _SocialPlatform('LinkedIn', Icons.business_center_rounded,
+        Color(0xFF0A66C2), 'https://www.linkedin.com/company/fbla-pbl/'),
     _SocialPlatform('X', Icons.alternate_email_rounded, Color(0xFF1DA1F2),
         'https://twitter.com/FBLA_National'),
     _SocialPlatform('Links', Icons.link_rounded, Color(0xFFFDB913),
@@ -6033,14 +5937,14 @@ class _FeedsScreenState extends State<FeedsScreen>
                     width: 132,
                     height: 78,
                     fit: BoxFit.cover,
-                    placeholder: (_, __) =>
-                        Container(width: 132, height: 78, color: Colors.black26),
+                    placeholder: (_, __) => Container(
+                        width: 132, height: 78, color: Colors.black26),
                     errorWidget: (_, __, ___) => Container(
                       width: 132,
                       height: 78,
                       color: Colors.black26,
-                      child: const Icon(Icons.broken_image,
-                          color: Colors.white54),
+                      child:
+                          const Icon(Icons.broken_image, color: Colors.white54),
                     ),
                   ),
                   const Positioned.fill(
@@ -6160,8 +6064,7 @@ class _FeedsScreenState extends State<FeedsScreen>
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       itemCount: news.length,
-      itemBuilder: (context, i) =>
-          _newsCard(isDark, news[i], featured: i == 0),
+      itemBuilder: (context, i) => _newsCard(isDark, news[i], featured: i == 0),
     );
   }
 
@@ -6219,9 +6122,7 @@ class _FeedsScreenState extends State<FeedsScreen>
                         featured ? 'Announcement' : 'Update',
                         style: TextStyle(
                           color: featured
-                              ? (isDark
-                                  ? _fblaGold
-                                  : const Color(0xFF8A6D00))
+                              ? (isDark ? _fblaGold : const Color(0xFF8A6D00))
                               : _fblaBlue,
                           fontSize: 10.5,
                           fontWeight: FontWeight.w800,
@@ -6234,9 +6135,8 @@ class _FeedsScreenState extends State<FeedsScreen>
                 Text(
                   _relativeDate(n.date),
                   style: TextStyle(
-                    color: isDark
-                        ? Colors.grey.shade500
-                        : fblaLightSecondaryText,
+                    color:
+                        isDark ? Colors.grey.shade500 : fblaLightSecondaryText,
                     fontSize: 11.5,
                     fontWeight: FontWeight.w600,
                   ),
@@ -6399,8 +6299,8 @@ class _PlayBadge extends StatelessWidget {
         border:
             Border.all(color: Colors.white.withValues(alpha: 0.9), width: 2),
       ),
-      child: Icon(Icons.play_arrow_rounded,
-          color: Colors.white, size: size * 0.6),
+      child:
+          Icon(Icons.play_arrow_rounded, color: Colors.white, size: size * 0.6),
     );
   }
 }

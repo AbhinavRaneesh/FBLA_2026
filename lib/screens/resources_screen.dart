@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:video_player/video_player.dart';
 import 'chatbot_screen.dart';
 import 'rank_screen.dart';
 import '../main.dart'
@@ -227,6 +228,8 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context);
     final isDark = app.isDarkMode;
+    final activeCourse = _selectedCourse ??
+        (_userCourses.isNotEmpty ? _userCourses.first : null);
 
     return Scaffold(
       backgroundColor: isDark ? null : fblaLightBackground,
@@ -241,7 +244,18 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
             child: Column(
               children: [
                 _buildTopStatsBar(isDark),
-                const SizedBox(height: 12),
+                if (activeCourse != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 2,
+                    decoration: BoxDecoration(
+                      color: _courseColor(activeCourse),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ] else
+                  const SizedBox(height: 12),
                 Expanded(child: _buildCourseJourney(isDark)),
               ],
             ),
@@ -540,8 +554,8 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                   ? Colors.white.withValues(alpha: 0.05)
                   : fblaLightSurface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                  color: isDark ? Colors.white12 : fblaLightBorder),
+              border:
+                  Border.all(color: isDark ? Colors.white12 : fblaLightBorder),
             ),
             child: FittedBox(
               fit: BoxFit.scaleDown,
@@ -1115,118 +1129,137 @@ class _CourseJourneyPanel extends StatefulWidget {
 }
 
 class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
+  int? _promptLevel;
+  VideoPlayerController? _preloadedIntroVideoController;
+  Future<void>? _preloadIntroVideoFuture;
+
+  @override
+  void didUpdateWidget(covariant _CourseJourneyPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.course != widget.course) {
+      _promptLevel = null;
+      _disposePreloadedIntroVideo();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposePreloadedIntroVideo();
+    super.dispose();
+  }
+
+  void _preloadIntroVideo() {
+    final existing = _preloadedIntroVideoController;
+    if (existing != null) return;
+
+    final controller =
+        VideoPlayerController.asset(_cybersecurityIntroVideoAsset);
+    _preloadedIntroVideoController = controller;
+    final preloadFuture = () async {
+      await controller.initialize();
+      await controller.setVolume(1.0);
+    }();
+    _preloadIntroVideoFuture = preloadFuture;
+    unawaited(preloadFuture.catchError((_) {}));
+  }
+
+  Future<VideoPlayerController?> _takePreloadedIntroVideoController() async {
+    _preloadIntroVideo();
+    final controller = _preloadedIntroVideoController;
+    final preloadFuture = _preloadIntroVideoFuture;
+    if (controller == null || preloadFuture == null) return null;
+
+    try {
+      await preloadFuture;
+    } catch (_) {
+      if (identical(_preloadedIntroVideoController, controller)) {
+        _preloadedIntroVideoController = null;
+        _preloadIntroVideoFuture = null;
+      }
+      await controller.dispose();
+      return null;
+    }
+
+    if (!identical(_preloadedIntroVideoController, controller)) {
+      return null;
+    }
+    _preloadedIntroVideoController = null;
+    _preloadIntroVideoFuture = null;
+    return controller;
+  }
+
+  void _disposePreloadedIntroVideo() {
+    final controller = _preloadedIntroVideoController;
+    _preloadedIntroVideoController = null;
+    _preloadIntroVideoFuture = null;
+    unawaited(controller?.dispose());
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        color: const Color(0xFF0A1420),
-        border: Border.all(
-          color: widget.color.withOpacity(0.82),
-          width: 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: widget.color.withOpacity(0.16),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 12, 18, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 54,
-                      height: 54,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            widget.color,
-                            widget.color.withOpacity(0.72)
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: [
-                          BoxShadow(
-                            color: widget.color.withOpacity(0.28),
-                            blurRadius: 18,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: Icon(widget.icon, color: Colors.white, size: 28),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.course,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const SizedBox.shrink(),
-                        ],
-                      ),
-                    ),
-                    GestureDetector(
-                      key: widget.moreMenuButtonKey,
-                      onTap: widget.onMoreMenu,
-                      child: Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.07),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white12),
-                        ),
-                        child: const Icon(
-                          Icons.menu,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(2, 0, 2, 8),
+          child: Row(
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [widget.color, widget.color.withOpacity(0.72)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: widget.color.withOpacity(0.28),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: Container(
-              height: 1,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.transparent,
-                    widget.color.withOpacity(0.55),
-                    Colors.transparent
-                  ],
+                child: Icon(widget.icon, color: Colors.white, size: 28),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  widget.course,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
-            ),
+              GestureDetector(
+                key: widget.moreMenuButtonKey,
+                onTap: widget.onMoreMenu,
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.07),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: const Icon(
+                    Icons.menu,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+              ),
+            ],
           ),
-          Expanded(child: _buildJourney(context)),
-        ],
-      ),
+        ),
+        Expanded(child: _buildJourney(context)),
+      ],
     );
   }
 
@@ -1236,9 +1269,9 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
     }
     final levels = _cyberLevels;
     final count = levels.length;
-    final highestCompleted = widget.completedLevels.isEmpty
-        ? 0
-        : widget.completedLevels.reduce(max);
+    final rawHighestCompleted =
+        widget.completedLevels.isEmpty ? 0 : widget.completedLevels.reduce(max);
+    final highestCompleted = min(rawHighestCompleted, 1);
 
     const nodeSize = 96.0;
     const vSpacing = 140.0;
@@ -1266,7 +1299,7 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
                   painter: _JourneyPathPainter(
                     centers: centers,
                     color: widget.color,
-                    highestUnlocked: highestCompleted,
+                    highestUnlocked: 0,
                   ),
                 ),
               ),
@@ -1290,13 +1323,21 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
       int i, Offset c, _CyberLevel level, int highestCompleted) {
     const nodeSize = 96.0;
     final levelNum = i + 1;
-    final isCompleted = widget.completedLevels.contains(levelNum);
-    final isActive = !isCompleted && levelNum == highestCompleted + 1;
-    final status = isCompleted
-        ? _LevelStatus.completed
-        : isActive
-            ? _LevelStatus.active
-            : _LevelStatus.locked;
+    final isLevelTwoLocked = levelNum == 2;
+    final isCompleted =
+        !isLevelTwoLocked && widget.completedLevels.contains(levelNum);
+    final isActive =
+        !isLevelTwoLocked && !isCompleted && levelNum == highestCompleted + 1;
+    final status = isLevelTwoLocked
+        ? _LevelStatus.locked
+        : isCompleted
+            ? _LevelStatus.completed
+            : isActive
+                ? _LevelStatus.active
+                : _LevelStatus.locked;
+    final showStartPrompt = _promptLevel == levelNum &&
+        levelNum == 1 &&
+        status != _LevelStatus.locked;
     return [
       Positioned(
         left: c.dx - nodeSize / 2,
@@ -1308,24 +1349,35 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
           onTap: () => _handleLevelTap(levelNum, status),
         ),
       ),
-      Positioned(
-        left: c.dx - 70,
-        top: c.dy + nodeSize / 2 - 8,
-        width: 140,
-        child: Text(
-          level.title,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color:
-                status == _LevelStatus.locked ? Colors.white38 : Colors.white,
-            fontSize: 11.5,
-            fontWeight: FontWeight.w700,
-            height: 1.15,
+      if (!showStartPrompt)
+        Positioned(
+          left: c.dx - 70,
+          top: c.dy + nodeSize / 2 - 8,
+          width: 140,
+          child: Text(
+            level.title,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color:
+                  status == _LevelStatus.locked ? Colors.white38 : Colors.white,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              height: 1.15,
+            ),
           ),
         ),
-      ),
+      if (showStartPrompt)
+        Positioned(
+          left: c.dx - 124,
+          top: c.dy + nodeSize / 2 - 2,
+          width: 248,
+          child: _LevelStartPrompt(
+            color: widget.color,
+            onStart: () => _startLevelLesson(levelNum),
+          ),
+        ),
       if (isActive)
         Positioned(
           left: c.dx - 32,
@@ -1356,23 +1408,79 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
   }
 
   Future<void> _handleLevelTap(int levelNum, _LevelStatus status) async {
-    if (status == _LevelStatus.locked) {
+    if (levelNum == 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              Text('Complete Level ${levelNum - 1} to unlock this level.'),
+        const SnackBar(
+          content: Text('Level 2 is locked for now.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
       return;
     }
+    if (status == _LevelStatus.locked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Complete Level ${levelNum - 1} to unlock this level.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    if (levelNum == 1) {
+      final nextPrompt = _promptLevel == levelNum ? null : levelNum;
+      setState(() {
+        _promptLevel = nextPrompt;
+      });
+      if (nextPrompt == levelNum) {
+        _preloadIntroVideo();
+      } else {
+        _disposePreloadedIntroVideo();
+      }
+      return;
+    }
+    await _startLevelLesson(levelNum);
+  }
+
+  Future<void> _startLevelLesson(int levelNum) async {
+    VideoPlayerController? introVideoController;
+    if (levelNum == 1) {
+      introVideoController = await _takePreloadedIntroVideoController();
+      if (!mounted) {
+        await introVideoController?.dispose();
+        return;
+      }
+      if (introVideoController == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Video could not be loaded.')),
+        );
+        return;
+      }
+    }
+
+    setState(() {
+      _promptLevel = null;
+    });
+
     final level = _cyberLevels[levelNum - 1];
     final questions = _questionsForTopic(level.topic);
     if (questions.isEmpty) {
+      await introVideoController?.dispose();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No questions available yet.')),
       );
       return;
+    }
+    if (levelNum == 1) {
+      final readyForPractice = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => CybersecurityFundamentalsLessonScreen(
+            color: widget.color,
+            introVideoController: introVideoController!,
+          ),
+        ),
+      );
+      if (!mounted || readyForPractice != true) return;
     }
     final result = await Navigator.of(context).push<_LessonResult>(
       MaterialPageRoute(
@@ -1381,9 +1489,11 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
           levelNumber: levelNum,
           questions: questions,
           color: widget.color,
+          skipIntro: levelNum == 1,
         ),
       ),
     );
+    if (!mounted) return;
     if (result != null && result.completed) {
       widget.onLevelCompleted(levelNum, result.correct, result.total);
     }
@@ -1524,8 +1634,7 @@ class CybersecurityModulesScreen extends StatelessWidget {
     }
     final target = screen;
     if (target != null) {
-      Navigator.of(context)
-          .push(MaterialPageRoute(builder: (_) => target));
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => target));
     }
   }
 
@@ -1654,8 +1763,7 @@ class CybersecurityModulesScreen extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                 decoration: BoxDecoration(
                   color: tagColor.withValues(alpha: 0.16),
                   borderRadius: BorderRadius.circular(20),
@@ -1663,8 +1771,10 @@ class CybersecurityModulesScreen extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(isCards ? Icons.style_rounded : Icons.menu_book_rounded,
-                        size: 13, color: tagColor),
+                    Icon(
+                        isCards ? Icons.style_rounded : Icons.menu_book_rounded,
+                        size: 13,
+                        color: tagColor),
                     const SizedBox(width: 4),
                     Text(isCards ? 'Cards' : 'Lesson',
                         style: TextStyle(
@@ -6244,6 +6354,753 @@ class _LevelNodeState extends State<_LevelNode>
   }
 }
 
+class _LevelStartPrompt extends StatelessWidget {
+  final Color color;
+  final VoidCallback onStart;
+
+  const _LevelStartPrompt({
+    required this.color,
+    required this.onStart,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Column(
+        children: [
+          CustomPaint(
+            size: const Size(18, 10),
+            painter: _PromptPointerPainter(color),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFE5953F), Color(0xFFFFB057)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.28),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+              border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Cybersecurity Fundamentals',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.savings_rounded,
+                        color: Colors.white, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Earn 50 FBucks',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.92),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton(
+                    onPressed: onStart,
+                    style: ElevatedButton.styleFrom(
+                      elevation: 0,
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFFE07424),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'START LESSON',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.3,
+                        height: 1.1,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PromptPointerPainter extends CustomPainter {
+  final Color color;
+
+  const _PromptPointerPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = const Color(0xFFE5953F);
+    final path = Path()
+      ..moveTo(size.width / 2, 0)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _PromptPointerPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+const _cybersecurityIntroVideoAsset = 'assets/cybersecurity_speaking_final.mp4';
+
+class CybersecurityFundamentalsLessonScreen extends StatefulWidget {
+  final Color color;
+  final VideoPlayerController introVideoController;
+
+  const CybersecurityFundamentalsLessonScreen({
+    super.key,
+    required this.color,
+    required this.introVideoController,
+  });
+
+  @override
+  State<CybersecurityFundamentalsLessonScreen> createState() =>
+      _CybersecurityFundamentalsLessonScreenState();
+}
+
+class _CybersecurityFundamentalsLessonScreenState
+    extends State<CybersecurityFundamentalsLessonScreen> {
+  static const _fadeDuration = Duration(milliseconds: 650);
+
+  int _stage = 0;
+  bool _isFading = false;
+
+  bool get _canAdvance => !_isFading;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_playIntroVideo());
+  }
+
+  Future<void> _playIntroVideo() async {
+    try {
+      await widget.introVideoController.seekTo(Duration.zero);
+      await widget.introVideoController.play();
+    } catch (_) {
+      // Keep the lesson usable even if playback fails after preloading.
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.introVideoController.dispose();
+    super.dispose();
+  }
+
+  void _advance() {
+    if (!_canAdvance) return;
+    if (_stage >= 2) {
+      Navigator.of(context).pop(true);
+      return;
+    }
+    setState(() {
+      _stage += 1;
+      _isFading = true;
+    });
+    Future.delayed(_fadeDuration, () {
+      if (!mounted) return;
+      setState(() {
+        _isFading = false;
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const isDark = true;
+    const backgroundColor = Color(0xFF161F2F);
+    const borderColor = Colors.white12;
+    const primaryText = Colors.white;
+    const secondaryText = Colors.white70;
+
+    return Scaffold(
+      backgroundColor: backgroundColor,
+      body: ColoredBox(
+        color: backgroundColor,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              children: [
+                _buildHeader(primaryText, secondaryText),
+                SizedBox(height: _stage == 0 ? 4 : 14),
+                Expanded(
+                  child: Container(
+                    width: double.infinity,
+                    padding: _stage == 0
+                        ? const EdgeInsets.fromLTRB(12, 6, 12, 12)
+                        : const EdgeInsets.all(18),
+                    child: AnimatedSwitcher(
+                      duration: _fadeDuration,
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, 0.04),
+                              end: Offset.zero,
+                            ).animate(animation),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: _buildStage(
+                        isDark: isDark,
+                        primaryText: primaryText,
+                        secondaryText: secondaryText,
+                        borderColor: borderColor,
+                      ),
+                    ),
+                  ),
+                ),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  child: Padding(
+                    key: ValueKey('button-$_stage-$_isFading'),
+                    padding: const EdgeInsets.only(top: 14),
+                    child: _lessonButton(
+                      label: 'Next',
+                      enabled: _canAdvance,
+                      onTap: _advance,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(Color primaryText, Color secondaryText) {
+    return Row(
+      children: [
+        IconButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: primaryText),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Cybersecurity Fundamentals',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: primaryText,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                'Level 1 · Earn 50 FBucks',
+                style: TextStyle(
+                  color: secondaryText,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStage({
+    required bool isDark,
+    required Color primaryText,
+    required Color secondaryText,
+    required Color borderColor,
+  }) {
+    switch (_stage) {
+      case 1:
+        return _buildCiaTriadStage(
+          key: const ValueKey('cia'),
+          primaryText: primaryText,
+          secondaryText: secondaryText,
+          borderColor: borderColor,
+        );
+      case 2:
+        return _buildPracticeStage(
+          key: const ValueKey('practice'),
+        );
+      case 0:
+      default:
+        return _buildIntroStage(
+          key: const ValueKey('video'),
+          isDark: isDark,
+          primaryText: primaryText,
+          borderColor: borderColor,
+        );
+    }
+  }
+
+  Widget _buildIntroStage({
+    required Key key,
+    required bool isDark,
+    required Color primaryText,
+    required Color borderColor,
+  }) {
+    return LayoutBuilder(
+      key: key,
+      builder: (context, constraints) {
+        final screenHeight = MediaQuery.sizeOf(context).height;
+        final videoWidth = min(constraints.maxWidth * 0.9, 310.0);
+        final videoHeight = min(max(screenHeight * 0.46, 285.0), 360.0);
+
+        return SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Align(
+                alignment: Alignment.topCenter,
+                child: _IntroLessonVideo(
+                  controller: widget.introVideoController,
+                  accentColor: widget.color,
+                  borderColor: borderColor,
+                  isDark: isDark,
+                  width: videoWidth,
+                  height: videoHeight,
+                  zoom: 1.08,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Align(
+                alignment: Alignment.center,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: min(constraints.maxWidth * 0.96, 340.0),
+                  ),
+                  child: _buildDefinitionCard(
+                    isDark: isDark,
+                    primaryText: primaryText,
+                    borderColor: borderColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDefinitionCard({
+    required bool isDark,
+    required Color primaryText,
+    required Color borderColor,
+  }) {
+    TextSpan highlighted(String text, Color color) {
+      return TextSpan(
+        text: text,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w900,
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            widget.color.withValues(alpha: isDark ? 0.18 : 0.10),
+            fblaGold.withValues(alpha: isDark ? 0.12 : 0.08),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: widget.color.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child:
+                    Icon(Icons.shield_rounded, color: widget.color, size: 20),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  'What Cybersecurity Means',
+                  style: TextStyle(
+                    color: primaryText,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          RichText(
+            text: TextSpan(
+              style: TextStyle(
+                color: primaryText,
+                fontSize: 16.5,
+                height: 1.42,
+                fontWeight: FontWeight.w700,
+              ),
+              children: [
+                highlighted('Cybersecurity', fblaGold),
+                const TextSpan(text: ' is the practice of '),
+                highlighted('protecting', const Color(0xFF66BB6A)),
+                const TextSpan(text: ' computers, phones, '),
+                highlighted('networks', fblaAccent),
+                const TextSpan(text: ', accounts, data, and people from '),
+                highlighted('digital threats', const Color(0xFFFF7043)),
+                const TextSpan(text: '.'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCiaTriadStage({
+    required Key key,
+    required Color primaryText,
+    required Color secondaryText,
+    required Color borderColor,
+  }) {
+    return SingleChildScrollView(
+      key: key,
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'The CIA triad is the foundation of cybersecurity.',
+            style: TextStyle(
+              color: primaryText,
+              fontSize: 23,
+              fontWeight: FontWeight.w900,
+              height: 1.12,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'CIA stands for confidentiality, integrity, and availability. These three goals help security teams decide what needs protection and how to measure whether a system is secure.',
+            style: TextStyle(
+              color: secondaryText,
+              fontSize: 14.5,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 18),
+          _triadTile(
+            'Confidentiality',
+            'Only the right people can see private information.',
+            Icons.lock_rounded,
+            fblaGold,
+            primaryText,
+            secondaryText,
+            borderColor,
+          ),
+          _triadTile(
+            'Integrity',
+            'Data stays accurate, complete, and unchanged by attackers.',
+            Icons.verified_rounded,
+            const Color(0xFF66BB6A),
+            primaryText,
+            secondaryText,
+            borderColor,
+          ),
+          _triadTile(
+            'Availability',
+            'Systems and information are reachable when people need them.',
+            Icons.cloud_done_rounded,
+            fblaAccent,
+            primaryText,
+            secondaryText,
+            borderColor,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPracticeStage({
+    required Key key,
+  }) {
+    return LayoutBuilder(
+      key: key,
+      builder: (context, constraints) {
+        final imageSize = min(constraints.maxWidth * 0.38, 130.0);
+
+        return Column(
+          children: [
+            Expanded(
+              child: Center(
+                child: Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.12),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Image.asset(
+                        'assets/practice.png',
+                        width: imageSize,
+                        height: imageSize,
+                        fit: BoxFit.contain,
+                      ),
+                      const SizedBox(width: 18),
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'PRACTICE',
+                                style: TextStyle(
+                                  color: fblaGold,
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.8,
+                                  shadows: [
+                                    Shadow(
+                                      color: fblaGold.withValues(alpha: 0.28),
+                                      blurRadius: 16,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '7 Questions',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.86),
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _triadTile(
+    String title,
+    String body,
+    IconData icon,
+    Color tint,
+    Color primaryText,
+    Color secondaryText,
+    Color borderColor,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: tint.withValues(alpha: 0.11),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: tint.withValues(alpha: 0.32)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: tint, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: primaryText,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  body,
+                  style: TextStyle(
+                    color: secondaryText,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _lessonButton({
+    required String label,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: ElevatedButton(
+        onPressed: enabled ? onTap : null,
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          backgroundColor: _duoGreen,
+          disabledBackgroundColor: Colors.grey.shade600.withValues(alpha: 0.45),
+          foregroundColor: Colors.white,
+          disabledForegroundColor: Colors.white54,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.2,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IntroLessonVideo extends StatelessWidget {
+  final VideoPlayerController controller;
+  final Color accentColor;
+  final Color borderColor;
+  final bool isDark;
+  final double width;
+  final double height;
+  final double zoom;
+
+  const _IntroLessonVideo({
+    required this.controller,
+    required this.accentColor,
+    required this.borderColor,
+    required this.isDark,
+    required this.width,
+    required this.height,
+    required this.zoom,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF07111F) : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: borderColor),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: controller.value.isInitialized
+          ? FittedBox(
+              fit: BoxFit.cover,
+              child: Transform.scale(
+                scale: zoom,
+                child: SizedBox(
+                  width: controller.value.size.width,
+                  height: controller.value.size.height,
+                  child: VideoPlayer(controller),
+                ),
+              ),
+            )
+          : Center(
+              child: Icon(
+                Icons.videocam_off_rounded,
+                color: accentColor,
+                size: 28,
+              ),
+            ),
+    );
+  }
+}
+
 class CybersecurityLevelOneScreen extends StatefulWidget {
   final String course;
   final Color color;
@@ -7118,140 +7975,140 @@ class _CourseSelectionScreenState extends State<CourseSelectionScreen> {
         decoration: const BoxDecoration(gradient: appBackgroundGradient),
         child: Column(
           children: [
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search events',
-                hintStyle: const TextStyle(color: Colors.white70),
-                prefixIcon: const Icon(Icons.search, color: Colors.white70),
-                filled: true,
-                fillColor: Colors.white12,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-              style: const TextStyle(color: Colors.white),
-              onChanged: (value) => setState(() => _query = value),
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: items.length,
-              itemBuilder: (context, index) {
-                final category = items[index].key;
-                final list = items[index].value;
-                return ExpansionTile(
-                  backgroundColor: Colors.transparent,
-                  collapsedBackgroundColor: Colors.transparent,
-                  shape: const Border(),
-                  collapsedShape: const Border(),
-                  iconColor: fblaAccent,
-                  collapsedIconColor: Colors.white54,
-                  tilePadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  childrenPadding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  title: Text(
-                    category,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.2,
-                    ),
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: 'Search events',
+                  hintStyle: const TextStyle(color: Colors.white70),
+                  prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                  filled: true,
+                  fillColor: Colors.white12,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
                   ),
-                  children: list.map((eventName) {
-                    final selected = _selected == eventName;
-                    return InkWell(
-                      onTap: () => setState(() => _selected = eventName),
-                      borderRadius: BorderRadius.circular(12),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 260),
-                        curve: Curves.easeInOut,
-                        margin: const EdgeInsets.symmetric(
-                            vertical: 6, horizontal: 4),
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 12, horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? const Color(0xFF123A6A)
-                              : const Color(0xFF07121A),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: selected ? fblaAccent : Colors.white12,
-                              width: 1.2),
-                          boxShadow: selected
-                              ? [
-                                  BoxShadow(
-                                      color: fblaAccent.withOpacity(0.12),
-                                      blurRadius: 8,
-                                      offset: Offset(0, 4))
-                                ]
-                              : null,
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? fblaAccent.withOpacity(0.25)
-                                    : Colors.blueGrey.shade700,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                courseIconForName(eventName),
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                                child: Text(eventName,
-                                    style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w600))),
-                            AnimatedOpacity(
-                              opacity: selected ? 1.0 : 0.0,
-                              duration: const Duration(milliseconds: 200),
-                              child: AnimatedScale(
-                                scale: selected ? 1.0 : 0.8,
-                                duration: const Duration(milliseconds: 200),
-                                child: const Icon(Icons.check_circle,
-                                    color: Color(0xFFFDB913)),
-                              ),
-                            ),
-                          ],
-                        ),
+                ),
+                style: const TextStyle(color: Colors.white),
+                onChanged: (value) => setState(() => _query = value),
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                itemCount: items.length,
+                itemBuilder: (context, index) {
+                  final category = items[index].key;
+                  final list = items[index].value;
+                  return ExpansionTile(
+                    backgroundColor: Colors.transparent,
+                    collapsedBackgroundColor: Colors.transparent,
+                    shape: const Border(),
+                    collapsedShape: const Border(),
+                    iconColor: fblaAccent,
+                    collapsedIconColor: Colors.white54,
+                    tilePadding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    childrenPadding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    title: Text(
+                      category,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.2,
                       ),
-                    );
-                  }).toList(),
-                );
-              },
-            ),
-          ),
-          if (_selected != null)
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(_selected),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: fblaGold,
-                    foregroundColor: fblaNavy,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
                     ),
-                  ),
-                  child: const Text('Continue'),
-                ),
+                    children: list.map((eventName) {
+                      final selected = _selected == eventName;
+                      return InkWell(
+                        onTap: () => setState(() => _selected = eventName),
+                        borderRadius: BorderRadius.circular(12),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 260),
+                          curve: Curves.easeInOut,
+                          margin: const EdgeInsets.symmetric(
+                              vertical: 6, horizontal: 4),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 12, horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? const Color(0xFF123A6A)
+                                : const Color(0xFF07121A),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: selected ? fblaAccent : Colors.white12,
+                                width: 1.2),
+                            boxShadow: selected
+                                ? [
+                                    BoxShadow(
+                                        color: fblaAccent.withOpacity(0.12),
+                                        blurRadius: 8,
+                                        offset: Offset(0, 4))
+                                  ]
+                                : null,
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: selected
+                                      ? fblaAccent.withOpacity(0.25)
+                                      : Colors.blueGrey.shade700,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  courseIconForName(eventName),
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                  child: Text(eventName,
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600))),
+                              AnimatedOpacity(
+                                opacity: selected ? 1.0 : 0.0,
+                                duration: const Duration(milliseconds: 200),
+                                child: AnimatedScale(
+                                  scale: selected ? 1.0 : 0.8,
+                                  duration: const Duration(milliseconds: 200),
+                                  child: const Icon(Icons.check_circle,
+                                      color: Color(0xFFFDB913)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
               ),
             ),
-        ],
+            if (_selected != null)
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(_selected),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: fblaGold,
+                      foregroundColor: fblaNavy,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Continue'),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -8593,6 +9450,7 @@ class LessonSessionScreen extends StatefulWidget {
   final int levelNumber;
   final List<_CyberQuestion> questions;
   final Color color;
+  final bool skipIntro;
 
   const LessonSessionScreen({
     super.key,
@@ -8600,6 +9458,7 @@ class LessonSessionScreen extends StatefulWidget {
     required this.levelNumber,
     required this.questions,
     required this.color,
+    this.skipIntro = false,
   });
 
   @override
@@ -8623,6 +9482,9 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
     final pool = [...widget.questions]..shuffle();
     final count = pool.length < _maxQuestions ? pool.length : _maxQuestions;
     _quiz = pool.take(count).toList();
+    if (widget.skipIntro) {
+      _showIntro = false;
+    }
   }
 
   double get _progress {
@@ -8658,24 +9520,119 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
     }
     final quit = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF0E1B2C),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Quit lesson?',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
-        content: const Text('Your progress in this lesson will be lost.',
-            style: TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Keep going'),
+      barrierColor: Colors.black.withValues(alpha: 0.68),
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF13243A), Color(0xFF0B1728)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.38),
+                blurRadius: 28,
+                offset: const Offset(0, 18),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Quit', style: TextStyle(color: _wrongRed)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  color: _wrongRed.withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: _wrongRed.withValues(alpha: 0.32)),
+                ),
+                child: const Icon(
+                  Icons.logout_rounded,
+                  color: _wrongRed,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Quit lesson?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Your progress in this lesson will be lost.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.72),
+                  fontSize: 14.5,
+                  height: 1.4,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 22),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  style: ElevatedButton.styleFrom(
+                    elevation: 0,
+                    backgroundColor: _duoGreen,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Text(
+                    'KEEP GOING',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _wrongRed,
+                    side: BorderSide(
+                      color: _wrongRed.withValues(alpha: 0.55),
+                      width: 1.4,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Text(
+                    'QUIT LESSON',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
     if (quit == true && mounted) Navigator.of(context).pop();
@@ -8829,8 +9786,7 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
             decoration: BoxDecoration(
               color: widget.color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(14),
-              border:
-                  Border.all(color: widget.color.withValues(alpha: 0.45)),
+              border: Border.all(color: widget.color.withValues(alpha: 0.45)),
             ),
             child: Row(
               children: [
@@ -9035,8 +9991,8 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: (perfect ? fblaGold : _duoGreen)
-                      .withValues(alpha: 0.45),
+                  color:
+                      (perfect ? fblaGold : _duoGreen).withValues(alpha: 0.45),
                   blurRadius: 28,
                   offset: const Offset(0, 12),
                 ),
@@ -9046,7 +10002,10 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
                 color: Colors.white, size: 58),
           ),
           const SizedBox(height: 22),
-          Text(perfect ? 'Perfect!' : (passed ? 'Lesson Complete!' : 'Lesson Done'),
+          Text(
+              perfect
+                  ? 'Perfect!'
+                  : (passed ? 'Lesson Complete!' : 'Lesson Done'),
               style: const TextStyle(
                   color: Colors.white,
                   fontSize: 26,
@@ -9065,8 +10024,7 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _resultStat('+$xp', 'XP Earned',
-                    Icons.bolt_rounded,
+                child: _resultStat('+$xp', 'XP Earned', Icons.bolt_rounded,
                     color: fblaGold),
               ),
             ],
@@ -9127,8 +10085,8 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
           foregroundColor: Colors.white,
           disabledForegroundColor: Colors.white38,
           elevation: 0,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
         child: Text(label,
             style: const TextStyle(
