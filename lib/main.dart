@@ -5384,23 +5384,86 @@ class CompetitionsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context);
     return Scaffold(
-      appBar: AppBar(title: Text('Competitions')),
-      body: ListView(
-        padding: EdgeInsets.all(16),
-        children: app.competitions
-            .map((c) => Card(
-                  child: ListTile(
-                    title: Text(c.name,
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text(c.description),
-                    trailing: Icon(Icons.chevron_right, color: fblaGold),
-                    onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => CompetitionDetail(c))),
+      backgroundColor: const Color(0xFF07111F),
+      appBar: AppBar(
+        title: const Text('Competitions'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.white,
+      ),
+      body: Container(
+        decoration: const BoxDecoration(gradient: appBackgroundGradient),
+        child: app.competitions.isEmpty
+            ? const Center(
+                child: Text('No competitions yet.',
+                    style: TextStyle(color: Colors.white70)),
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                itemCount: app.competitions.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, i) =>
+                    _competitionCard(context, app.competitions[i]),
+              ),
+      ),
+    );
+  }
+
+  Widget _competitionCard(BuildContext context, Competition c) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.05),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => CompetitionDetail(c))),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [fblaGold, Color(0xFFFFD54F)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                ))
-            .toList(),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.emoji_events_rounded,
+                    color: fblaNavy, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(c.name,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 3),
+                    Text(c.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: Colors.white60,
+                            fontSize: 13,
+                            height: 1.3)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.white38),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -5408,26 +5471,109 @@ class CompetitionsScreen extends StatelessWidget {
 
 class CompetitionDetail extends StatelessWidget {
   final Competition competition;
-  CompetitionDetail(this.competition);
+  const CompetitionDetail(this.competition, {super.key});
 
   @override
   Widget build(BuildContext context) {
+    final board = competition.leaderboard;
     return Scaffold(
+      backgroundColor: const Color(0xFF07111F),
       appBar: AppBar(
         title: Text(competition.name),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.white,
       ),
-      body: Padding(
-        padding: EdgeInsets.all(12),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(competition.description),
-          SizedBox(height: 12),
-          Text('Leaderboard', style: Theme.of(context).textTheme.titleMedium),
-          ...competition.leaderboard.map((l) => ListTile(
-                leading: CircleAvatar(child: Text(l.user[0])),
-                title: Text(l.user),
-                trailing: Text('${l.points} pts'),
-              ))
-        ]),
+      body: Container(
+        decoration: const BoxDecoration(gradient: appBackgroundGradient),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: Text(competition.description,
+                  style: const TextStyle(
+                      color: Colors.white70, fontSize: 14, height: 1.4)),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: const [
+                Icon(Icons.leaderboard_rounded, color: fblaGold, size: 20),
+                SizedBox(width: 8),
+                Text('Leaderboard',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            for (int i = 0; i < board.length; i++)
+              _leaderRow(i + 1, board[i]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _leaderRow(int rank, dynamic entry) {
+    final Color medal = rank == 1
+        ? const Color(0xFFFFD54F)
+        : rank == 2
+            ? const Color(0xFFB0BEC5)
+            : rank == 3
+                ? const Color(0xFFFF8A65)
+                : Colors.white30;
+    final String user = '${entry.user}';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: rank <= 3 ? medal.withValues(alpha: 0.5) : Colors.white10),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: medal.withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+              border: Border.all(color: medal),
+            ),
+            child: Text('$rank',
+                style: TextStyle(
+                    color: rank <= 3 ? medal : Colors.white70,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13)),
+          ),
+          const SizedBox(width: 12),
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: fblaBlue,
+            child: Text(user.isEmpty ? '?' : user[0],
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w700)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(user,
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w600)),
+          ),
+          Text('${entry.points} pts',
+              style: const TextStyle(
+                  color: fblaGold, fontWeight: FontWeight.w800)),
+        ],
       ),
     );
   }
