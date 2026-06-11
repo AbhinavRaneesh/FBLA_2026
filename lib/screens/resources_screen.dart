@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 import 'chatbot_screen.dart';
 import 'rank_screen.dart';
+import 'event_practice_screen.dart';
 import '../main.dart'
     show
         AppState,
@@ -531,13 +532,16 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
 
   Widget _buildTopStatsBar(bool isDark) {
     final courseName = _selectedCourse;
-    final courseLabel =
-        courseName == null ? 'Course' : courseShortFormForName(courseName);
     final accent = courseName == null ? fblaGold : _courseColor(courseName);
 
-    Widget statChip({
+    // A stat chip: tinted pill with an icon, a value, and a small uppercase
+    // caption so each stat is self-explanatory (no cryptic single letters).
+    Widget chip({
+      required Color tint,
       required Widget icon,
-      required String text,
+      required String value,
+      required String caption,
+      Widget? trailing,
       Key? key,
       VoidCallback? onTap,
     }) {
@@ -547,15 +551,12 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
           onTap: onTap,
           behavior: HitTestBehavior.opaque,
           child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+            margin: const EdgeInsets.symmetric(horizontal: 3.5),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.05)
-                  : fblaLightSurface,
+              color: tint.withValues(alpha: isDark ? 0.14 : 0.10),
               borderRadius: BorderRadius.circular(14),
-              border:
-                  Border.all(color: isDark ? Colors.white12 : fblaLightBorder),
+              border: Border.all(color: tint.withValues(alpha: 0.38)),
             ),
             child: FittedBox(
               fit: BoxFit.scaleDown,
@@ -563,15 +564,35 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   icon,
-                  const SizedBox(width: 6),
-                  Text(
-                    text,
-                    style: TextStyle(
-                      color: isDark ? Colors.white : fblaLightPrimaryText,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                    ),
+                  const SizedBox(width: 7),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        value,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : fblaLightPrimaryText,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          height: 1.0,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        caption,
+                        style: TextStyle(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.55)
+                              : fblaLightSecondaryText,
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ],
                   ),
+                  if (trailing != null) trailing,
                 ],
               ),
             ),
@@ -582,31 +603,43 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
 
     return Row(
       children: [
-        statChip(
+        // Course switcher — clearly a control, not a cryptic letter.
+        chip(
+          tint: accent,
+          onTap: _openCoursePicker,
           icon: Icon(
             courseName == null ? Icons.school : courseIconForName(courseName),
             color: accent,
             size: 22,
           ),
-          text: courseLabel,
-          onTap: _openCoursePicker,
+          value: 'Course',
+          caption: 'SWITCH',
+          trailing: Icon(Icons.keyboard_arrow_down_rounded,
+              color: accent, size: 18),
         ),
-        statChip(
+        chip(
           key: _streakButtonKey,
+          tint: const Color(0xFFFF7043),
+          onTap: _showStreakCalendar,
           icon: const Icon(Icons.local_fire_department,
               color: Color(0xFFFF7043), size: 22),
-          text: '$_streak',
-          onTap: _showStreakCalendar,
+          value: '$_streak',
+          caption: 'STREAK',
         ),
-        statChip(
-          icon: Image.asset('assets/coins.png', width: 22, height: 22),
-          text: '$_points',
+        chip(
+          tint: fblaGold,
+          icon: const Icon(Icons.monetization_on_rounded,
+              color: fblaGold, size: 22),
+          value: '$_points',
+          caption: 'POINTS',
         ),
-        statChip(
+        chip(
+          tint: const Color(0xFFFFD54F),
+          onTap: () => RankScreen.open(context),
           icon: const Icon(Icons.emoji_events_rounded,
               color: Color(0xFFFFD54F), size: 22),
-          text: 'Rank',
-          onTap: () => RankScreen.open(context),
+          value: 'Rank',
+          caption: 'LEADERS',
         ),
       ],
     );
@@ -1258,8 +1291,56 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
             ],
           ),
         ),
+        _buildProgressHeader(),
         Expanded(child: _buildJourney(context)),
       ],
+    );
+  }
+
+  Widget _buildProgressHeader() {
+    if (!_isCybersecurityCourse(widget.course)) return const SizedBox.shrink();
+    final total = _cyberLevels.length;
+    final done =
+        widget.completedLevels.where((l) => l >= 1 && l <= total).length;
+    final pct = total == 0 ? 0.0 : done / total;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 0, 2, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.flag_rounded, size: 15, color: widget.color),
+              const SizedBox(width: 6),
+              Text('$done of $total levels',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700)),
+              const Spacer(),
+              Text('${(pct * 100).round()}% complete',
+                  style: TextStyle(
+                      color: widget.color,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800)),
+            ],
+          ),
+          const SizedBox(height: 7),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: pct),
+              duration: const Duration(milliseconds: 500),
+              builder: (context, v, _) => LinearProgressIndicator(
+                value: v,
+                minHeight: 8,
+                backgroundColor: Colors.white.withValues(alpha: 0.08),
+                valueColor: AlwaysStoppedAnimation(widget.color),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1274,7 +1355,7 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
     final highestCompleted = min(rawHighestCompleted, 1);
 
     const nodeSize = 96.0;
-    const vSpacing = 140.0;
+    const vSpacing = 128.0;
     final totalHeight = vSpacing * count + 48;
 
     return ScrollConfiguration(
@@ -1500,36 +1581,198 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
   }
 
   Widget _buildComingSoon() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
+    String category = '';
+    for (final opt in fblaEventCatalog) {
+      if (opt.name == widget.course) {
+        category = opt.category;
+        break;
+      }
+    }
+    final lc = category.toLowerCase();
+    final isRoleplay = lc.contains('roleplay');
+    final isPerformance =
+        isRoleplay || lc.contains('presentation') || lc.contains('speech');
+
+    if (!isPerformance) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 84,
+                height: 84,
+                decoration: BoxDecoration(
+                  color: widget.color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(26),
+                ),
+                child: Icon(Icons.auto_stories_outlined,
+                    color: widget.color, size: 40),
+              ),
+              const SizedBox(height: 18),
+              const Text('Lessons coming soon',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              Text(
+                'Interactive lessons for ${widget.course} are on the way. Try the Cybersecurity course to experience the full learning path.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: Colors.white70, fontSize: 13.5, height: 1.45),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    void openPractice() => EventPracticeScreen.open(context,
+        eventName: widget.course, category: category, color: widget.color);
+
+    return ScrollConfiguration(
+      behavior: _NoGlowScrollBehavior(),
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(4, 4, 4, 24),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 84,
-              height: 84,
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: widget.color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(26),
+                gradient: LinearGradient(
+                  colors: [
+                    widget.color.withValues(alpha: 0.28),
+                    Colors.white.withValues(alpha: 0.03),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: widget.color.withValues(alpha: 0.4)),
               ),
-              child: Icon(Icons.auto_stories_outlined,
-                  color: widget.color, size: 40),
+              child: Column(
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                          colors: [widget.color, widget.color.withValues(alpha: 0.7)]),
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: Icon(
+                        isRoleplay
+                            ? Icons.groups_rounded
+                            : Icons.co_present_rounded,
+                        color: Colors.white,
+                        size: 36),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(widget.course,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 6),
+                  Text(
+                    isRoleplay
+                        ? 'A performance event — rehearse your scenario response, then get judged feedback.'
+                        : 'A presentation event — sharpen your content, delivery, and Q&A.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        color: Colors.white70, fontSize: 13.5, height: 1.4),
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(height: 16),
+            _practiceTile(
+                Icons.auto_awesome_rounded,
+                'AI Coach',
+                'Get a scenario and judge-style feedback on your response.',
+                openPractice),
+            const SizedBox(height: 12),
+            _practiceTile(
+                Icons.videocam_rounded,
+                'Record & Self-Review',
+                'Film yourself and score against the judges’ rubric.',
+                openPractice),
             const SizedBox(height: 18),
-            const Text('Lessons coming soon',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 19,
-                    fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            Text(
-              'Interactive lessons for ${widget.course} are on the way. Try the Cybersecurity course to experience the full learning path.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  color: Colors.white70, fontSize: 13.5, height: 1.45),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: openPractice,
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: const Text('Start Practice'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: widget.color,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  textStyle:
+                      const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _practiceTile(
+      IconData icon, String title, String subtitle, VoidCallback onTap) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.04),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: widget.color.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: widget.color, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 2),
+                    Text(subtitle,
+                        style: const TextStyle(
+                            color: Colors.white60,
+                            fontSize: 12.5,
+                            height: 1.3)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.white38),
+            ],
+          ),
         ),
       ),
     );
@@ -7999,17 +8242,41 @@ class _CourseSelectionScreenState extends State<CourseSelectionScreen> {
                 itemBuilder: (context, index) {
                   final category = items[index].key;
                   final list = items[index].value;
-                  return ExpansionTile(
+                  final catColor = _eventCategoryColor(category);
+                  return Container(
+                    margin: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.08)),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: ExpansionTile(
                     backgroundColor: Colors.transparent,
                     collapsedBackgroundColor: Colors.transparent,
                     shape: const Border(),
                     collapsedShape: const Border(),
-                    iconColor: fblaAccent,
+                    iconColor: catColor,
                     collapsedIconColor: Colors.white54,
                     tilePadding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    childrenPadding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                    leading: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [catColor, catColor.withValues(alpha: 0.7)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(_eventCategoryIcon(category),
+                          color: Colors.white, size: 21),
+                    ),
                     title: Text(
                       category,
                       style: const TextStyle(
@@ -8017,6 +8284,14 @@ class _CourseSelectionScreenState extends State<CourseSelectionScreen> {
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.2,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${list.length} event${list.length == 1 ? '' : 's'}',
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     children: list.map((eventName) {
@@ -8086,7 +8361,8 @@ class _CourseSelectionScreenState extends State<CourseSelectionScreen> {
                         ),
                       );
                     }).toList(),
-                  );
+                  ),
+                );
                 },
               ),
             ),
@@ -8112,6 +8388,44 @@ class _CourseSelectionScreenState extends State<CourseSelectionScreen> {
         ),
       ),
     );
+  }
+
+  Color _eventCategoryColor(String category) {
+    switch (category) {
+      case 'Presentation Events':
+        return const Color(0xFF64B5F6);
+      case 'Roleplay Events':
+        return const Color(0xFFFFD54F);
+      case 'Objective Test Events':
+        return const Color(0xFF81C784);
+      case 'Production Events':
+        return const Color(0xFFBA68C8);
+      case 'Virtual & Partner Challenges':
+        return const Color(0xFF4DD0E1);
+      case 'Chapter Events':
+        return const Color(0xFFFF8A65);
+      default:
+        return fblaAccent;
+    }
+  }
+
+  IconData _eventCategoryIcon(String category) {
+    switch (category) {
+      case 'Presentation Events':
+        return Icons.co_present_rounded;
+      case 'Roleplay Events':
+        return Icons.groups_rounded;
+      case 'Objective Test Events':
+        return Icons.quiz_rounded;
+      case 'Production Events':
+        return Icons.terminal_rounded;
+      case 'Virtual & Partner Challenges':
+        return Icons.public_rounded;
+      case 'Chapter Events':
+        return Icons.flag_rounded;
+      default:
+        return Icons.school_rounded;
+    }
   }
 }
 
@@ -9220,6 +9534,35 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: widget.color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border:
+                        Border.all(color: widget.color.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(widget.level.icon, color: widget.color, size: 15),
+                      const SizedBox(width: 7),
+                      Flexible(
+                        child: Text(
+                          'Level ${widget.levelNumber} · ${widget.level.title}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              color: widget.color,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Text('QUESTION ${_index + 1} OF ${_quiz.length}',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.5),
