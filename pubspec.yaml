@@ -49,7 +49,7 @@ dependencies:
   http: ^1.2.2
   xml: ^6.5.0
   crypto: ^3.0.6
-  video_player: ^2.11.1
+  video_player: ^2.10.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
