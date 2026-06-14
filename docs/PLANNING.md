@@ -149,9 +149,9 @@ and applied at every entry point:
 
 ## 9. Source diagrams
 
-Editable originals live at the repository root: `UML FBLA.drawio.png` and
-`FBLA Flowchart.drawio.png` (draw.io). The copies embedded above are in
-[`docs/diagrams/`](diagrams/).
+All diagram files live in [`docs/diagrams/`](diagrams/): the editable draw.io
+originals (`UML FBLA.drawio.png`, `FBLA Flowchart.drawio.png`) alongside the
+exported copies embedded above (`uml.png`, `flowchart.png`).
 
 ---
 
