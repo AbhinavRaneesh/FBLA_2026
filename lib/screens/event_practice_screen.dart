@@ -2,11 +2,14 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:video_player/video_player.dart';
 
-import '../main.dart' show appBackgroundGradient, fblaGold, fblaNavy;
+import '../main.dart' show appBackgroundGradient, fblaGold;
 import '../ai/models/chat_message_model.dart';
 import '../ai/repos/gemini_repo.dart';
+import '../models/practice_record.dart';
+import '../services/practice_history_store.dart';
 
 /// Practice experience for performance-based events (roleplay & presentation).
 /// Two modes: an AI Coach (scenario + rubric feedback) and self-record
@@ -44,17 +47,23 @@ class _EventPracticeScreenState extends State<EventPracticeScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tab;
 
+  // Bumped whenever a practice session is saved, so the History tab reloads.
+  final ValueNotifier<int> _historyVersion = ValueNotifier<int>(0);
+
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
+    _tab = TabController(length: 3, vsync: this);
   }
 
   @override
   void dispose() {
     _tab.dispose();
+    _historyVersion.dispose();
     super.dispose();
   }
+
+  void _onSessionSaved() => _historyVersion.value++;
 
   _CuratedPractice get _practice =>
       _curatedPractice[widget.eventName] ??
@@ -100,9 +109,18 @@ class _EventPracticeScreenState extends State<EventPracticeScreen>
                         eventName: widget.eventName,
                         category: widget.category,
                         color: widget.color,
-                        isRoleplay: widget._isRoleplay),
+                        isRoleplay: widget._isRoleplay,
+                        onSaved: _onSessionSaved),
                     _RecordTab(
-                        practice: _practice, color: widget.color),
+                        practice: _practice,
+                        eventName: widget.eventName,
+                        category: widget.category,
+                        color: widget.color,
+                        onSaved: _onSessionSaved),
+                    _HistoryTab(
+                        eventName: widget.eventName,
+                        color: widget.color,
+                        refresh: _historyVersion),
                   ],
                 ),
               ),
@@ -134,6 +152,7 @@ class _EventPracticeScreenState extends State<EventPracticeScreen>
         tabs: const [
           Tab(height: 42, child: Text('AI Coach')),
           Tab(height: 42, child: Text('Record')),
+          Tab(height: 42, child: Text('History')),
         ],
       ),
     );
@@ -148,6 +167,7 @@ class _CoachTab extends StatefulWidget {
   final String category;
   final Color color;
   final bool isRoleplay;
+  final VoidCallback onSaved;
 
   const _CoachTab({
     required this.practice,
@@ -155,6 +175,7 @@ class _CoachTab extends StatefulWidget {
     required this.category,
     required this.color,
     required this.isRoleplay,
+    required this.onSaved,
   });
 
   @override
@@ -223,6 +244,17 @@ Keep it under 180 words, encouraging but honest.''';
           _feedback = reply;
         }
       });
+      if (!noKey) {
+        // Save this coaching session so the member can revisit the feedback.
+        await PracticeHistoryStore.add(PracticeRecord(
+          eventName: widget.eventName,
+          category: widget.category,
+          type: 'coach',
+          timestamp: DateTime.now(),
+          aiFeedback: reply,
+        ));
+        widget.onSaved();
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -400,9 +432,18 @@ Keep it under 180 words, encouraging but honest.''';
 
 class _RecordTab extends StatefulWidget {
   final _CuratedPractice practice;
+  final String eventName;
+  final String category;
   final Color color;
+  final VoidCallback onSaved;
 
-  const _RecordTab({required this.practice, required this.color});
+  const _RecordTab({
+    required this.practice,
+    required this.eventName,
+    required this.category,
+    required this.color,
+    required this.onSaved,
+  });
 
   @override
   State<_RecordTab> createState() => _RecordTabState();
@@ -455,6 +496,23 @@ class _RecordTabState extends State<_RecordTab> {
     final c = _controller;
     if (c == null) return;
     setState(() => c.value.isPlaying ? c.pause() : c.play());
+  }
+
+  Future<void> _saveAssessment() async {
+    await PracticeHistoryStore.add(PracticeRecord(
+      eventName: widget.eventName,
+      category: widget.category,
+      type: 'record',
+      timestamp: DateTime.now(),
+      rubricChecked: _checked.length,
+      rubricTotal: widget.practice.indicators.length,
+    ));
+    widget.onSaved();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Saved to your practice history.'),
+      behavior: SnackBarBehavior.floating,
+    ));
   }
 
   @override
@@ -599,7 +657,201 @@ class _RecordTabState extends State<_RecordTab> {
             ),
           );
         }),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 50,
+          child: OutlinedButton.icon(
+            onPressed: _checked.isEmpty ? null : _saveAssessment,
+            icon: const Icon(Icons.save_outlined, size: 18),
+            label: const Text('Save to History'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: widget.color,
+              disabledForegroundColor: Colors.white24,
+              side: BorderSide(
+                  color: _checked.isEmpty ? Colors.white12 : widget.color),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+              textStyle:
+                  const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ),
       ],
+    );
+  }
+}
+
+/* ----------------------------- History tab ----------------------------- */
+
+class _HistoryTab extends StatefulWidget {
+  final String eventName;
+  final Color color;
+  final ValueNotifier<int> refresh;
+
+  const _HistoryTab({
+    required this.eventName,
+    required this.color,
+    required this.refresh,
+  });
+
+  @override
+  State<_HistoryTab> createState() => _HistoryTabState();
+}
+
+class _HistoryTabState extends State<_HistoryTab> {
+  late Future<List<PracticeRecord>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = PracticeHistoryStore.allForEvent(widget.eventName);
+    widget.refresh.addListener(_reload);
+  }
+
+  @override
+  void dispose() {
+    widget.refresh.removeListener(_reload);
+    super.dispose();
+  }
+
+  void _reload() {
+    if (!mounted) return;
+    setState(() {
+      _future = PracticeHistoryStore.allForEvent(widget.eventName);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<PracticeRecord>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(
+            child: CircularProgressIndicator(color: widget.color),
+          );
+        }
+        final records = snapshot.data ?? const [];
+        if (records.isEmpty) {
+          return _emptyState();
+        }
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+          children: [
+            _headerCard(records.length),
+            const SizedBox(height: 14),
+            ...records.map(_recordCard),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _emptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.history_rounded, color: widget.color, size: 44),
+            const SizedBox(height: 14),
+            const Text('No practice yet',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            const Text(
+              'Get AI feedback or save a self-assessment, and your sessions will show up here so you can track progress.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white54, fontSize: 13, height: 1.4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _headerCard(int count) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [
+          widget.color.withValues(alpha: 0.20),
+          widget.color.withValues(alpha: 0.06),
+        ]),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: widget.color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.emoji_events_rounded, color: widget.color, size: 28),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Practiced ${count}×',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900)),
+                const SizedBox(height: 2),
+                Text(widget.eventName,
+                    style: const TextStyle(
+                        color: Colors.white70, fontSize: 13)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _recordCard(PracticeRecord r) {
+    final when = DateFormat('MMM d, h:mm a').format(r.timestamp);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(r.isCoach ? Icons.auto_awesome_rounded : Icons.videocam_rounded,
+                  color: r.isCoach ? fblaGold : widget.color, size: 18),
+              const SizedBox(width: 8),
+              Text(r.isCoach ? 'AI Coach feedback' : 'Self-assessment',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800)),
+              const Spacer(),
+              Text(when,
+                  style: const TextStyle(color: Colors.white38, fontSize: 11.5)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (r.isRecord)
+            Text(
+              'Scored yourself ${r.rubricChecked ?? 0}/${r.rubricTotal ?? 0} on the rubric.',
+              style: const TextStyle(
+                  color: Colors.white70, fontSize: 13.5, height: 1.4),
+            )
+          else
+            Text(
+              r.aiFeedback ?? '',
+              style: const TextStyle(
+                  color: Colors.white70, fontSize: 13.5, height: 1.45),
+            ),
+        ],
+      ),
     );
   }
 }

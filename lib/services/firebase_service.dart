@@ -86,15 +86,26 @@ class FirebaseService {
         throw Exception(
             'Email/Password authentication is not enabled in Firebase Console.');
       } else if (e.code == 'network-request-failed') {
-        throw Exception(
-            'Network error. Please check your internet connection.');
+        // If we already have a locally-persisted token for this email (common
+        // after a prior successful login), skip the network call and use it.
+        final cached = _auth.currentUser;
+        if (cached != null &&
+            cached.email?.toLowerCase() == email.toLowerCase()) {
+          return null; // caller checks firebaseUser via authStateChanges
+        }
+        throw Exception('[offline] Network unavailable');
       }
       rethrow;
     } catch (e) {
       print('FirebaseService: Sign in error: $e');
+      if (e.toString().contains('[offline]')) rethrow;
       if (e.toString().contains('network')) {
-        throw Exception(
-            'Network error. Please check your internet connection.');
+        final cached = _auth.currentUser;
+        if (cached != null &&
+            cached.email?.toLowerCase() == email.toLowerCase()) {
+          return null;
+        }
+        throw Exception('[offline] Network unavailable');
       }
       rethrow;
     }
@@ -129,8 +140,7 @@ class FirebaseService {
       } else if (e.code == 'invalid-email') {
         throw Exception('The email address is invalid.');
       } else if (e.code == 'network-request-failed') {
-        throw Exception(
-            'Network error. Please check your internet connection.');
+        throw Exception('[offline] Network unavailable');
       }
       rethrow;
     } catch (e) {

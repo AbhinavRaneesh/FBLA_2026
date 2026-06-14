@@ -1,11 +1,15 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../services/chat_history_store.dart';
 import '../models/chat_message_model.dart';
 import '../repos/gemini_repo.dart';
 import 'chat_event.dart';
 import 'chat_state.dart';
 
 class ChatBloc extends Bloc<ChatEvent, ChatState> {
-  
+  // The conversation currently in view. Persistence is keyed on this so the
+  // AI Coach can restore the right history when the screen reopens.
+  String _threadId = 'main_thread';
+
   ChatBloc() : super(ChatInitial()) {
     // Legacy Ollama warm-up kept below for reference.
     // Future(() => ChatRepo.preloadModel());
@@ -19,6 +23,9 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     SendMessageEvent event,
     Emitter<ChatState> emit,
   ) async {
+    if (event.threadId != null && event.threadId!.isNotEmpty) {
+      _threadId = event.threadId!;
+    }
     try {
       // Get current messages
       List<ChatMessageModel> currentMessages = [];
@@ -42,11 +49,15 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
       // Add AI response
       final aiMessage = ChatMessageModel.assistant(aiResponse);
+      final fullConversation = [...messagesWithUser, aiMessage];
 
       emit(ChatLoaded(
-        messages: [...messagesWithUser, aiMessage],
+        messages: fullConversation,
         isLoading: false,
       ));
+
+      // Persist so the conversation survives screen close / app restart.
+      await ChatHistoryStore.save(_threadId, fullConversation);
     } catch (e) {
       emit(ChatError(message: 'Failed to send message: $e'));
     }
@@ -56,6 +67,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     ClearChatEvent event,
     Emitter<ChatState> emit,
   ) async {
+    await ChatHistoryStore.clear(_threadId);
     emit(ChatInitial());
   }
 
@@ -63,11 +75,16 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     LoadChatHistoryEvent event,
     Emitter<ChatState> emit,
   ) async {
+    _threadId = event.threadId;
     try {
       emit(ChatLoading());
-      // In a real implementation, you would load chat history from storage
-      // For now, we'll just emit an empty loaded state
-      emit(ChatLoaded(messages: []));
+      final saved = await ChatHistoryStore.load(_threadId);
+      if (saved.isEmpty) {
+        // No prior conversation — show the welcome state.
+        emit(ChatInitial());
+      } else {
+        emit(ChatLoaded(messages: saved));
+      }
     } catch (e) {
       emit(ChatError(message: 'Failed to load chat history: $e'));
     }

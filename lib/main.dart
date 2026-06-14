@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -25,6 +26,7 @@ import 'screens/chatbot_screen.dart';
 import 'screens/find_members_screen.dart';
 import 'screens/instagram_feed_screen.dart';
 import 'screens/rank_screen.dart';
+import 'screens/feature_tour.dart';
 import 'models/fbla_rank.dart';
 import 'ai/bloc/chat_bloc.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -32,7 +34,7 @@ import 'services/firebase_service.dart';
 import 'services/mongodb_service.dart';
 import 'models/fbla_models.dart';
 import 'models/video_model.dart';
-import 'screens/video_player_screen.dart ';
+import 'screens/video_player_screen.dart';
 import 'services/youtube_service.dart';
 
 // FBLA Colors Added
@@ -62,11 +64,6 @@ const LinearGradient appBackgroundGradient = LinearGradient(
   ],
 );
 
-// Optional fallback URI for local testing only.
-// Leave empty to require --dart-define=MONGODB_URI=...
-const hardcodedMongoUri =
-    'mongodb+srv://kushal:KushalNarkhede@fbla.ig6iamr.mongodb.net/?appName=FBLA';
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -74,18 +71,18 @@ void main() async {
   tz.initializeTimeZones();
   tz.setLocalLocation(tz.getLocation('America/Denver'));
 
+  // Secrets are injected at build time, never committed to source.
+  // Pass with: flutter run --dart-define=MONGODB_URI=mongodb+srv://...
   const defineMongoUri = String.fromEnvironment('MONGODB_URI');
-  final resolvedMongoUri = defineMongoUri.trim().isNotEmpty
-      ? defineMongoUri.trim()
-      : hardcodedMongoUri.trim();
+  final resolvedMongoUri = defineMongoUri.trim();
 
   if (resolvedMongoUri.isNotEmpty) {
     MongoDbService.configureUri(resolvedMongoUri);
-    print('🍃 MongoDB URI configured (no startup Mongo init)');
+    debugPrint('🍃 MongoDB URI configured from --dart-define');
   } else {
-    print(
-      '🍃 MongoDB URI not set at startup. '
-      'Set --dart-define=MONGODB_URI=... or hardcodedMongoUri in main.dart',
+    debugPrint(
+      '🍃 MongoDB URI not set. Pass --dart-define=MONGODB_URI=... to enable '
+      'Mongo-backed features (app runs normally on Firebase without it).',
     );
   }
 
@@ -141,6 +138,7 @@ class AppState extends ChangeNotifier {
       _firebaseInitialized = true;
 
       await _loadAppDataFromFirestore();
+      unawaited(_retryPendingSignup());
 
       // Firebase auth state listener
       FirebaseService.authStateChanges.listen((User? user) async {
@@ -191,10 +189,83 @@ class AppState extends ChangeNotifier {
           .map(_threadFromFirestore)
           .toList();
 
+      // Cache the freshly-loaded data so the app still shows content if the
+      // network is unavailable on a later launch (e.g. unreliable venue WiFi).
+      await _cacheAppData();
+
       notifyListeners();
     } catch (e) {
-      print('Failed to load Firestore app data: $e');
+      debugPrint('Failed to load Firestore app data: $e');
+      // Offline / fetch failed: fall back to the last-known-good cache so the
+      // home screen isn't blank during a demo. Sample data remains the final
+      // fallback if no cache exists yet.
+      _loadCachedAppData();
     }
+  }
+
+  /// Persists the current events and news to SharedPreferences as JSON.
+  Future<void> _cacheAppData() async {
+    try {
+      final eventsJson = jsonEncode(events
+          .map((e) => {
+                'id': e.id,
+                'title': e.title,
+                'start': e.start.toIso8601String(),
+                'end': e.end.toIso8601String(),
+                'location': e.location,
+                'description': e.description,
+                'rsvps': e.rsvps,
+              })
+          .toList());
+      final newsJson = jsonEncode(news
+          .map((n) => {
+                'id': n.id,
+                'title': n.title,
+                'body': n.body,
+                'date': n.date.toIso8601String(),
+              })
+          .toList());
+      await prefs.setString('cachedEvents', eventsJson);
+      await prefs.setString('cachedNews', newsJson);
+      await prefs.setString(
+          'cacheTimestamp', DateTime.now().toIso8601String());
+    } catch (e) {
+      debugPrint('Failed to cache app data: $e');
+    }
+  }
+
+  /// Restores events and news from the cache. Returns false if no usable cache.
+  bool _loadCachedAppData() {
+    try {
+      final eventsJson = prefs.getString('cachedEvents');
+      final newsJson = prefs.getString('cachedNews');
+      if (eventsJson == null && newsJson == null) return false;
+
+      if (eventsJson != null) {
+        final decoded = jsonDecode(eventsJson) as List;
+        events = decoded
+            .map((e) => _eventFromFirestore(Map<String, dynamic>.from(e)))
+            .toList();
+      }
+      if (newsJson != null) {
+        final decoded = jsonDecode(newsJson) as List;
+        news = decoded
+            .map((n) => _newsFromFirestore(Map<String, dynamic>.from(n)))
+            .toList();
+      }
+      debugPrint('📦 Loaded app data from offline cache');
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Failed to load cached app data: $e');
+      return false;
+    }
+  }
+
+  /// Timestamp of the last successful data cache, for an "offline" UI hint.
+  DateTime? get lastCacheTime {
+    final raw = prefs.getString('cacheTimestamp');
+    return raw == null ? null : DateTime.tryParse(raw);
   }
 
   DateTime _toDateTime(dynamic value, DateTime fallback) {
@@ -508,6 +579,77 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  // ---- Offline signup queue --------------------------------------------------
+
+  /// Stores a signup that failed due to no network so it can be retried
+  /// automatically the next time Firebase is reachable.
+  Future<void> savePendingSignup({
+    required String name,
+    required String email,
+    required String password,
+    required String school,
+    required String role,
+  }) async {
+    await prefs.setString(
+      'pendingSignup',
+      jsonEncode({
+        'name': name,
+        'email': email,
+        'password': password,
+        'school': school,
+        'role': role,
+      }),
+    );
+    debugPrint('📦 Pending signup saved for $email');
+  }
+
+  /// Called after Firebase initialises successfully. Completes any pending
+  /// offline signup silently so the user gets a real Firebase account.
+  Future<void> _retryPendingSignup() async {
+    final raw = prefs.getString('pendingSignup');
+    if (raw == null) return;
+    try {
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      final email = (data['email'] ?? '').toString();
+      final password = (data['password'] ?? '').toString();
+      final name = (data['name'] ?? '').toString();
+      final school = (data['school'] ?? '').toString();
+      if (email.isEmpty || password.isEmpty) return;
+
+      debugPrint('🔄 Retrying pending signup for $email');
+      final result = await FirebaseService.signUpWithEmail(email, password);
+      if (result?.user != null) {
+        final user = result!.user!;
+        await user.updateDisplayName(name);
+        await FirebaseService.createUserProfile(
+          userId: user.uid,
+          name: name,
+          email: email,
+          school: school,
+          points: 0,
+          streak: 0,
+        );
+        await prefs.remove('pendingSignup');
+        debugPrint('✅ Pending signup completed for $email');
+        // Refresh in-app profile if this is the current user
+        if (userEmail.toLowerCase() == email.toLowerCase()) {
+          await setFirebaseUser(user);
+        }
+      }
+    } catch (e) {
+      // Account may already exist (e.g. created on another device) — clear it.
+      final msg = e.toString();
+      if (msg.contains('email-already-in-use')) {
+        await prefs.remove('pendingSignup');
+        debugPrint('✅ Pending signup account already exists; cleared queue');
+      } else {
+        debugPrint('⚠️  Pending signup retry failed: $e');
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+
   Future<void> skipOnboarding() async {
     hasSeenOnboarding = true;
     await prefs.setBool('hasSeenOnboarding', true);
@@ -595,6 +737,17 @@ class AppState extends ChangeNotifier {
     }
     prefs.setStringList('savedEvents', savedEventIds.toList());
     notifyListeners();
+  }
+
+  // First-run feature tour gating.
+  bool get hasSeenFeatureTour => prefs.getBool('hasSeenFeatureTour') ?? false;
+
+  Future<void> markFeatureTourSeen() async {
+    await prefs.setBool('hasSeenFeatureTour', true);
+  }
+
+  Future<void> resetFeatureTour() async {
+    await prefs.setBool('hasSeenFeatureTour', false);
   }
 
   void toggleParticipatingEvent(String eventId) {
@@ -1235,6 +1388,7 @@ class _RootScreenState extends State<RootScreen> {
   DateTime? _lastBackPressedAt;
   AppState? _appState;
   bool _notificationsInitialized = false;
+  bool _tourChecked = false;
   String _eventsScheduleSignature = '';
 
   // Order: 0=Home, 1=Events, 2=Resources, 3=Feeds, 4=More
@@ -1265,6 +1419,18 @@ class _RootScreenState extends State<RootScreen> {
     if (!_notificationsInitialized) {
       _notificationsInitialized = true;
       _initializeAndScheduleNotifications();
+    }
+
+    // Show the first-run guided tour once, after the home screen is painted.
+    if (!_tourChecked) {
+      _tourChecked = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final app = _appState;
+        if (app != null && !app.hasSeenFeatureTour) {
+          FeatureTour.show(context);
+        }
+      });
     }
   }
 
@@ -1310,16 +1476,27 @@ class _RootScreenState extends State<RootScreen> {
 
   Widget _activeNavIcon(IconData icon, bool isDark) {
     return Container(
-      width: 56,
-      height: 36,
+      width: 58,
+      height: 34,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: isDark ? fblaGold.withValues(alpha: 0.16) : fblaLightSelectedNav,
-        borderRadius: BorderRadius.circular(999),
+        color: isDark ? fblaGold.withValues(alpha: 0.18) : fblaLightSelectedNav,
+        borderRadius: BorderRadius.circular(14),
+        border: isDark
+            ? Border.all(color: fblaGold.withValues(alpha: 0.40))
+            : null,
+        boxShadow: isDark
+            ? [
+                BoxShadow(
+                  color: fblaGold.withValues(alpha: 0.18),
+                  blurRadius: 12,
+                ),
+              ]
+            : null,
       ),
       child: Icon(
         icon,
-        size: 25,
+        size: 24,
         color: isDark ? fblaGold : fblaNavy,
       ),
     );
@@ -1353,20 +1530,41 @@ class _RootScreenState extends State<RootScreen> {
           ),
           child: _pages[_index],
         ),
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _index,
-          onTap: (i) => setState(() => _index = i),
-          type: BottomNavigationBarType.fixed,
-          iconSize: 30,
-          showSelectedLabels: true,
-          showUnselectedLabels: true,
-          selectedFontSize: 12,
-          unselectedFontSize: 11,
-          elevation: isDark ? 0 : 14,
-          selectedItemColor: isDark ? fblaGold : fblaNavy,
-          unselectedItemColor: isDark ? Colors.grey : fblaLightDisabledText,
-          backgroundColor: isDark ? fblaNavy : fblaLightSurface,
-          items: [
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF0A1626) : fblaLightSurface,
+            border: Border(
+              top: BorderSide(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.07)
+                    : Colors.black.withValues(alpha: 0.06),
+                width: 1,
+              ),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.10),
+                blurRadius: 18,
+                offset: const Offset(0, -3),
+              ),
+            ],
+          ),
+          child: BottomNavigationBar(
+            currentIndex: _index,
+            onTap: (i) => setState(() => _index = i),
+            type: BottomNavigationBarType.fixed,
+            iconSize: 28,
+            showSelectedLabels: true,
+            showUnselectedLabels: true,
+            selectedFontSize: 11.5,
+            unselectedFontSize: 11,
+            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
+            elevation: 0,
+            selectedItemColor: isDark ? fblaGold : fblaNavy,
+            unselectedItemColor:
+                isDark ? Colors.white60 : fblaLightDisabledText,
+            backgroundColor: Colors.transparent,
+            items: [
             BottomNavigationBarItem(
               icon: _navIcon(Icons.home_outlined),
               activeIcon: _activeNavIcon(Icons.home_rounded, isDark),
@@ -1392,7 +1590,8 @@ class _RootScreenState extends State<RootScreen> {
               activeIcon: _activeNavIcon(Icons.more_horiz_rounded, isDark),
               label: 'More',
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1442,43 +1641,10 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late Future<List<Video>> _youtubeVideosFuture;
   bool _nlcSparkleBright = false;
-  static const String _instagramProfileUrl =
-      'https://www.instagram.com/fbla_national/';
-  static const String _youtubeChannelUrl =
-      'https://www.youtube.com/@fbla_national';
-  static const String _facebookUrl = 'https://www.facebook.com/FBLAPBL/';
-  static const String _linkedinUrl =
-      'https://www.linkedin.com/company/fbla-pbl/';
-  static const String _xUrl = 'https://x.com/FBLA_National';
-  static const String _linktreeUrl = 'https://linktr.ee/FBLA_National';
-  @override
-  void initState() {
-    super.initState();
-    _youtubeVideosFuture = YouTubeService().fetchVideos(maxResults: 8);
-  }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
-  Future<void> _refreshYouTubeVideos() async {
-    setState(() {
-      _youtubeVideosFuture = YouTubeService().fetchVideos(maxResults: 8);
-    });
-    await _youtubeVideosFuture;
-  }
-
-  Future<void> _openExternalLink(String url) async {
-    final uri = Uri.parse(url);
-    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!launched && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to open link right now.')),
-      );
-    }
+  Future<void> _refreshHome() async {
+    setState(() {});
   }
 
   Future<void> _toggleReminder(AppState app, Event event) async {
@@ -1523,7 +1689,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context);
-    final Color fblaBlue = const Color(0xFF1D4E89);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final screenHeight = MediaQuery.of(context).size.height;
     final isCompact = screenHeight < 720;
@@ -1552,7 +1717,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildHomeTopBar(app, isDark),
             Expanded(
               child: RefreshIndicator(
-                onRefresh: _refreshYouTubeVideos,
+                onRefresh: _refreshHome,
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: EdgeInsets.zero,
@@ -1606,16 +1771,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           else
                             ...featuredNews.map(_buildAnnouncementCard),
                           SizedBox(height: sectionSpacing),
-                          _buildSectionTitle(
-                            title: 'Stay Connected',
-                            subtitle: 'Official FBLA social channels',
-                          ),
-                          SizedBox(height: smallSpacing),
-                          _buildSocialLinksCard(),
-                          SizedBox(height: isCompact ? 10 : 14),
-                          _buildInstagramPreviewCard(fblaBlue),
-                          SizedBox(height: isCompact ? 10 : 14),
-                          _buildYouTubePreviewSection(fblaBlue),
                         ],
                       ),
                     ),
@@ -2784,517 +2939,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSocialLinksCard() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F1B2D) : fblaLightSurface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color:
-              isDark ? Colors.white.withValues(alpha: 0.07) : fblaLightBorder,
-        ),
-        boxShadow: isDark
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 14,
-                  offset: const Offset(0, 7),
-                ),
-              ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Official Channels',
-            style: TextStyle(
-              color: isDark ? Colors.white : fblaLightPrimaryText,
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Follow official FBLA channels to catch announcements, leadership content, event highlights, and national updates.',
-            style: TextStyle(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.68)
-                  : fblaLightSecondaryText,
-              fontSize: 13,
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 14),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isNarrow = constraints.maxWidth < 360;
-              return GridView.count(
-                crossAxisCount: 2,
-                crossAxisSpacing: isNarrow ? 8 : 10,
-                mainAxisSpacing: isNarrow ? 8 : 10,
-                childAspectRatio: isNarrow ? 1.6 : 1.75,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  _buildSocialLinkTile(
-                    label: 'Instagram',
-                    handle: '@fbla_national',
-                    icon: Icons.camera_alt,
-                    color: const Color(0xFFE1306C),
-                    onTap: () => InstagramFeedScreen.open(context),
-                  ),
-                  _buildSocialLinkTile(
-                    label: 'YouTube',
-                    handle: '@fbla_national',
-                    icon: Icons.play_circle_fill,
-                    color: const Color(0xFFFF0000),
-                    onTap: () => _openExternalLink(_youtubeChannelUrl),
-                  ),
-                  _buildSocialLinkTile(
-                    label: 'Facebook',
-                    handle: 'FBLA-PBL',
-                    icon: Icons.facebook,
-                    color: const Color(0xFF1877F2),
-                    onTap: () => _openExternalLink(_facebookUrl),
-                  ),
-                  _buildSocialLinkTile(
-                    label: 'LinkedIn',
-                    handle: 'FBLA-PBL',
-                    icon: Icons.business,
-                    color: const Color(0xFF0A66C2),
-                    onTap: () => _openExternalLink(_linkedinUrl),
-                  ),
-                  _buildSocialLinkTile(
-                    label: 'X',
-                    handle: '@FBLA_National',
-                    icon: Icons.alternate_email,
-                    color: const Color(0xFF9AA0A6),
-                    onTap: () => _openExternalLink(_xUrl),
-                  ),
-                  _buildSocialLinkTile(
-                    label: 'Link Hub',
-                    handle: '@FBLA_National',
-                    icon: Icons.hub_outlined,
-                    color: const Color(0xFFFDB913),
-                    onTap: () => _openExternalLink(_linktreeUrl),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSocialLinkTile({
-    required String label,
-    required String handle,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: color.withOpacity(0.35)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color, size: 19),
-            const Spacer(),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 3),
-            Text(
-              handle,
-              style: TextStyle(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.76)
-                    : fblaLightSecondaryText,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w500,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInstagramPreviewCard(Color accentColor) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F1B2D) : fblaLightSurface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color:
-              isDark ? Colors.white.withValues(alpha: 0.07) : fblaLightBorder,
-        ),
-        boxShadow: isDark
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 14,
-                  offset: const Offset(0, 7),
-                ),
-              ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                height: 38,
-                width: 38,
-                decoration: BoxDecoration(
-                  color: accentColor.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.photo_camera,
-                  color: accentColor,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'FBLA Instagram',
-                  style: TextStyle(
-                    color: isDark ? Colors.white : fblaLightPrimaryText,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: () => InstagramFeedScreen.open(context),
-                child: const Text('View Feed'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Browse the official national FBLA Instagram feed inside the app.',
-            style: TextStyle(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.68)
-                  : fblaLightSecondaryText,
-              fontSize: 13,
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => InstagramFeedScreen.open(context),
-                child: SizedBox(
-                  height: 340,
-                  child: InstagramWebView(
-                    profileUrl: _instagramProfileUrl,
-                    height: 340,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildYouTubeInlineError(String message) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F1B2D),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.error_outline, color: Colors.orangeAccent),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'YouTube feed unavailable: $message',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: Colors.grey.shade300, fontSize: 12),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildYouTubePreviewSection(Color accentColor) {
-    return FutureBuilder<List<Video>>(
-      future: _youtubeVideosFuture,
-      builder: (context, snapshot) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        final youtubeVideos = snapshot.data ?? [];
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF0F1B2D) : fblaLightSurface,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.07)
-                  : fblaLightBorder,
-            ),
-            boxShadow: isDark
-                ? null
-                : [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 14,
-                      offset: const Offset(0, 7),
-                    ),
-                  ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    'Official FBLA Videos',
-                    style: TextStyle(
-                      color: isDark ? Colors.white : fblaLightPrimaryText,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: () => _openExternalLink(_youtubeChannelUrl),
-                    child: const Text('Open Channel'),
-                  ),
-                ],
-              ),
-              Text(
-                'Recent uploads from the official FBLA channel keep the media feed relevant to conferences, leadership, and member engagement.',
-                style: TextStyle(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.68)
-                      : fblaLightSecondaryText,
-                  fontSize: 13,
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (snapshot.connectionState == ConnectionState.waiting &&
-                  youtubeVideos.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (snapshot.hasError && youtubeVideos.isEmpty)
-                _buildYouTubeInlineError(snapshot.error.toString())
-              else if (youtubeVideos.isEmpty)
-                _buildEmptyStateCard(
-                  icon: Icons.ondemand_video_outlined,
-                  title: 'No official videos available',
-                  subtitle:
-                      'Open the FBLA YouTube channel directly to view the latest uploads.',
-                )
-              else ...[
-                ...youtubeVideos
-                    .take(4)
-                    .map((video) =>
-                        _buildYouTubePostCard(context, video, accentColor))
-                    .toList(),
-              ],
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildYouTubePostCard(
-      BuildContext context, Video video, Color accentColor) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => VideoPlayerScreen(video: video)),
-            );
-          },
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF111111) : fblaLightBackground,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: isDark ? Colors.white12 : fblaLightBorder,
-                width: 1,
-              ),
-              boxShadow: isDark
-                  ? const [
-                      BoxShadow(
-                        color: Colors.black54,
-                        blurRadius: 12,
-                        offset: Offset(0, 4),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      height: 36,
-                      width: 36,
-                      decoration: BoxDecoration(
-                        color: accentColor.withOpacity(0.18),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        Icons.play_arrow,
-                        color: accentColor,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'YouTube',
-                        style: TextStyle(
-                          color: isDark
-                              ? Colors.grey.shade200
-                              : fblaLightPrimaryText,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      _formatPostDate(video.publishedAt),
-                      style: TextStyle(
-                        color: isDark
-                            ? Colors.grey.shade500
-                            : fblaLightSecondaryText,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    video.thumbnailUrl,
-                    width: double.infinity,
-                    height: 190,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      height: 190,
-                      color: isDark ? Colors.grey.shade800 : fblaLightBorder,
-                      alignment: Alignment.center,
-                      child:
-                          Icon(Icons.broken_image, color: Colors.grey.shade500),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  video.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: isDark ? Colors.white : fblaLightPrimaryText,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                    height: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _shorten(video.description, 170),
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color:
-                        isDark ? Colors.grey.shade300 : fblaLightSecondaryText,
-                    fontSize: 14,
-                    height: 1.35,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Icon(Icons.play_circle_outline,
-                        color: isDark
-                            ? Colors.grey.shade300
-                            : fblaLightSecondaryText,
-                        size: 18),
-                    const SizedBox(width: 6),
-                    Text('Watch',
-                        style: TextStyle(
-                            color: isDark
-                                ? Colors.grey.shade300
-                                : fblaLightSecondaryText,
-                            fontSize: 12)),
-                    const Spacer(),
-                    Icon(Icons.open_in_new, color: accentColor, size: 18),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _shorten(String text, int maxLength) {
-    if (text.isEmpty) return 'No description available.';
-    if (text.length <= maxLength) return text;
-    return '${text.substring(0, maxLength).trim()}...';
-  }
-
   Widget _buildEmptyStateCard({
     required IconData icon,
     required String title,
@@ -3420,6 +3064,7 @@ class _PostSearchDelegate extends SearchDelegate {
   List<Widget>? buildActions(BuildContext context) {
     return [
       IconButton(
+        tooltip: 'Clear search',
         icon: const Icon(Icons.clear),
         onPressed: () => query = '',
       ),
@@ -3429,6 +3074,7 @@ class _PostSearchDelegate extends SearchDelegate {
   @override
   Widget? buildLeading(BuildContext context) {
     return IconButton(
+      tooltip: 'Back',
       icon: const Icon(Icons.arrow_back),
       onPressed: () => close(context, null),
     );
@@ -5648,6 +5294,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
                       decoration:
                           InputDecoration(hintText: 'Write a message'))),
               IconButton(
+                  tooltip: 'Send message',
                   onPressed: () {
                     if (_controller.text.trim().isEmpty) return;
                     final app = Provider.of<AppState>(context, listen: false);
@@ -6497,7 +6144,6 @@ class ProfileScreen extends StatelessWidget {
     final secondaryText = isDark ? Colors.white70 : fblaLightSecondaryText;
     final userStreak = app.userProfile?.streak ?? 0;
     final coinBalance = app.userProfile?.points ?? 0;
-    final userRankLabel = FBLARankSystem.shortLabelFor(app.userRank);
     final participatingEvents = app.events
         .where((event) => app.participatingEventIds.contains(event.id))
         .toList()
@@ -6556,23 +6202,6 @@ class ProfileScreen extends StatelessWidget {
                         fblaGold,
                         primaryText,
                         secondaryText,
-                      ),
-                      const SizedBox(height: 28),
-                      _buildProfileSectionTitle(
-                        'Overview',
-                        Icons.dashboard_outlined,
-                        fblaBlue,
-                        primaryText,
-                      ),
-                      const SizedBox(height: 14),
-                      _buildOverviewGrid(
-                        context,
-                        userStreak,
-                        coinBalance,
-                        userRankLabel,
-                        fblaBlue,
-                        fblaGold,
-                        isDark,
                       ),
                       const SizedBox(height: 28),
                       _buildProfileSectionTitle(
@@ -6641,108 +6270,342 @@ class ProfileScreen extends StatelessWidget {
     Color primaryText,
     Color secondaryText,
   ) {
-    final headerColor =
-        isDark ? const Color(0xFF0B1728) : const Color(0xFFF7FAFC);
     final displayName = _resolvedProfileDisplayName(app);
     final email = app.userEmail.isNotEmpty ? app.userEmail : 'Not signed in';
+    final rankLabel = FBLARankSystem.shortLabelFor(app.userRank);
+    final streak = app.userProfile?.streak ?? 0;
+    final coins = app.userProfile?.points ?? 0;
+
+    final headerGradient = isDark
+        ? const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF17386E), Color(0xFF0A1A33)],
+          )
+        : const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFEAF1FB), Color(0xFFF7FAFC)],
+          );
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
-      color: headerColor,
-      child: Column(
+      decoration: BoxDecoration(gradient: headerGradient),
+      child: Stack(
         children: [
-          Row(
-            children: [
-              if (Navigator.canPop(context))
-                IconButton(
-                  tooltip: 'Back',
-                  icon: Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    color: primaryText,
-                    size: 19,
+          Positioned(
+            top: -48,
+            right: -36,
+            child: IgnorePointer(
+              child: Container(
+                width: 190,
+                height: 190,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      fblaGold.withValues(alpha: isDark ? 0.18 : 0.14),
+                      Colors.transparent,
+                    ],
                   ),
-                  onPressed: () => Navigator.pop(context),
-                )
-              else
-                const SizedBox(width: 48),
-              const Spacer(),
-              IconButton(
-                tooltip: 'Settings',
-                icon: Icon(Icons.settings_outlined, color: primaryText),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                  );
-                },
+                ),
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              _buildProfileAvatar(context, app, fblaBlue, fblaGold, isDark),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 22),
+            child: Column(
+              children: [
+                Row(
                   children: [
-                    Text(
-                      displayName,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
+                    if (Navigator.canPop(context))
+                      _buildHeaderIconButton(
+                        icon: Icons.arrow_back_ios_new_rounded,
+                        tooltip: 'Back',
                         color: primaryText,
-                        letterSpacing: -0.4,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                        isDark: isDark,
+                        onPressed: () => Navigator.pop(context),
+                      )
+                    else
+                      const SizedBox(width: 40),
+                    const Spacer(),
+                    _buildHeaderIconButton(
+                      icon: Icons.settings_outlined,
+                      tooltip: 'Settings',
+                      color: primaryText,
+                      isDark: isDark,
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const SettingsScreen()),
+                        );
+                      },
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      email,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: secondaryText,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: fblaGold.withValues(alpha: isDark ? 0.18 : 0.24),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color:
-                              fblaGold.withValues(alpha: isDark ? 0.45 : 0.65),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    _buildProfileAvatar(
+                        context, app, fblaBlue, fblaGold, isDark),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.verified_outlined,
-                              size: 15, color: fblaGold),
-                          const SizedBox(width: 6),
                           Text(
-                            'Active Member',
+                            displayName,
                             style: TextStyle(
-                              color: isDark ? fblaGold : fblaBlue,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: primaryText,
+                              letterSpacing: -0.4,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            email,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: secondaryText,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 11),
+                          _buildHeaderChip(
+                            icon: Icons.verified_rounded,
+                            label: 'Active Member',
+                            iconColor: fblaGold,
+                            textColor: isDark ? fblaGold : fblaBlue,
+                            fillColor: fblaGold.withValues(
+                                alpha: isDark ? 0.16 : 0.22),
+                            borderColor: fblaGold.withValues(
+                                alpha: isDark ? 0.45 : 0.6),
                           ),
                         ],
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 18),
+                _buildHeaderStatStrip(
+                  context,
+                  streak: streak,
+                  coins: coins,
+                  rankLabel: rankLabel,
+                  isDark: isDark,
+                  primaryText: primaryText,
+                  secondaryText: secondaryText,
+                  fblaGold: fblaGold,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeaderStatStrip(
+    BuildContext context, {
+    required int streak,
+    required int coins,
+    required String rankLabel,
+    required bool isDark,
+    required Color primaryText,
+    required Color secondaryText,
+    required Color fblaGold,
+  }) {
+    final divider = Container(
+      width: 1,
+      height: 44,
+      color: isDark
+          ? Colors.white.withValues(alpha: 0.10)
+          : fblaLightBorder,
+    );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.10)
+              : fblaLightBorder,
+        ),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 14,
+                  offset: const Offset(0, 7),
+                ),
+              ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildHeaderStat(
+              value: '$streak',
+              label: 'Day Streak',
+              icon: Icons.local_fire_department_rounded,
+              color: const Color(0xFFFF7043),
+              isDark: isDark,
+              primaryText: primaryText,
+              secondaryText: secondaryText,
+            ),
+          ),
+          divider,
+          Expanded(
+            child: _buildHeaderStat(
+              value: '$coins',
+              label: 'FBLA Coins',
+              assetPath: 'assets/coins.png',
+              color: fblaGold,
+              isDark: isDark,
+              primaryText: primaryText,
+              secondaryText: secondaryText,
+            ),
+          ),
+          divider,
+          Expanded(
+            child: _buildHeaderStat(
+              value: rankLabel,
+              label: 'Rank',
+              icon: Icons.leaderboard_rounded,
+              color: const Color(0xFF66BB6A),
+              isDark: isDark,
+              primaryText: primaryText,
+              secondaryText: secondaryText,
+              onTap: () => RankScreen.open(context),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeaderStat({
+    required String value,
+    required String label,
+    required Color color,
+    required bool isDark,
+    required Color primaryText,
+    required Color secondaryText,
+    IconData? icon,
+    String? assetPath,
+    VoidCallback? onTap,
+  }) {
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: assetPath != null
+              ? Padding(
+                  padding: const EdgeInsets.all(7),
+                  child: Image.asset(assetPath),
+                )
+              : Icon(icon, color: color, size: 21),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: TextStyle(
+            color: primaryText,
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            color: secondaryText,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
+
+    if (onTap == null) return content;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: content,
+    );
+  }
+
+  Widget _buildHeaderIconButton({
+    required IconData icon,
+    required String tooltip,
+    required Color color,
+    required bool isDark,
+    required VoidCallback onPressed,
+  }) {
+    return Material(
+      color: isDark
+          ? Colors.white.withValues(alpha: 0.08)
+          : Colors.black.withValues(alpha: 0.04),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onPressed,
+        child: Tooltip(
+          message: tooltip,
+          child: Padding(
+            padding: const EdgeInsets.all(9),
+            child: Icon(icon, color: color, size: 20),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderChip({
+    required IconData icon,
+    required String label,
+    required Color iconColor,
+    required Color textColor,
+    required Color fillColor,
+    required Color borderColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: fillColor,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: iconColor),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),
@@ -7151,6 +7014,7 @@ class ProfileScreen extends StatelessWidget {
                           ),
                         ),
                         IconButton(
+                          tooltip: 'Close',
                           onPressed: () => Navigator.pop(sheetContext),
                           icon: Icon(Icons.close_rounded, color: primaryText),
                         ),
@@ -7293,130 +7157,6 @@ class ProfileScreen extends StatelessWidget {
       'Dec'
     ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
-  }
-
-  Widget _buildOverviewGrid(
-    BuildContext context,
-    int userStreak,
-    int coinBalance,
-    String userRankLabel,
-    Color fblaBlue,
-    Color fblaGold,
-    bool isDark,
-  ) {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: MediaQuery.of(context).size.width > 420 ? 2.25 : 1.95,
-      children: [
-        _buildOverviewTile(
-          value: '$userStreak',
-          icon: Icons.local_fire_department_rounded,
-          color: const Color(0xFFFF7043),
-          isDark: isDark,
-        ),
-        _buildOverviewTile(
-          value: '$coinBalance',
-          assetPath: 'assets/coins.png',
-          color: fblaGold,
-          isDark: isDark,
-        ),
-        _buildOverviewTile(
-          value: userRankLabel,
-          icon: Icons.leaderboard,
-          color: const Color(0xFF66BB6A),
-          isDark: isDark,
-          onTap: () => RankScreen.open(context),
-        ),
-        _buildOverviewTile(
-          value: '--',
-          icon: Icons.lock_clock_outlined,
-          color: const Color(0xFF64748B),
-          isDark: isDark,
-          muted: true,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildOverviewTile({
-    required String value,
-    required Color color,
-    required bool isDark,
-    IconData? icon,
-    String? assetPath,
-    bool muted = false,
-    VoidCallback? onTap,
-  }) {
-    final cardColor = isDark ? const Color(0xFF101827) : fblaLightSurface;
-    final primaryText = isDark ? Colors.white : fblaLightPrimaryText;
-    final secondaryText = isDark ? Colors.white70 : fblaLightSecondaryText;
-
-    final tile = Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.08)
-              : fblaLightBorder.withValues(alpha: 0.9),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: muted ? 0.09 : 0.15),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: assetPath != null
-                ? Padding(
-                    padding: const EdgeInsets.all(7),
-                    child: Image.asset(assetPath),
-                  )
-                : Icon(icon, color: muted ? secondaryText : color, size: 26),
-          ),
-          const SizedBox(width: 12),
-          Flexible(
-            child: Text(
-              value,
-              style: TextStyle(
-                color: muted ? secondaryText : primaryText,
-                fontSize: value.length > 8 ? 18 : 24,
-                fontWeight: FontWeight.w900,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (onTap == null) return tile;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: tile,
-      ),
-    );
   }
 
   Widget _buildMonthlyBadges(
@@ -7974,6 +7714,7 @@ class ProfileScreen extends StatelessWidget {
               title: const Text('Profile'),
               actions: [
                 IconButton(
+                  tooltip: 'Settings',
                   icon: Icon(Icons.settings_outlined, color: Colors.white),
                   onPressed: () {
                     Navigator.push(
@@ -9199,12 +8940,15 @@ class MoreScreen extends StatelessWidget {
         foregroundColor: Colors.white,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          _buildGroupHeader(
-              context, 'Community & Connection', Icons.groups_outlined),
+          _buildProfileHeader(context, app),
+          const SizedBox(height: 24),
+          _buildGroupHeader(context, 'Community & Connection',
+              Icons.groups_outlined, _MoreAccent.blue),
           _buildMoreTile(
             context,
+            accent: _MoreAccent.blue,
             title: 'Find Members',
             subtitle: 'Search local members and officers',
             icon: Icons.badge_outlined,
@@ -9217,6 +8961,7 @@ class MoreScreen extends StatelessWidget {
           ),
           _buildMoreTile(
             context,
+            accent: _MoreAccent.blue,
             title: 'Social Wall',
             subtitle: 'Instagram, LinkedIn, and X feeds',
             icon: Icons.public_outlined,
@@ -9229,12 +8974,14 @@ class MoreScreen extends StatelessWidget {
           ),
           _buildMoreTile(
             context,
+            accent: _MoreAccent.blue,
             title: 'Message Center',
             subtitle: 'Connect with chapter officers or advisers',
             icon: Icons.mark_chat_unread_outlined,
           ),
           _buildMoreTile(
             context,
+            accent: _MoreAccent.blue,
             title: 'Official FBLA Hub',
             subtitle: 'Divisions, NLC, network, and get involved',
             icon: Icons.business_center_outlined,
@@ -9246,52 +8993,60 @@ class MoreScreen extends StatelessWidget {
               );
             },
           ),
-          const SizedBox(height: 20),
-          _buildGroupHeader(
-              context, 'Leadership & Growth', Icons.emoji_events_outlined),
+          const SizedBox(height: 22),
+          _buildGroupHeader(context, 'Leadership & Growth',
+              Icons.emoji_events_outlined, _MoreAccent.gold),
           _buildMoreTile(
             context,
+            accent: _MoreAccent.gold,
             title: 'BAA Progress Tracker',
             subtitle: 'Track Business Achievement Awards checklist',
             icon: Icons.checklist_outlined,
           ),
           _buildMoreTile(
             context,
+            accent: _MoreAccent.gold,
             title: 'Scholarship Hub',
             subtitle: 'FBLA scholarships and deadlines',
             icon: Icons.school_outlined,
           ),
           _buildMoreTile(
             context,
+            accent: _MoreAccent.gold,
             title: 'Officer Corner',
             subtitle: 'Resources for current or aspiring officers',
             icon: Icons.workspace_premium_outlined,
           ),
-          const SizedBox(height: 20),
-          _buildGroupHeader(
-              context, 'Administration', Icons.admin_panel_settings_outlined),
+          const SizedBox(height: 22),
+          _buildGroupHeader(context, 'Administration',
+              Icons.admin_panel_settings_outlined, _MoreAccent.teal),
           _buildMoreTile(
             context,
+            accent: _MoreAccent.teal,
             title: 'Attendance Tracker',
             subtitle: 'Scan QR code to check in at meetings',
             icon: Icons.qr_code_scanner_outlined,
           ),
           _buildMoreTile(
             context,
+            accent: _MoreAccent.teal,
             title: 'Dues & Payments',
             subtitle: 'Check membership status and payment portal',
             icon: Icons.payments_outlined,
           ),
           _buildMoreTile(
             context,
+            accent: _MoreAccent.teal,
             title: 'Document Library',
             subtitle: 'Bylaws, Robert’s Rules, and meeting minutes',
             icon: Icons.folder_open_outlined,
           ),
-          const SizedBox(height: 20),
-          _buildGroupHeader(context, 'Support', Icons.support_agent_outlined),
+          const SizedBox(height: 22),
+          _buildGroupHeader(context, 'Support', Icons.support_agent_outlined,
+              _MoreAccent.violet),
           _buildMoreTile(
             context,
+            accent: _MoreAccent.violet,
             title: 'Help / FAQ',
             subtitle: 'Answers about dress code, events, and troubleshooting',
             icon: Icons.help_outline,
@@ -9304,6 +9059,21 @@ class MoreScreen extends StatelessWidget {
           ),
           _buildMoreTile(
             context,
+            accent: _MoreAccent.violet,
+            title: 'Replay App Tour',
+            subtitle: 'Take the guided walkthrough of the app again',
+            icon: Icons.tips_and_updates_outlined,
+            onTap: () async {
+              final app = Provider.of<AppState>(context, listen: false);
+              await app.resetFeatureTour();
+              if (context.mounted) {
+                FeatureTour.show(context);
+              }
+            },
+          ),
+          _buildMoreTile(
+            context,
+            accent: _MoreAccent.violet,
             title: 'Settings',
             subtitle: 'Notifications, privacy, and account logout',
             icon: Icons.settings_outlined,
@@ -9315,14 +9085,12 @@ class MoreScreen extends StatelessWidget {
             },
           ),
           if (isDeveloperMode) ...[
-            const SizedBox(height: 20),
-            _buildGroupHeader(
-              context,
-              'Extra Developer Options',
-              Icons.developer_mode_outlined,
-            ),
+            const SizedBox(height: 22),
+            _buildGroupHeader(context, 'Extra Developer Options',
+                Icons.developer_mode_outlined, _MoreAccent.red),
             _buildMoreTile(
               context,
+              accent: _MoreAccent.red,
               title: 'Extra Developer Options',
               subtitle: 'Developer-only testing utilities',
               icon: Icons.build_outlined,
@@ -9341,29 +9109,168 @@ class MoreScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildGroupHeader(BuildContext context, String title, IconData icon) {
-    final Color fblaBlue = const Color(0xFF1D4E89);
+  Widget _buildProfileHeader(BuildContext context, AppState app) {
+    final name = app.resolvedDisplayName;
+    final initial = app.profileInitial;
+    final points = app.userProfile?.points ?? 0;
+    final rank = app.userRank;
+    final role = app.signupRole.trim();
+    final subtitle = role.isNotEmpty ? '$role  ·  $rank' : rank;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ProfileScreen()),
+          );
+        },
+        child: Ink(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF13315F), Color(0xFF0C1E3C)],
+            ),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.30),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 58,
+                height: 58,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [fblaGold, Color(0xFFE39A00)],
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: fblaGold.withValues(alpha: 0.35),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  initial,
+                  style: const TextStyle(
+                    color: fblaNavy,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.70),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: fblaGold.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                            color: fblaGold.withValues(alpha: 0.30)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Image.asset('assets/coins.png',
+                              width: 16, height: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            '$points pts',
+                            style: const TextStyle(
+                              color: fblaGold,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.white.withValues(alpha: 0.45),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGroupHeader(
+      BuildContext context, String title, IconData icon, Color accent) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(left: 2, bottom: 12),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            width: 26,
+            height: 26,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: fblaBlue.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(10),
+              color: accent.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: fblaBlue, size: 20),
+            child: Icon(icon, color: accent, size: 16),
           ),
           const SizedBox(width: 10),
           Text(
-            title,
+            title.toUpperCase(),
             style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : fblaBlue,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.85)
+                  : fblaBlue,
             ),
           ),
         ],
@@ -9376,61 +9283,90 @@ class MoreScreen extends StatelessWidget {
     required String title,
     required String subtitle,
     required IconData icon,
+    required Color accent,
     VoidCallback? onTap,
   }) {
-    final Color fblaBlue = const Color(0xFF1D4E89);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onTap ??
-              () {
-                return;
-              },
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Ink(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: fblaBlue.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: fblaBlue.withOpacity(0.18), width: 1.2),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : fblaBlue.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : fblaBlue.withOpacity(0.16),
+              ),
             ),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(9),
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: fblaBlue,
-                    borderRadius: BorderRadius.circular(10),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        accent,
+                        Color.lerp(accent, Colors.black, 0.22)!,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(13),
+                    boxShadow: [
+                      BoxShadow(
+                        color: accent.withValues(alpha: 0.32),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                  child: Icon(icon, color: Colors.white, size: 18),
+                  child: Icon(icon, color: Colors.white, size: 21),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
+                          color:
+                              isDark ? Colors.white : fblaLightPrimaryText,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       Text(
                         subtitle,
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey.shade600,
+                          height: 1.25,
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.6)
+                              : Colors.grey.shade600,
                         ),
                       ),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right, color: fblaBlue),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: isDark ? Colors.white38 : fblaBlue,
+                ),
               ],
             ),
           ),
@@ -9438,6 +9374,15 @@ class MoreScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MoreAccent {
+  const _MoreAccent._();
+  static const Color blue = Color(0xFF2E6BC6);
+  static const Color gold = Color(0xFFCB8A14);
+  static const Color teal = Color(0xFF1AA39A);
+  static const Color violet = Color(0xFF6D5BD0);
+  static const Color red = Color(0xFFD9534F);
 }
 
 class ExtraDeveloperOptionsScreen extends StatelessWidget {

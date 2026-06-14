@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 660" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#07111F"/><stop offset="0.5" stop-color="#0A1830"/><stop offset="1" stop-color="#07111F"/>
+    </linearGradient>
+    <linearGradient id="prog" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4D9DE0"/><stop offset="1" stop-color="#6D5BD0"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="312" height="652" rx="34" fill="url(#bg)" stroke="#1d2b45" stroke-width="2"/>
+  <text x="26" y="34" fill="#ffffff" font-size="11" font-weight="700">9:41</text>
+  <text x="270" y="34" fill="#ffffff" font-size="10">▮▮▮ ▾</text>
+
+  <text x="26" y="74" fill="#ffffff" font-size="20" font-weight="800">Resources</text>
+
+  <!-- course selector dropdown -->
+  <rect x="22" y="92" width="276" height="44" rx="14" fill="#ffffff" fill-opacity="0.06" stroke="#6D5BD0" stroke-opacity="0.5"/>
+  <text x="40" y="112" fill="#ffffff" fill-opacity="0.5" font-size="9">COURSE</text>
+  <text x="40" y="126" fill="#ffffff" font-size="13" font-weight="700">Intro to Cybersecurity</text>
+  <text x="280" y="120" text-anchor="end" fill="#ffffff" fill-opacity="0.6" font-size="12">▾</text>
+
+  <!-- overall progress -->
+  <rect x="22" y="148" width="276" height="64" rx="16" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.08"/>
+  <text x="40" y="172" fill="#ffffff" font-size="12" font-weight="700">Your progress</text>
+  <text x="280" y="172" text-anchor="end" fill="#6D5BD0" font-size="12" font-weight="800">40%</text>
+  <rect x="40" y="182" width="240" height="8" rx="4" fill="#ffffff" fill-opacity="0.08"/>
+  <rect x="40" y="182" width="96" height="8" rx="4" fill="url(#prog)"/>
+  <text x="40" y="204" fill="#ffffff" fill-opacity="0.5" font-size="9">2 of 5 levels · +120 FBLA coins earned</text>
+
+  <!-- levels list -->
+  <text x="26" y="236" fill="#ffffff" font-size="12" font-weight="700">Levels</text>
+  <g>
+    <rect x="22" y="246" width="276" height="46" rx="14" fill="#1AA39A" fill-opacity="0.12" stroke="#1AA39A" stroke-opacity="0.5"/>
+    <circle cx="46" cy="269" r="12" fill="#1AA39A"/><text x="46" y="273" text-anchor="middle" fill="#ffffff" font-size="12">✓</text>
+    <text x="68" y="265" fill="#ffffff" font-size="12" font-weight="700">Level 1 · Foundations</text>
+    <text x="68" y="281" fill="#ffffff" fill-opacity="0.55" font-size="9">Completed · 100%</text>
+  </g>
+  <g>
+    <rect x="22" y="298" width="276" height="46" rx="14" fill="#ffffff" fill-opacity="0.05" stroke="#6D5BD0" stroke-opacity="0.5"/>
+    <circle cx="46" cy="321" r="12" fill="#6D5BD0" fill-opacity="0.25" stroke="#6D5BD0"/><text x="46" y="325" text-anchor="middle" fill="#6D5BD0" font-size="11" font-weight="800">2</text>
+    <text x="68" y="317" fill="#ffffff" font-size="12" font-weight="700">Level 2 · Threats &amp; Attacks</text>
+    <text x="68" y="333" fill="#ffffff" fill-opacity="0.55" font-size="9">In progress · 35%</text>
+    <text x="282" y="326" text-anchor="end" fill="#6D5BD0" font-size="11">▶</text>
+  </g>
+  <g>
+    <rect x="22" y="350" width="276" height="46" rx="14" fill="#ffffff" fill-opacity="0.03" stroke="#ffffff" stroke-opacity="0.07"/>
+    <circle cx="46" cy="373" r="12" fill="#ffffff" fill-opacity="0.06"/><text x="46" y="377" text-anchor="middle" fill="#ffffff" fill-opacity="0.4" font-size="11">🔒</text>
+    <text x="68" y="369" fill="#ffffff" fill-opacity="0.6" font-size="12" font-weight="700">Level 3 · Defense</text>
+    <text x="68" y="385" fill="#ffffff" fill-opacity="0.4" font-size="9">Locked</text>
+  </g>
+
+  <!-- documents -->
+  <text x="26" y="430" fill="#ffffff" font-size="12" font-weight="700">Documents</text>
+  <g>
+    <rect x="22" y="440" width="276" height="48" rx="14" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.08"/>
+    <rect x="34" y="452" width="26" height="26" rx="7" fill="#D9534F" fill-opacity="0.18"/><text x="47" y="470" text-anchor="middle" font-size="11">📄</text>
+    <text x="72" y="462" fill="#ffffff" font-size="11.5" font-weight="700">Cybersecurity Guidelines.pdf</text>
+    <text x="72" y="478" fill="#ffffff" fill-opacity="0.55" font-size="9">Open in-app viewer · 24 pages</text>
+    <text x="282" y="470" text-anchor="end" fill="#4D9DE0" font-size="11">↗</text>
+  </g>
+  <g>
+    <rect x="22" y="494" width="276" height="48" rx="14" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.08"/>
+    <rect x="34" y="506" width="26" height="26" rx="7" fill="#4D9DE0" fill-opacity="0.18"/><text x="47" y="524" text-anchor="middle" font-size="11">📄</text>
+    <text x="72" y="516" fill="#ffffff" font-size="11.5" font-weight="700">Mobile App Dev Rubric.pdf</text>
+    <text x="72" y="532" fill="#ffffff" fill-opacity="0.55" font-size="9">Open in-app viewer · 8 pages</text>
+    <text x="282" y="524" text-anchor="end" fill="#4D9DE0" font-size="11">↗</text>
+  </g>
+
+  <!-- bottom nav -->
+  <rect x="14" y="600" width="292" height="48" rx="20" fill="#0b1730" stroke="#ffffff" stroke-opacity="0.06"/>
+  <g text-anchor="middle" font-size="8.5">
+    <g transform="translate(46,612)"><text y="10" font-size="14">🏠</text><text y="26" fill="#ffffff" fill-opacity="0.55">Home</text></g>
+    <g transform="translate(108,612)"><text y="10" font-size="14">📅</text><text y="26" fill="#ffffff" fill-opacity="0.55">Events</text></g>
+    <g transform="translate(170,612)"><rect x="-22" y="-4" width="44" height="34" rx="12" fill="#6D5BD0" fill-opacity="0.2"/><text y="10" font-size="14">📚</text><text y="26" fill="#6D5BD0" font-weight="700">Resources</text></g>
+    <g transform="translate(232,612)"><text y="10" font-size="14">📰</text><text y="26" fill="#ffffff" fill-opacity="0.55">Feeds</text></g>
+    <g transform="translate(286,612)"><text y="10" font-size="14">⋯</text><text y="26" fill="#ffffff" fill-opacity="0.55">More</text></g>
+  </g>
+</svg>

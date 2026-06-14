@@ -1,10 +1,43 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../main.dart';
 import '../services/firebase_service.dart';
+import '../utils/validators.dart';
+
+// Login-only richer blue backdrop. Do NOT replace with the shared
+// appBackgroundGradient (main.dart) — that is used by every other screen.
+const LinearGradient _loginBackgroundGradient = LinearGradient(
+  begin: Alignment.topCenter,
+  end: Alignment.bottomCenter,
+  colors: [
+    Color(0xFF050E22),
+    Color(0xFF0E2A56),
+    Color(0xFF050E22),
+  ],
+  stops: [0.0, 0.55, 1.0],
+);
+
+// Bright accent blue used for login highlights (focus rings, links, glows).
+const Color _accentBlue = Color(0xFF4D9DE0);
+
+// Clips the FBLA asset to just the triangle emblem (left side, upper band),
+// excluding the "FBLA" wordmark and the subtitle text.
+class _EmblemClipper extends CustomClipper<Rect> {
+  @override
+  Rect getClip(Size size) => Rect.fromLTRB(
+        size.width * 0.08,
+        size.height * 0.22,
+        size.width * 0.34,
+        size.height * 0.56,
+      );
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Rect> oldClipper) => false;
+}
 
 class LoginScreen extends StatefulWidget {
   final String? initialEmail;
@@ -32,20 +65,6 @@ class _LoginScreenState extends State<LoginScreen>
   late AnimationController _splashController;
   late AnimationController _shimmerController;
   late AnimationController _shakeController;
-
-  String? _validateEmail(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Email is required';
-    const pattern = r'^[^@\s]+@[^@\s]+\.[^@\s]+$';
-    final regExp = RegExp(pattern);
-    if (!regExp.hasMatch(value.trim())) return 'Enter a valid email';
-    return null;
-  }
-
-  String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) return 'Password is required';
-    if (value.length < 6) return 'Minimum 6 characters';
-    return null;
-  }
 
   @override
   void initState() {
@@ -115,8 +134,8 @@ class _LoginScreenState extends State<LoginScreen>
       return;
     }
 
-    final emailError = _validateEmail(email);
-    final passwordError = _validatePassword(password);
+    final emailError = Validators.email(email);
+    final passwordError = Validators.password(password);
     if (emailError != null || passwordError != null) {
       setState(() {
         _emailError = emailError;
@@ -153,8 +172,42 @@ class _LoginScreenState extends State<LoginScreen>
       }
     } catch (e) {
       if (!mounted) return;
-      _shakeController.forward(from: 0);
       final rawMessage = e.toString().replaceFirst('Exception: ', '');
+
+      if (rawMessage.startsWith('[offline]')) {
+        // Network unavailable — try Firebase's locally-persisted token first.
+        final cached = FirebaseAuth.instance.currentUser;
+        if (cached != null) {
+          final app = Provider.of<AppState>(context, listen: false);
+          await app.setFirebaseUser(cached);
+        } else {
+          // No cached token: fall into offline demo mode with the entered name.
+          final app = Provider.of<AppState>(context, listen: false);
+          final offlineName = email.split('@').first.replaceAll(RegExp(r'[._-]+'), ' ');
+          await app.login(email, offlineName, role: 'Student', grade: '');
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Row(
+                children: [
+                  Icon(Icons.cloud_off_rounded, color: fblaGold, size: 18),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text('Signed in offline — some features may be limited'),
+                  ),
+                ],
+              ),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: const Color(0xFF1A3A5C),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+        return;
+      }
+
+      _shakeController.forward(from: 0);
       final message = rawMessage.contains('No account found') ||
               rawMessage.contains('Incorrect password')
           ? 'Incorrect username or password.'
@@ -281,67 +334,79 @@ class _LoginScreenState extends State<LoginScreen>
           fit: StackFit.expand,
           children: [
             Container(
-              decoration: const BoxDecoration(gradient: appBackgroundGradient),
+              decoration: const BoxDecoration(
+                gradient: _loginBackgroundGradient,
+              ),
             ),
+            // Faint brand emblem watermark for depth
             Positioned(
-              left: -78 + (math.sin(value * math.pi * 2) * 12),
-              top: 38 + (math.cos(value * math.pi * 2) * 10),
-              child: Transform.rotate(
-                angle: -0.78 + math.sin(value * math.pi * 2) * 0.09,
-                child: const Opacity(
-                  opacity: 0.85,
-                  child: _Ribbon(size: 178, palette: _Ribbon.gold),
+              top: -56,
+              right: -64,
+              child: Opacity(
+                opacity: 0.04,
+                child: Transform.rotate(
+                  angle: 0.18,
+                  child: Image.asset(
+                    'assets/fbla_logo.png',
+                    width: 320,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
             ),
-            Positioned(
-              right: -74 + (math.cos(value * math.pi * 2) * 16),
-              top: 92 + (math.sin(value * math.pi * 2) * 8),
-              child: Transform.rotate(
-                angle: 0.85 - math.sin(value * math.pi * 2) * 0.1,
-                child: const Opacity(
-                  opacity: 0.85,
-                  child: _Ribbon(size: 132, palette: _Ribbon.navy),
-                ),
-              ),
-            ),
-            Positioned(
-              right: -72 + (math.sin(value * math.pi * 2) * 14),
-              bottom: -10 + (math.cos(value * math.pi * 2) * 12),
-              child: Transform.rotate(
-                angle: -0.86 + math.sin(value * math.pi * 2) * 0.08,
-                child: const Opacity(
-                  opacity: 0.85,
-                  child: _Ribbon(size: 178, palette: _Ribbon.gold),
-                ),
-              ),
-            ),
-            Positioned.fill(
-              child: CustomPaint(painter: _GoldDustPainter(value)),
-            ),
+            // Blue focal glow behind the logo (gently breathing)
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: RadialGradient(
-                    center: const Alignment(0, -0.85),
-                    radius: 0.9,
+                    center: const Alignment(0, -0.78),
+                    radius: 0.95,
                     colors: [
-                      fblaGold.withValues(alpha: 0.10),
+                      _accentBlue.withValues(
+                        alpha: 0.16 + math.sin(value * math.pi * 2) * 0.03,
+                      ),
                       Colors.transparent,
                     ],
                   ),
                 ),
               ),
             ),
+            // Cool accent glow, drifting off-axis
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: RadialGradient(
                     center: Alignment(
-                      0.22 + math.sin(value * math.pi * 2) * 0.08,
-                      -0.62,
+                      -0.85 + math.sin(value * math.pi * 2) * 0.12,
+                      -0.2,
                     ),
-                    radius: 0.88,
+                    radius: 0.7,
+                    colors: [
+                      const Color(0xFF3D7BD6).withValues(alpha: 0.10),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Soft drifting orbs
+            Positioned(
+              left: -70 + math.sin(value * math.pi * 2) * 16,
+              top: 150 + math.cos(value * math.pi * 2) * 22,
+              child: _glowOrb(230, _accentBlue, 0.12),
+            ),
+            Positioned(
+              right: -80 + math.cos(value * math.pi * 2) * 18,
+              bottom: 60 + math.sin(value * math.pi * 2) * 26,
+              child: _glowOrb(280, fblaBlue, 0.16),
+            ),
+            // Blue grounding glow at the bottom
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(0, 1.0),
+                    radius: 0.9,
                     colors: [
                       fblaBlue.withValues(alpha: 0.12),
                       Colors.transparent,
@@ -350,9 +415,43 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
               ),
             ),
+            // Vignette to focus the center
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.center,
+                    radius: 1.15,
+                    colors: [
+                      Colors.transparent,
+                      const Color(0xFF05101F).withValues(alpha: 0.55),
+                    ],
+                    stops: const [0.58, 1.0],
+                  ),
+                ),
+              ),
+            ),
           ],
         );
       },
+    );
+  }
+
+  Widget _glowOrb(double size, Color color, double alpha) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              color.withValues(alpha: alpha),
+              Colors.transparent,
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -481,17 +580,13 @@ class _LoginScreenState extends State<LoginScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   SizedBox(height: isCompact ? 20 : 32),
-                  _staggered(0, _buildEyebrow()),
-                  SizedBox(height: isCompact ? 14 : 18),
                   _staggered(0, _buildLogo(isCompact: isCompact)),
-                  SizedBox(height: isCompact ? 18 : 26),
+                  SizedBox(height: isCompact ? 14 : 20),
                   _staggered(1, _buildHeading(isCompact: isCompact)),
-                  SizedBox(height: isCompact ? 18 : 24),
+                  SizedBox(height: isCompact ? 20 : 26),
                   _staggered(2, _buildShakeWrapper(_buildLoginCard())),
-                  SizedBox(height: isCompact ? 16 : 20),
+                  SizedBox(height: isCompact ? 18 : 22),
                   _staggered(3, _buildSignUpPrompt()),
-                  const SizedBox(height: 14),
-                  _staggered(3, _buildVarsityStripe()),
                   SizedBox(height: isCompact ? 16 : 24),
                 ],
               ),
@@ -502,68 +597,53 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildEyebrow() {
-    Widget hairline() => Container(
-          width: 24,
-          height: 2,
-          decoration: BoxDecoration(
-            color: fblaGold.withValues(alpha: 0.7),
-            borderRadius: BorderRadius.circular(999),
-          ),
-        );
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        hairline(),
-        const SizedBox(width: 10),
-        const Text(
-          'FUTURE BUSINESS LEADERS OF AMERICA',
-          style: TextStyle(
-            color: fblaGold,
-            fontSize: 10.5,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 3.0,
-          ),
-        ),
-        const SizedBox(width: 10),
-        hairline(),
-      ],
-    );
-  }
-
   Widget _buildLogo({required bool isCompact}) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final logoWidth = (screenWidth * 0.52).clamp(128.0, 185.0).toDouble();
-    final logoHeight = isCompact ? 42.0 : 50.0;
+    final logoWidth = (screenWidth * (isCompact ? 0.64 : 0.74))
+        .clamp(230.0, 330.0)
+        .toDouble();
+    final logoHeight = logoWidth / 1.5;
+
+    // The asset carries a lot of transparent padding; the artwork only fills a
+    // horizontal band in the middle. Crop to that band to kill the dead space.
+    const artworkBand = 0.48; // visible vertical slice of the asset
+    const artworkAlignY = -0.18; // re-center the slice on the lockup
+
+    final lockup = SizedBox(
+      width: logoWidth,
+      height: logoHeight,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Base: the whole lockup recolored to solid white (alpha preserved)
+          ColorFiltered(
+            colorFilter: const ColorFilter.matrix(<double>[
+              0, 0, 0, 0, 255, //
+              0, 0, 0, 0, 255, //
+              0, 0, 0, 0, 255, //
+              0, 0, 0, 1, 0, //
+            ]),
+            child: Image.asset('assets/fbla_logo.png', fit: BoxFit.contain),
+          ),
+          // Overlay: original colors, clipped to just the triangle emblem so
+          // only the swoosh keeps its color while the lettering stays white.
+          ClipRect(
+            clipper: _EmblemClipper(),
+            child: Image.asset('assets/fbla_logo.png', fit: BoxFit.contain),
+          ),
+        ],
+      ),
+    );
+
     return Hero(
       tag: 'fbla_logo',
-      child: Container(
-        width: logoWidth + 32,
-        height: logoHeight + 14,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.97),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: fblaGold.withValues(alpha: 0.55),
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: fblaGold.withValues(alpha: 0.25),
-              blurRadius: 28,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
-        child: Center(
-          child: Transform.scale(
-            scale: 2,
-            child: Image.asset(
-              'assets/fbla_logo.png',
-              width: logoWidth,
-              height: logoHeight,
-              fit: BoxFit.contain,
-            ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: ClipRect(
+          child: Align(
+            alignment: const Alignment(0, artworkAlignY),
+            heightFactor: artworkBand,
+            child: lockup,
           ),
         ),
       ),
@@ -571,35 +651,21 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Widget _buildHeading({required bool isCompact}) {
-    final headingSize = isCompact ? 24.0 : 28.0;
+    final headingSize = isCompact ? 26.0 : 30.0;
     return Column(
       children: [
         Text(
-          'Welcome back,',
+          'Welcome back',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: Colors.white,
             fontSize: headingSize,
             height: 1.15,
             fontWeight: FontWeight.w800,
+            letterSpacing: -0.3,
           ),
         ),
-        ShaderMask(
-          shaderCallback: (rect) => const LinearGradient(
-            colors: [Color(0xFFFFE08A), fblaGold, Color(0xFFE09A00)],
-          ).createShader(rect),
-          child: Text(
-            'Leader.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: headingSize,
-              height: 1.15,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         AnimatedBuilder(
           animation: _animationController,
           builder: (context, _) {
@@ -609,7 +675,7 @@ class _LoginScreenState extends State<LoginScreen>
               width: 56 * t,
               height: 3,
               decoration: BoxDecoration(
-                color: fblaGold.withValues(alpha: 0.85),
+                color: _accentBlue.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(999),
               ),
             );
@@ -617,7 +683,7 @@ class _LoginScreenState extends State<LoginScreen>
         ),
         const SizedBox(height: 12),
         Text(
-          'Sign in to continue your road to Nationals',
+          'Sign in to your FBLA member account',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: Colors.white.withValues(alpha: 0.62),
@@ -672,7 +738,7 @@ class _LoginScreenState extends State<LoginScreen>
                 height: 3,
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Color(0xFFFFE08A), fblaGold, Color(0xFFE09A00)],
+                    colors: [Color(0xFF7CC0F2), _accentBlue, Color(0xFF1D4E89)],
                   ),
                 ),
               ),
@@ -774,7 +840,7 @@ class _LoginScreenState extends State<LoginScreen>
     final borderColor = hasError
         ? const Color(0xFFFF7A7A)
         : focused
-            ? fblaGold.withValues(alpha: 0.85)
+            ? _accentBlue.withValues(alpha: 0.9)
             : Colors.white.withValues(alpha: 0.10);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -799,7 +865,7 @@ class _LoginScreenState extends State<LoginScreen>
             boxShadow: focused && !hasError
                 ? [
                     BoxShadow(
-                      color: fblaGold.withValues(alpha: 0.18),
+                      color: _accentBlue.withValues(alpha: 0.22),
                       blurRadius: 14,
                     ),
                   ]
@@ -812,7 +878,7 @@ class _LoginScreenState extends State<LoginScreen>
                 child: Icon(
                   icon,
                   color: focused
-                      ? fblaGold
+                      ? _accentBlue
                       : Colors.white.withValues(alpha: 0.55),
                   size: 20,
                 ),
@@ -832,7 +898,7 @@ class _LoginScreenState extends State<LoginScreen>
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                     ),
-                    cursorColor: fblaGold,
+                    cursorColor: _accentBlue,
                     decoration: InputDecoration(
                       hintText: hint,
                       hintStyle: TextStyle(
@@ -881,11 +947,11 @@ class _LoginScreenState extends State<LoginScreen>
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(4),
                   color: _rememberMe
-                      ? fblaGold
+                      ? _accentBlue
                       : Colors.white.withValues(alpha: 0.02),
                   border: Border.all(
                     color: _rememberMe
-                        ? fblaGold
+                        ? _accentBlue
                         : Colors.white.withValues(alpha: 0.40),
                   ),
                 ),
@@ -893,7 +959,7 @@ class _LoginScreenState extends State<LoginScreen>
                   scale: _rememberMe ? 1 : 0,
                   duration: const Duration(milliseconds: 180),
                   curve: Curves.easeOutBack,
-                  child: const Icon(Icons.check, color: fblaNavy, size: 11),
+                  child: const Icon(Icons.check, color: Colors.white, size: 11),
                 ),
               ),
               const SizedBox(width: 8),
@@ -926,7 +992,7 @@ class _LoginScreenState extends State<LoginScreen>
           child: const Text(
             'Forgot password?',
             style: TextStyle(
-              color: fblaGold,
+              color: _accentBlue,
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
             ),
@@ -1164,7 +1230,7 @@ class _LoginScreenState extends State<LoginScreen>
           child: const Text(
             'Create account',
             style: TextStyle(
-              color: fblaGold,
+              color: _accentBlue,
               fontWeight: FontWeight.w800,
               fontSize: 13.5,
             ),
@@ -1174,26 +1240,6 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildVarsityStripe() {
-    Widget segment(Color color) => Container(
-          width: 34,
-          height: 3,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.8),
-            borderRadius: BorderRadius.circular(999),
-          ),
-        );
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        segment(fblaBlue),
-        const SizedBox(width: 6),
-        segment(fblaGold),
-        const SizedBox(width: 6),
-        segment(fblaBlue),
-      ],
-    );
-  }
 }
 
 class _PressableScale extends StatefulWidget {
@@ -1233,172 +1279,6 @@ class _PressableScaleState extends State<_PressableScale> {
       ),
     );
   }
-}
-
-class _Ribbon extends StatelessWidget {
-  final double size;
-  final List<Color> palette;
-
-  static const List<Color> gold = [
-    Color(0xFFFFE08A),
-    Color(0xFFFDB913),
-    Color(0xFF9A6B00),
-    Color(0xFFFFD24A),
-  ];
-  static const List<Color> navy = [
-    Color(0xFF3A78C9),
-    Color(0xFF1D4E89),
-    Color(0xFF00274D),
-    Color(0xFF4A8AD9),
-  ];
-
-  const _Ribbon({required this.size, required this.palette});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: CustomPaint(
-        painter: _RibbonPainter(
-          colors: palette,
-          shadowColor: palette == gold
-              ? const Color(0xFF8A6500)
-              : const Color(0xFF0D2B55),
-        ),
-      ),
-    );
-  }
-}
-
-class _RibbonPainter extends CustomPainter {
-  final List<Color> colors;
-  final Color shadowColor;
-
-  const _RibbonPainter({required this.colors, required this.shadowColor});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final ribbonPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: colors,
-        stops: const [0.0, 0.34, 0.68, 1.0],
-      ).createShader(Offset.zero & size)
-      ..style = PaintingStyle.fill;
-
-    final path = Path()
-      ..moveTo(size.width * 0.08, size.height * 0.24)
-      ..cubicTo(
-        size.width * 0.35,
-        size.height * 0.02,
-        size.width * 0.74,
-        size.height * 0.04,
-        size.width * 0.88,
-        size.height * 0.28,
-      )
-      ..cubicTo(
-        size.width * 0.66,
-        size.height * 0.36,
-        size.width * 0.42,
-        size.height * 0.48,
-        size.width * 0.23,
-        size.height * 0.68,
-      )
-      ..cubicTo(
-        size.width * 0.48,
-        size.height * 0.56,
-        size.width * 0.77,
-        size.height * 0.58,
-        size.width * 0.94,
-        size.height * 0.82,
-      )
-      ..cubicTo(
-        size.width * 0.62,
-        size.height,
-        size.width * 0.18,
-        size.height * 0.96,
-        size.width * 0.04,
-        size.height * 0.70,
-      )
-      ..cubicTo(
-        size.width * 0.22,
-        size.height * 0.52,
-        size.width * 0.34,
-        size.height * 0.40,
-        size.width * 0.08,
-        size.height * 0.24,
-      )
-      ..close();
-
-    canvas.drawShadow(path, shadowColor, 16, true);
-    canvas.drawPath(path, ribbonPaint);
-
-    final highlightPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          Colors.white.withValues(alpha: 0.42),
-          Colors.white.withValues(alpha: 0.0),
-        ],
-      ).createShader(Offset.zero & size)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size.width * 0.035
-      ..strokeCap = StrokeCap.round;
-
-    final highlightPath = Path()
-      ..moveTo(size.width * 0.16, size.height * 0.28)
-      ..cubicTo(
-        size.width * 0.42,
-        size.height * 0.14,
-        size.width * 0.68,
-        size.height * 0.18,
-        size.width * 0.82,
-        size.height * 0.31,
-      );
-    canvas.drawPath(highlightPath, highlightPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _RibbonPainter oldDelegate) =>
-      oldDelegate.colors != colors;
-}
-
-class _GoldDustPainter extends CustomPainter {
-  final double t;
-
-  _GoldDustPainter(this.t);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Fixed seed keeps particle positions stable across frames; only t moves them.
-    final rnd = math.Random(7);
-    final paint = Paint();
-    for (int i = 0; i < 12; i++) {
-      final baseX = rnd.nextDouble();
-      final baseY = rnd.nextDouble();
-      final twinklePhase = rnd.nextDouble();
-      final radius = 1.0 + rnd.nextDouble() * 1.2;
-      final drift = rnd.nextDouble() * 0.02;
-      // Integer cycle counts keep motion seamless when t wraps 1 -> 0.
-      final y = (baseY - t) % 1.0;
-      final x = (baseX + math.sin((t + twinklePhase) * math.pi * 2) * drift);
-      final twinkle =
-          0.5 + 0.5 * math.sin((t * 2 + twinklePhase) * math.pi * 2);
-      paint.color = fblaGold.withValues(alpha: 0.05 + 0.25 * twinkle);
-      canvas.drawCircle(
-        Offset(x * size.width, y * size.height),
-        radius,
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _GoldDustPainter oldDelegate) =>
-      oldDelegate.t != t;
 }
 
 class _GoogleGPainter extends CustomPainter {

@@ -1,9 +1,40 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../main.dart';
 import '../services/firebase_service.dart';
+import '../utils/validators.dart';
 import 'terms_conditions_screen.dart';
+
+// Shared design tokens with the login screen so the two pages read as siblings.
+const LinearGradient _loginBackgroundGradient = LinearGradient(
+  begin: Alignment.topCenter,
+  end: Alignment.bottomCenter,
+  colors: [
+    Color(0xFF050E22),
+    Color(0xFF0E2A56),
+    Color(0xFF050E22),
+  ],
+  stops: [0.0, 0.55, 1.0],
+);
+
+const Color _accentBlue = Color(0xFF4D9DE0);
+
+// Clips the FBLA asset to just the triangle emblem (matches login_screen).
+class _EmblemClipper extends CustomClipper<Rect> {
+  @override
+  Rect getClip(Size size) => Rect.fromLTRB(
+        size.width * 0.08,
+        size.height * 0.22,
+        size.width * 0.34,
+        size.height * 0.56,
+      );
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Rect> oldClipper) => false;
+}
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -14,13 +45,17 @@ class SignupScreen extends StatefulWidget {
 
 class _SignupScreenState extends State<SignupScreen>
     with TickerProviderStateMixin {
-  final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _schoolController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmController = TextEditingController();
-  final PageController _pageController = PageController();
+
+  final FocusNode _nameFocus = FocusNode();
+  final FocusNode _emailFocus = FocusNode();
+  final FocusNode _schoolFocus = FocusNode();
+  final FocusNode _passwordFocus = FocusNode();
+  final FocusNode _confirmFocus = FocusNode();
 
   static const List<String> _roleOptions = [
     'Student',
@@ -40,29 +75,6 @@ class _SignupScreenState extends State<SignupScreen>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
-  static const Color fblaBlue = Color(0xFF1D4E89);
-  static const Color fblaGold = Color(0xFFF6C500);
-
-  String? _validateEmail(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Email is required';
-    const pattern = r'^[^@\s]+@[^@\s]+\.[^@\s]+$';
-    final regExp = RegExp(pattern);
-    if (!regExp.hasMatch(value.trim())) return 'Enter a valid email';
-    return null;
-  }
-
-  String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) return 'Password is required';
-    if (value.length < 6) return 'Minimum 6 characters';
-    return null;
-  }
-
-  String? _validateConfirm(String? value) {
-    if (value == null || value.isEmpty) return 'Please confirm password';
-    if (value != _passwordController.text) return 'Passwords do not match';
-    return null;
-  }
-
   @override
   void initState() {
     super.initState();
@@ -72,17 +84,26 @@ class _SignupScreenState extends State<SignupScreen>
     );
     _backgroundController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 10),
-    )..repeat(reverse: true);
+      duration: const Duration(seconds: 14),
+    )..repeat();
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.15),
+      begin: const Offset(0, 0.06),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
     );
+    for (final node in [
+      _nameFocus,
+      _emailFocus,
+      _schoolFocus,
+      _passwordFocus,
+      _confirmFocus,
+    ]) {
+      node.addListener(() => setState(() {}));
+    }
     _animationController.forward();
   }
 
@@ -95,18 +116,24 @@ class _SignupScreenState extends State<SignupScreen>
     _schoolController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
-    _pageController.dispose();
+    _nameFocus.dispose();
+    _emailFocus.dispose();
+    _schoolFocus.dispose();
+    _passwordFocus.dispose();
+    _confirmFocus.dispose();
     super.dispose();
   }
 
   void _nextStep() {
     if (_currentStep == 0) {
-      if (_nameController.text.trim().isEmpty) {
-        _showError('Please enter your name');
+      final nameError = Validators.name(_nameController.text, field: 'Name');
+      if (nameError != null) {
+        _showError(nameError);
         return;
       }
-      if (_validateEmail(_emailController.text) != null) {
-        _showError('Please enter a valid email');
+      final emailError = Validators.email(_emailController.text);
+      if (emailError != null) {
+        _showError(emailError);
         return;
       }
     } else if (_currentStep == 1) {
@@ -119,20 +146,11 @@ class _SignupScreenState extends State<SignupScreen>
         return;
       }
     }
-
     setState(() => _currentStep++);
-    _pageController.nextPage(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
   }
 
   void _previousStep() {
     setState(() => _currentStep--);
-    _pageController.previousPage(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
   }
 
   void _showError(String message) {
@@ -145,13 +163,55 @@ class _SignupScreenState extends State<SignupScreen>
     );
   }
 
+  /// Called when signup fails because there is no network connection.
+  /// Saves the data for later retry, logs the user in locally so the demo
+  /// can continue uninterrupted, and shows a subtle gold banner.
+  Future<void> _handleOfflineSignup() async {
+    if (!mounted) return;
+    final app = Provider.of<AppState>(context, listen: false);
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    await app.savePendingSignup(
+      name: name,
+      email: email,
+      password: _passwordController.text,
+      school: _schoolController.text.trim(),
+      role: _selectedRole ?? 'Student',
+    );
+    await app.login(email, name, role: _selectedRole ?? 'Student', grade: '');
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            Icon(Icons.cloud_off_rounded, color: fblaGold, size: 18),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text('Account saved — will sync when you\'re online'),
+            ),
+          ],
+        ),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xFF1A3A5C),
+        duration: const Duration(seconds: 5),
+      ),
+    );
+    Navigator.pop(context, {
+      'email': email,
+      'password': _passwordController.text,
+    });
+  }
+
   Future<void> _submit() async {
-    if (_validatePassword(_passwordController.text) != null) {
-      _showError('Password must be at least 6 characters');
+    final passwordError = Validators.newPassword(_passwordController.text);
+    if (passwordError != null) {
+      _showError(passwordError);
       return;
     }
-    if (_validateConfirm(_confirmController.text) != null) {
-      _showError('Passwords do not match');
+    final confirmError = Validators.confirmPassword(
+        _confirmController.text, _passwordController.text);
+    if (confirmError != null) {
+      _showError(confirmError);
       return;
     }
     if (!_agreedToTerms) {
@@ -189,7 +249,12 @@ class _SignupScreenState extends State<SignupScreen>
       });
     } catch (e) {
       if (!mounted) return;
-      _showError(e.toString().replaceFirst('Exception: ', ''));
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      if (msg.startsWith('[offline]')) {
+        await _handleOfflineSignup();
+        return;
+      }
+      _showError(msg);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -199,8 +264,9 @@ class _SignupScreenState extends State<SignupScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.of(context).size.height < 720;
     return Scaffold(
-      backgroundColor: const Color(0xFF030813),
+      backgroundColor: const Color(0xFF07111F),
       body: LayoutBuilder(
         builder: (context, constraints) {
           return Center(
@@ -210,38 +276,32 @@ class _SignupScreenState extends State<SignupScreen>
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  _buildAnimatedBackground(),
+                  RepaintBoundary(child: _buildAnimatedBackground()),
                   SafeArea(
                     child: Column(
                       children: [
                         _buildTopBar(),
                         Expanded(
                           child: SingleChildScrollView(
-                            padding: const EdgeInsets.fromLTRB(22, 4, 22, 18),
+                            padding:
+                                const EdgeInsets.fromLTRB(24, 4, 24, 20),
                             child: FadeTransition(
                               opacity: _fadeAnimation,
                               child: SlideTransition(
                                 position: _slideAnimation,
                                 child: Column(
                                   children: [
-                                    _buildHeader(),
-                                    const SizedBox(height: 18),
+                                    SizedBox(height: isCompact ? 8 : 16),
+                                    _buildLogo(isCompact: isCompact),
+                                    SizedBox(height: isCompact ? 14 : 20),
+                                    _buildHeading(isCompact: isCompact),
+                                    SizedBox(height: isCompact ? 18 : 22),
                                     _buildStepIndicator(),
-                                    const SizedBox(height: 14),
+                                    SizedBox(height: isCompact ? 16 : 20),
                                     _buildFormCard(),
-                                    const SizedBox(height: 18),
+                                    SizedBox(height: isCompact ? 16 : 20),
                                     _buildLoginPrompt(),
-                                    const SizedBox(height: 8),
-                                    Container(
-                                      width: 98,
-                                      height: 4,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white
-                                            .withValues(alpha: 0.42),
-                                        borderRadius:
-                                            BorderRadius.circular(999),
-                                      ),
-                                    ),
+                                    SizedBox(height: isCompact ? 8 : 12),
                                   ],
                                 ),
                               ),
@@ -260,6 +320,8 @@ class _SignupScreenState extends State<SignupScreen>
     );
   }
 
+  // ---- Background (mirrors login_screen) -------------------------------------
+
   Widget _buildAnimatedBackground() {
     return AnimatedBuilder(
       animation: _backgroundController,
@@ -270,51 +332,92 @@ class _SignupScreenState extends State<SignupScreen>
           children: [
             Container(
               decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF030813),
-                    Color(0xFF07111F),
-                    Color(0xFF151922),
-                  ],
+                gradient: _loginBackgroundGradient,
+              ),
+            ),
+            Positioned(
+              top: -56,
+              right: -64,
+              child: Opacity(
+                opacity: 0.04,
+                child: Transform.rotate(
+                  angle: 0.18,
+                  child: Image.asset(
+                    'assets/fbla_logo.png',
+                    width: 320,
+                    fit: BoxFit.contain,
+                  ),
                 ),
-              ),
-            ),
-            Positioned(
-              left: -78 + (math.sin(value * math.pi * 2) * 12),
-              top: 38 + (math.cos(value * math.pi * 2) * 10),
-              child: Transform.rotate(
-                angle: -0.78 + value * 0.18,
-                child: const _BlueRibbon(size: 178),
-              ),
-            ),
-            Positioned(
-              right: -74 + (math.cos(value * math.pi * 2) * 16),
-              top: 92 + (math.sin(value * math.pi * 2) * 8),
-              child: Transform.rotate(
-                angle: 0.85 - value * 0.2,
-                child: const _BlueRibbon(size: 132),
-              ),
-            ),
-            Positioned(
-              right: -72 + (math.sin(value * math.pi * 2) * 14),
-              bottom: -10 + (math.cos(value * math.pi * 2) * 12),
-              child: Transform.rotate(
-                angle: -0.86 + value * 0.16,
-                child: const _BlueRibbon(size: 178),
               ),
             ),
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: RadialGradient(
-                    center: Alignment(0.22 + value * 0.08, -0.62),
-                    radius: 0.88,
+                    center: const Alignment(0, -0.78),
+                    radius: 0.95,
                     colors: [
-                      fblaBlue.withValues(alpha: 0.18),
+                      _accentBlue.withValues(
+                        alpha: 0.16 + math.sin(value * math.pi * 2) * 0.03,
+                      ),
                       Colors.transparent,
                     ],
+                  ),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment(
+                      -0.85 + math.sin(value * math.pi * 2) * 0.12,
+                      -0.2,
+                    ),
+                    radius: 0.7,
+                    colors: [
+                      const Color(0xFF3D7BD6).withValues(alpha: 0.10),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: -70 + math.sin(value * math.pi * 2) * 16,
+              top: 150 + math.cos(value * math.pi * 2) * 22,
+              child: _glowOrb(230, _accentBlue, 0.12),
+            ),
+            Positioned(
+              right: -80 + math.cos(value * math.pi * 2) * 18,
+              bottom: 60 + math.sin(value * math.pi * 2) * 26,
+              child: _glowOrb(280, fblaBlue, 0.16),
+            ),
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(0, 1.0),
+                    radius: 0.9,
+                    colors: [
+                      fblaBlue.withValues(alpha: 0.12),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.center,
+                    radius: 1.15,
+                    colors: [
+                      Colors.transparent,
+                      const Color(0xFF05101F).withValues(alpha: 0.55),
+                    ],
+                    stops: const [0.58, 1.0],
                   ),
                 ),
               ),
@@ -325,77 +428,133 @@ class _SignupScreenState extends State<SignupScreen>
     );
   }
 
+  Widget _glowOrb(double size, Color color, double alpha) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              color.withValues(alpha: alpha),
+              Colors.transparent,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---- Header -----------------------------------------------------------------
+
   Widget _buildTopBar() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: Row(
         children: [
           IconButton(
+            tooltip: _currentStep > 0 ? 'Previous step' : 'Back',
             onPressed:
                 _currentStep > 0 ? _previousStep : () => Navigator.pop(context),
             icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                color: Colors.white),
+                color: Colors.white, size: 20),
           ),
           const Spacer(),
           Text(
             'Step ${_currentStep + 1} of 3',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
+              color: Colors.white.withValues(alpha: 0.6),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
             ),
           ),
+          const SizedBox(width: 12),
         ],
       ),
     );
   }
 
-  Widget _buildHeader() {
-    final isCompact = MediaQuery.of(context).size.height < 720;
+  Widget _buildLogo({required bool isCompact}) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final logoWidth = (screenWidth * 0.52).clamp(128.0, 185.0).toDouble();
-    final logoHeight = isCompact ? 42.0 : 50.0;
-    return Column(
-      children: [
-        Hero(
-          tag: 'fbla_logo',
-          child: Container(
-            width: logoWidth + 32,
-            height: logoHeight + 14,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: fblaBlue.withValues(alpha: 0.28),
-                  blurRadius: 24,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Center(
-              child: Transform.scale(
-                scale: 2,
-                child: Image.asset(
-                  'assets/fbla_logo.png',
-                  width: logoWidth,
-                  height: logoHeight,
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
+    final logoWidth = (screenWidth * (isCompact ? 0.52 : 0.60))
+        .clamp(200.0, 290.0)
+        .toDouble();
+    final logoHeight = logoWidth / 1.5;
+
+    const artworkBand = 0.48;
+    const artworkAlignY = -0.18;
+
+    final lockup = SizedBox(
+      width: logoWidth,
+      height: logoHeight,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ColorFiltered(
+            colorFilter: const ColorFilter.matrix(<double>[
+              0, 0, 0, 0, 255, //
+              0, 0, 0, 0, 255, //
+              0, 0, 0, 0, 255, //
+              0, 0, 0, 1, 0, //
+            ]),
+            child: Image.asset('assets/fbla_logo.png', fit: BoxFit.contain),
+          ),
+          ClipRect(
+            clipper: _EmblemClipper(),
+            child: Image.asset('assets/fbla_logo.png', fit: BoxFit.contain),
+          ),
+        ],
+      ),
+    );
+
+    return Hero(
+      tag: 'fbla_logo',
+      child: Material(
+        type: MaterialType.transparency,
+        child: ClipRect(
+          child: Align(
+            alignment: const Alignment(0, artworkAlignY),
+            heightFactor: artworkBand,
+            child: lockup,
           ),
         ),
-        SizedBox(height: isCompact ? 28 : 38),
-        const Text(
-          'CREATE YOUR\nACCOUNT',
+      ),
+    );
+  }
+
+  Widget _buildHeading({required bool isCompact}) {
+    final headingSize = isCompact ? 26.0 : 30.0;
+    return Column(
+      children: [
+        Text(
+          'Create account',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: Colors.white,
-            fontSize: 21,
-            height: 1.18,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.4,
+            fontSize: headingSize,
+            height: 1.15,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.3,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: 56,
+          height: 3,
+          decoration: BoxDecoration(
+            color: _accentBlue.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(999),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Join your FBLA member community',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.62),
+            fontSize: 13.5,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],
@@ -412,153 +571,228 @@ class _SignupScreenState extends State<SignupScreen>
           children: [
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),
-              width: isCurrent ? 32 : 12,
-              height: 12,
+              width: isCurrent ? 30 : 10,
+              height: 6,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(999),
                 color: isActive
-                    ? const Color(0xFF3C67FF)
+                    ? _accentBlue
                     : Colors.white.withValues(alpha: 0.16),
                 boxShadow: isCurrent
                     ? [
                         BoxShadow(
-                          color:
-                              const Color(0xFF2B55F5).withValues(alpha: 0.32),
-                          blurRadius: 12,
+                          color: _accentBlue.withValues(alpha: 0.4),
+                          blurRadius: 10,
                         ),
                       ]
                     : null,
               ),
             ),
-            if (index < 2) const SizedBox(width: 8),
+            if (index < 2) const SizedBox(width: 7),
           ],
         );
       }),
     );
   }
 
+  // ---- Card -------------------------------------------------------------------
+
   Widget _buildFormCard() {
     final isCompact = MediaQuery.of(context).size.height < 720;
-    final cardHeight = _currentStep == 0
-        ? (isCompact ? 300.0 : 320.0)
-        : _currentStep == 1
-            ? (isCompact ? 430.0 : 450.0)
-            : (isCompact ? 340.0 : 360.0);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
+    return Container(
       constraints: const BoxConstraints(maxWidth: 400),
-      height: cardHeight,
+      width: double.infinity,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            const Color(0xFF17233D).withValues(alpha: 0.92),
-            const Color(0xFF171B22).withValues(alpha: 0.98),
-          ],
-        ),
+        borderRadius: BorderRadius.circular(20),
+        color: Colors.white.withValues(alpha: 0.05),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.08),
+          color: Colors.white.withValues(alpha: 0.10),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.28),
+            color: Colors.black.withValues(alpha: 0.30),
             blurRadius: 28,
             offset: const Offset(0, 16),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: Form(
-          key: _formKey,
-          child: PageView(
-            controller: _pageController,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-              _buildStep1(),
-              _buildStep2(),
-              _buildStep3(),
-            ],
-          ),
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(
+          children: [
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                height: 3,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF7CC0F2), _accentBlue, Color(0xFF1D4E89)],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(20, isCompact ? 22 : 24, 20, 22),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 260),
+                switchInCurve: Curves.easeOutCubic,
+                transitionBuilder: (child, anim) => FadeTransition(
+                  opacity: anim,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0.06, 0),
+                      end: Offset.zero,
+                    ).animate(anim),
+                    child: child,
+                  ),
+                ),
+                child: KeyedSubtree(
+                  key: ValueKey(_currentStep),
+                  child: _buildStepContent(),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
+  Widget _buildStepContent() {
+    switch (_currentStep) {
+      case 0:
+        return _buildStep1();
+      case 1:
+        return _buildStep2();
+      default:
+        return _buildStep3();
+    }
+  }
+
   Widget _buildStep1() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildCardCaption('Start with your basic information'),
-          const SizedBox(height: 18),
-          _buildTextField(
-            controller: _nameController,
-            hint: 'Full name',
-            icon: Icons.person_outline,
-          ),
-          const SizedBox(height: 12),
-          _buildTextField(
-            controller: _emailController,
-            hint: 'Email',
-            icon: Icons.email_outlined,
-            keyboardType: TextInputType.emailAddress,
-          ),
-          const SizedBox(height: 28),
-          _buildPrimaryButton(
-            onPressed: _nextStep,
-            label: 'Continue',
-          ),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildCardCaption('Start with your basic information'),
+        const SizedBox(height: 18),
+        _buildField(
+          label: 'Full name',
+          controller: _nameController,
+          focusNode: _nameFocus,
+          hint: 'Jane Smith',
+          icon: Icons.person_outline,
+          textCapitalization: TextCapitalization.words,
+        ),
+        const SizedBox(height: 14),
+        _buildField(
+          label: 'Email',
+          controller: _emailController,
+          focusNode: _emailFocus,
+          hint: 'you@school.org',
+          icon: Icons.email_outlined,
+          keyboardType: TextInputType.emailAddress,
+          onSubmitted: (_) => _nextStep(),
+        ),
+        const SizedBox(height: 24),
+        _buildGoldButton(onTap: _nextStep, label: 'Continue'),
+      ],
     );
   }
 
   Widget _buildStep2() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildCardCaption('Choose your FBLA role'),
-          const SizedBox(height: 16),
-          Expanded(
-            child: ListView.separated(
-              padding: EdgeInsets.zero,
-              itemCount: _roleOptions.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                final role = _roleOptions[index];
-                final isSelected = _selectedRole == role;
-                return _buildRoleOption(role, isSelected);
-              },
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildCardCaption('Choose your FBLA role'),
+        const SizedBox(height: 16),
+        ..._roleOptions.map((role) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _buildRoleOption(role, _selectedRole == role),
+            )),
+        const SizedBox(height: 4),
+        _buildFieldLabel('Select your school'),
+        const SizedBox(height: 8),
+        _buildBareField(
+          controller: _schoolController,
+          focusNode: _schoolFocus,
+          hint: 'Search school name',
+          icon: Icons.apartment_rounded,
+          suffixIcon: Icon(
+            Icons.search_rounded,
+            color: Colors.white.withValues(alpha: 0.45),
+            size: 20,
           ),
-          const SizedBox(height: 14),
-          _buildSectionLabel('Select your school'),
-          const SizedBox(height: 8),
-          _buildTextField(
-            controller: _schoolController,
-            hint: 'Search school name',
-            icon: Icons.apartment_rounded,
-            suffixIcon: Icon(
-              Icons.search_rounded,
-              color: Colors.white.withValues(alpha: 0.42),
-              size: 20,
-            ),
+        ),
+        const SizedBox(height: 22),
+        _buildGoldButton(onTap: _nextStep, label: 'Continue'),
+      ],
+    );
+  }
+
+  Widget _buildStep3() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildCardCaption('Secure your account'),
+        const SizedBox(height: 18),
+        _buildField(
+          label: 'Password',
+          controller: _passwordController,
+          focusNode: _passwordFocus,
+          hint: 'Create a password',
+          icon: Icons.lock_outline,
+          obscureText: _obscure,
+          onChanged: (_) => setState(() {}),
+          suffixIcon: _visibilityToggle(
+            obscured: _obscure,
+            onPressed: () => setState(() => _obscure = !_obscure),
           ),
-          const SizedBox(height: 14),
-          _buildPrimaryButton(
-            onPressed: _nextStep,
-            label: 'Continue',
+        ),
+        _buildPasswordStrengthMeter(),
+        const SizedBox(height: 14),
+        _buildField(
+          label: 'Confirm password',
+          controller: _confirmController,
+          focusNode: _confirmFocus,
+          hint: 'Re-enter your password',
+          icon: Icons.lock_outline,
+          obscureText: _obscureConfirm,
+          onSubmitted: (_) => _submit(),
+          suffixIcon: _visibilityToggle(
+            obscured: _obscureConfirm,
+            onPressed: () =>
+                setState(() => _obscureConfirm = !_obscureConfirm),
           ),
-        ],
+        ),
+        const SizedBox(height: 16),
+        _buildTermsCheckbox(),
+        const SizedBox(height: 22),
+        _buildGoldButton(
+          onTap: _isLoading ? null : _submit,
+          label: 'Create Account',
+          isLoading: _isLoading,
+        ),
+      ],
+    );
+  }
+
+  Widget _visibilityToggle({
+    required bool obscured,
+    required VoidCallback onPressed,
+  }) {
+    return IconButton(
+      tooltip: obscured ? 'Show password' : 'Hide password',
+      icon: Icon(
+        obscured
+            ? Icons.visibility_off_outlined
+            : Icons.visibility_outlined,
+        color: Colors.white.withValues(alpha: 0.48),
+        size: 20,
       ),
+      onPressed: onPressed,
     );
   }
 
@@ -567,17 +801,17 @@ class _SignupScreenState extends State<SignupScreen>
       onTap: () => setState(() => _selectedRole = role),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(7),
+          borderRadius: BorderRadius.circular(14),
           color: isSelected
-              ? const Color(0xFF2B55F5).withValues(alpha: 0.18)
-              : Colors.white.withValues(alpha: 0.055),
+              ? _accentBlue.withValues(alpha: 0.16)
+              : Colors.white.withValues(alpha: 0.04),
           border: Border.all(
             color: isSelected
-                ? const Color(0xFF6B8BFF)
-                : Colors.white.withValues(alpha: 0.09),
-            width: isSelected ? 2 : 1,
+                ? _accentBlue.withValues(alpha: 0.9)
+                : Colors.white.withValues(alpha: 0.10),
+            width: isSelected ? 1.6 : 1,
           ),
         ),
         child: Row(
@@ -585,7 +819,7 @@ class _SignupScreenState extends State<SignupScreen>
             Icon(
               _getRoleIcon(role),
               color: isSelected
-                  ? const Color(0xFF6B8BFF)
+                  ? _accentBlue
                   : Colors.white.withValues(alpha: 0.58),
               size: 20,
             ),
@@ -594,20 +828,20 @@ class _SignupScreenState extends State<SignupScreen>
               role,
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
               ),
             ),
             const Spacer(),
             if (isSelected)
               Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
+                width: 22,
+                height: 22,
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF3C67FF),
+                  color: _accentBlue,
                 ),
-                child: const Icon(Icons.check, color: Colors.white, size: 16),
+                child: const Icon(Icons.check, color: Colors.white, size: 14),
               ),
           ],
         ),
@@ -628,79 +862,25 @@ class _SignupScreenState extends State<SignupScreen>
     }
   }
 
-  Widget _buildStep3() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildCardCaption('Secure your account'),
-          const SizedBox(height: 18),
-          _buildTextField(
-            controller: _passwordController,
-            hint: 'Password',
-            icon: Icons.lock_outline,
-            obscureText: _obscure,
-            suffixIcon: IconButton(
-              icon: Icon(
-                _obscure
-                    ? Icons.visibility_off_outlined
-                    : Icons.visibility_outlined,
-                color: Colors.white.withValues(alpha: 0.48),
-                size: 19,
-              ),
-              onPressed: () => setState(() => _obscure = !_obscure),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _buildTextField(
-            controller: _confirmController,
-            hint: 'Confirm password',
-            icon: Icons.lock_outline,
-            obscureText: _obscureConfirm,
-            suffixIcon: IconButton(
-              icon: Icon(
-                _obscureConfirm
-                    ? Icons.visibility_off_outlined
-                    : Icons.visibility_outlined,
-                color: Colors.white.withValues(alpha: 0.48),
-                size: 19,
-              ),
-              onPressed: () =>
-                  setState(() => _obscureConfirm = !_obscureConfirm),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _buildTermsCheckbox(),
-          const SizedBox(height: 22),
-          _buildPrimaryButton(
-            onPressed: _isLoading ? null : _submit,
-            label: 'Create Account',
-            isLoading: _isLoading,
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildTermsCheckbox() {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         GestureDetector(
           onTap: () => setState(() => _agreedToTerms = !_agreedToTerms),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
+            duration: const Duration(milliseconds: 180),
             width: 18,
             height: 18,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(5),
               color: _agreedToTerms
-                  ? const Color(0xFF3C67FF)
+                  ? _accentBlue
                   : Colors.white.withValues(alpha: 0.02),
               border: Border.all(
                 color: _agreedToTerms
-                    ? const Color(0xFF3C67FF)
-                    : Colors.white.withValues(alpha: 0.48),
+                    ? _accentBlue
+                    : Colors.white.withValues(alpha: 0.40),
               ),
             ),
             child: _agreedToTerms
@@ -711,12 +891,13 @@ class _SignupScreenState extends State<SignupScreen>
         const SizedBox(width: 10),
         Expanded(
           child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
                 'I agree to the ',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.58),
-                  fontSize: 11.5,
+                  fontSize: 12.5,
                 ),
               ),
               GestureDetector(
@@ -731,11 +912,9 @@ class _SignupScreenState extends State<SignupScreen>
                 child: const Text(
                   'Terms & Conditions',
                   style: TextStyle(
-                    color: Color(0xFF6B8BFF),
-                    fontSize: 11.5,
+                    color: _accentBlue,
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w800,
-                    decoration: TextDecoration.underline,
-                    decorationColor: Color(0xFF6B8BFF),
                   ),
                 ),
               ),
@@ -758,107 +937,223 @@ class _SignupScreenState extends State<SignupScreen>
     );
   }
 
-  Widget _buildSectionLabel(String text) {
+  Widget _buildFieldLabel(String text) {
     return Text(
       text,
       style: TextStyle(
-        color: Colors.white.withValues(alpha: 0.78),
-        fontSize: 12,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 0.2,
+        color: Colors.white.withValues(alpha: 0.72),
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
       ),
     );
   }
 
-  Widget _buildTextField({
+  Widget _buildPasswordStrengthMeter() {
+    final value = _passwordController.text;
+    final strength = Validators.estimateStrength(value);
+    if (strength == PasswordStrength.empty) {
+      return const SizedBox(height: 0);
+    }
+    const colors = {
+      PasswordStrength.weak: Color(0xFFE5484D),
+      PasswordStrength.fair: Color(0xFFF5A623),
+      PasswordStrength.good: _accentBlue,
+      PasswordStrength.strong: Color(0xFF30A46C),
+    };
+    final color = colors[strength] ?? Colors.grey;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Semantics(
+              label: 'Password strength: ${strength.label}',
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: strength.fraction,
+                  minHeight: 4,
+                  backgroundColor: Colors.white.withValues(alpha: 0.10),
+                  valueColor: AlwaysStoppedAnimation<Color>(color),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            strength.label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---- Fields (login_screen look) --------------------------------------------
+
+  Widget _buildField({
+    required String label,
     required TextEditingController controller,
+    required FocusNode focusNode,
     required String hint,
     required IconData icon,
     TextInputType? keyboardType,
     bool obscureText = false,
     Widget? suffixIcon,
+    ValueChanged<String>? onChanged,
+    ValueChanged<String>? onSubmitted,
+    TextCapitalization textCapitalization = TextCapitalization.none,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(7),
-        color: const Color(0xFF111722),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
-      ),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboardType,
-        obscureText: obscureText,
-        style: const TextStyle(color: Colors.white, fontSize: 13),
-        cursorColor: fblaGold,
-        decoration: InputDecoration(
-          filled: true,
-          fillColor: const Color(0xFF111722),
-          hintText: hint,
-          hintStyle: TextStyle(
-            color: Colors.white.withValues(alpha: 0.46),
-            fontSize: 12.5,
-          ),
-          prefixIcon: Icon(
-            icon,
-            color: Colors.white.withValues(alpha: 0.56),
-            size: 19,
-          ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildFieldLabel(label),
+        const SizedBox(height: 8),
+        _buildBareField(
+          controller: controller,
+          focusNode: focusNode,
+          hint: hint,
+          icon: icon,
+          keyboardType: keyboardType,
+          obscureText: obscureText,
           suffixIcon: suffixIcon,
-          border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          onChanged: onChanged,
+          onSubmitted: onSubmitted,
+          textCapitalization: textCapitalization,
         ),
+      ],
+    );
+  }
+
+  Widget _buildBareField({
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required String hint,
+    required IconData icon,
+    TextInputType? keyboardType,
+    bool obscureText = false,
+    Widget? suffixIcon,
+    ValueChanged<String>? onChanged,
+    ValueChanged<String>? onSubmitted,
+    TextCapitalization textCapitalization = TextCapitalization.none,
+  }) {
+    final focused = focusNode.hasFocus;
+    final borderColor = focused
+        ? _accentBlue.withValues(alpha: 0.9)
+        : Colors.white.withValues(alpha: 0.10);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+      height: 52,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: Colors.white.withValues(alpha: 0.04),
+        border: Border.all(color: borderColor),
+        boxShadow: focused
+            ? [
+                BoxShadow(
+                  color: _accentBlue.withValues(alpha: 0.22),
+                  blurRadius: 14,
+                ),
+              ]
+            : null,
+      ),
+      child: Row(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 14, right: 10),
+            child: Icon(
+              icon,
+              color:
+                  focused ? _accentBlue : Colors.white.withValues(alpha: 0.55),
+              size: 20,
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: TextField(
+                controller: controller,
+                focusNode: focusNode,
+                keyboardType: keyboardType,
+                obscureText: obscureText,
+                onChanged: onChanged,
+                onSubmitted: onSubmitted,
+                textCapitalization: textCapitalization,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+                cursorColor: _accentBlue,
+                decoration: InputDecoration(
+                  hintText: hint,
+                  hintStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.45),
+                    fontSize: 14,
+                  ),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ),
+          ),
+          if (suffixIcon != null) suffixIcon,
+        ],
       ),
     );
   }
 
-  Widget _buildPrimaryButton({
-    required VoidCallback? onPressed,
+  // ---- Gold primary button (login_screen look) -------------------------------
+
+  Widget _buildGoldButton({
+    required VoidCallback? onTap,
     required String label,
     bool isLoading = false,
   }) {
-    return Container(
-      height: 43,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(7),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF3C67FF), Color(0xFF2B55F5)],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF2B55F5).withValues(alpha: 0.28),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+    return GestureDetector(
+      onTap: isLoading ? null : onTap,
+      child: Container(
+        height: 52,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFFFCE45), fblaGold, Color(0xFFE09A00)],
           ),
-        ],
-      ),
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(7),
-          ),
+          boxShadow: [
+            BoxShadow(
+              color: fblaGold.withValues(alpha: 0.35),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
-        child: isLoading
-            ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+        child: Center(
+          child: isLoading
+              ? const SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    valueColor: AlwaysStoppedAnimation<Color>(fblaNavy),
+                  ),
+                )
+              : Text(
+                  label.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: fblaNavy,
+                    letterSpacing: 1.4,
+                  ),
                 ),
-              )
-            : Text(
-                label.toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                  letterSpacing: 0.2,
-                ),
-              ),
+        ),
       ),
     );
   }
@@ -868,138 +1163,29 @@ class _SignupScreenState extends State<SignupScreen>
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
-          "Already have an account? ",
+          'Already have an account? ',
           style: TextStyle(
             color: Colors.white.withValues(alpha: 0.54),
-            fontSize: 12,
+            fontSize: 13.5,
           ),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context),
           style: TextButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 4),
+            minimumSize: const Size(0, 32),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
           child: const Text(
             'Log in',
             style: TextStyle(
-              color: Color(0xFF6B8BFF),
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
+              color: _accentBlue,
+              fontWeight: FontWeight.w800,
+              fontSize: 13.5,
             ),
           ),
         ),
       ],
     );
   }
-}
-
-class _BlueRibbon extends StatelessWidget {
-  final double size;
-
-  const _BlueRibbon({required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: CustomPaint(
-        painter: _BlueRibbonPainter(),
-      ),
-    );
-  }
-}
-
-class _BlueRibbonPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final ribbonPaint = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          Color(0xFF05D9FF),
-          Color(0xFF2563FF),
-          Color(0xFF0A1E73),
-          Color(0xFF54F0FF),
-        ],
-        stops: [0.0, 0.34, 0.68, 1.0],
-      ).createShader(Offset.zero & size)
-      ..style = PaintingStyle.fill;
-
-    final path = Path()
-      ..moveTo(size.width * 0.08, size.height * 0.24)
-      ..cubicTo(
-        size.width * 0.35,
-        size.height * 0.02,
-        size.width * 0.74,
-        size.height * 0.04,
-        size.width * 0.88,
-        size.height * 0.28,
-      )
-      ..cubicTo(
-        size.width * 0.66,
-        size.height * 0.36,
-        size.width * 0.42,
-        size.height * 0.48,
-        size.width * 0.23,
-        size.height * 0.68,
-      )
-      ..cubicTo(
-        size.width * 0.48,
-        size.height * 0.56,
-        size.width * 0.77,
-        size.height * 0.58,
-        size.width * 0.94,
-        size.height * 0.82,
-      )
-      ..cubicTo(
-        size.width * 0.62,
-        size.height,
-        size.width * 0.18,
-        size.height * 0.96,
-        size.width * 0.04,
-        size.height * 0.70,
-      )
-      ..cubicTo(
-        size.width * 0.22,
-        size.height * 0.52,
-        size.width * 0.34,
-        size.height * 0.40,
-        size.width * 0.08,
-        size.height * 0.24,
-      )
-      ..close();
-
-    canvas.drawShadow(path, const Color(0xFF0D5BFF), 16, true);
-    canvas.drawPath(path, ribbonPaint);
-
-    final highlightPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          Colors.white.withValues(alpha: 0.42),
-          Colors.white.withValues(alpha: 0.0),
-        ],
-      ).createShader(Offset.zero & size)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size.width * 0.035
-      ..strokeCap = StrokeCap.round;
-
-    final highlightPath = Path()
-      ..moveTo(size.width * 0.16, size.height * 0.28)
-      ..cubicTo(
-        size.width * 0.42,
-        size.height * 0.14,
-        size.width * 0.68,
-        size.height * 0.18,
-        size.width * 0.82,
-        size.height * 0.31,
-      );
-    canvas.drawPath(highlightPath, highlightPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

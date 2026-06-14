@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 660" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#090C12"/><stop offset="1" stop-color="#0D1117"/>
+    </linearGradient>
+    <linearGradient id="navy" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#13315F"/><stop offset="1" stop-color="#00274D"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="312" height="652" rx="34" fill="url(#bg)" stroke="#1d2b45" stroke-width="2"/>
+  <text x="26" y="34" fill="#ffffff" font-size="11" font-weight="700">9:41</text>
+  <text x="270" y="34" fill="#ffffff" font-size="10">▮▮▮ ▾</text>
+
+  <!-- app bar -->
+  <text x="26" y="66" fill="#ffffff" fill-opacity="0.7" font-size="16">‹</text>
+  <circle cx="58" cy="62" r="13" fill="#FDB913" fill-opacity="0.18"/><text x="58" y="67" text-anchor="middle" font-size="13">🤖</text>
+  <text x="80" y="58" fill="#ffffff" font-size="14" font-weight="800">FBLA AI Assistant</text>
+  <text x="80" y="72" fill="#1AA39A" font-size="9">● Online · remembers your chat</text>
+  <text x="288" y="66" text-anchor="end" fill="#ffffff" fill-opacity="0.6" font-size="13">⟳</text>
+  <line x1="20" y1="84" x2="300" y2="84" stroke="#ffffff" stroke-opacity="0.07"/>
+
+  <!-- AI welcome bubble -->
+  <g>
+    <circle cx="34" cy="108" r="10" fill="#FDB913" fill-opacity="0.18"/><text x="34" y="112" text-anchor="middle" font-size="10">🤖</text>
+    <rect x="50" y="98" width="206" height="48" rx="14" fill="#161b22"/>
+    <text x="64" y="118" fill="#ffffff" font-size="10.5">Hi! I'm your FBLA coach. Ask me</text>
+    <text x="64" y="133" fill="#ffffff" font-size="10.5">about events, prep, or competitions.</text>
+  </g>
+
+  <!-- user bubble -->
+  <g>
+    <rect x="96" y="160" width="160" height="34" rx="14" fill="url(#navy)"/>
+    <text x="110" y="181" fill="#ffffff" font-size="10.5">How do I prep for Public Speaking?</text>
+    <circle cx="270" cy="177" r="10" fill="#1d3a5c"/><text x="270" y="181" text-anchor="middle" font-size="10">🧑</text>
+  </g>
+
+  <!-- AI reply bubble -->
+  <g>
+    <circle cx="34" cy="232" r="10" fill="#FDB913" fill-opacity="0.18"/><text x="34" y="236" text-anchor="middle" font-size="10">🤖</text>
+    <rect x="50" y="210" width="216" height="118" rx="14" fill="#161b22"/>
+    <text x="64" y="230" fill="#ffffff" font-size="10.5">Great event! Start with these:</text>
+    <text x="64" y="248" fill="#ffffff" fill-opacity="0.85" font-size="10">1. Open with a strong hook (15s)</text>
+    <text x="64" y="264" fill="#ffffff" fill-opacity="0.85" font-size="10">2. Structure: problem → solution</text>
+    <text x="64" y="280" fill="#ffffff" fill-opacity="0.85" font-size="10">3. Practice the timed Q&amp;A</text>
+    <text x="64" y="300" fill="#FDB913" font-size="10">Want a practice scenario to try? 🎤</text>
+    <text x="64" y="318" fill="#ffffff" fill-opacity="0.35" font-size="8">Just now</text>
+  </g>
+
+  <!-- typing indicator -->
+  <g>
+    <circle cx="34" cy="352" r="10" fill="#FDB913" fill-opacity="0.18"/><text x="34" y="356" text-anchor="middle" font-size="10">🤖</text>
+    <rect x="50" y="342" width="60" height="24" rx="12" fill="#161b22"/>
+    <circle cx="68" cy="354" r="3" fill="#ffffff" fill-opacity="0.5"/>
+    <circle cx="80" cy="354" r="3" fill="#ffffff" fill-opacity="0.35"/>
+    <circle cx="92" cy="354" r="3" fill="#ffffff" fill-opacity="0.2"/>
+  </g>
+
+  <!-- memory note callout -->
+  <rect x="22" y="392" width="276" height="40" rx="12" fill="#1AA39A" fill-opacity="0.1" stroke="#1AA39A" stroke-opacity="0.4"/>
+  <text x="38" y="410" font-size="13">💾</text>
+  <text x="58" y="409" fill="#ffffff" font-size="10" font-weight="700">Conversations are saved on this device</text>
+  <text x="58" y="423" fill="#ffffff" fill-opacity="0.6" font-size="9">Reopen anytime — your coach remembers where you left off.</text>
+
+  <!-- practice history strip -->
+  <rect x="22" y="442" width="276" height="64" rx="14" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.08"/>
+  <text x="38" y="464" fill="#ffffff" font-size="11" font-weight="800">🏆 Practiced Public Speaking 3×</text>
+  <rect x="38" y="474" width="78" height="22" rx="8" fill="#ffffff" fill-opacity="0.05"/><text x="77" y="489" text-anchor="middle" fill="#ffffff" fill-opacity="0.7" font-size="8.5">Jun 12 · Coach</text>
+  <rect x="122" y="474" width="78" height="22" rx="8" fill="#ffffff" fill-opacity="0.05"/><text x="161" y="489" text-anchor="middle" fill="#ffffff" fill-opacity="0.7" font-size="8.5">Jun 10 · 5/6</text>
+  <rect x="206" y="474" width="78" height="22" rx="8" fill="#ffffff" fill-opacity="0.05"/><text x="245" y="489" text-anchor="middle" fill="#ffffff" fill-opacity="0.7" font-size="8.5">Jun 8 · Coach</text>
+
+  <!-- input bar -->
+  <rect x="22" y="558" width="230" height="44" rx="22" fill="#0D1117" stroke="#1D4E89" stroke-opacity="0.7"/>
+  <text x="40" y="584" fill="#ffffff" fill-opacity="0.45" font-size="11">Ask me anything about FBLA…</text>
+  <circle cx="278" cy="580" r="22" fill="#00274D"/><text x="278" y="585" text-anchor="middle" fill="#ffffff" font-size="14">➤</text>
+</svg>

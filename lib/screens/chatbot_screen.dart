@@ -549,6 +549,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
               shape: BoxShape.circle,
             ),
             child: IconButton(
+              tooltip: 'Send message',
               icon: Icon(Icons.send, color: Colors.white),
               onPressed: () => _sendMessage(context),
             ),

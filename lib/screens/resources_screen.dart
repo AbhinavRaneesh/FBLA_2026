@@ -356,6 +356,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
         color: _courseColor(course),
         icon: _courseIcon(course),
         onMoreMenu: () => _showCourseMenu(course),
+        onSwitchCourse: _openCoursePicker,
         moreMenuButtonKey: _courseMenuButtonKey,
         completedLevels: _completedLevels,
         onLevelCompleted: _onLevelCompleted,
@@ -531,9 +532,6 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
   }
 
   Widget _buildTopStatsBar(bool isDark) {
-    final courseName = _selectedCourse;
-    final accent = courseName == null ? fblaGold : _courseColor(courseName);
-
     // A stat chip: tinted pill with an icon, a value, and a small uppercase
     // caption so each stat is self-explanatory (no cryptic single letters).
     Widget chip({
@@ -603,20 +601,6 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
 
     return Row(
       children: [
-        // Course switcher — clearly a control, not a cryptic letter.
-        chip(
-          tint: accent,
-          onTap: _openCoursePicker,
-          icon: Icon(
-            courseName == null ? Icons.school : courseIconForName(courseName),
-            color: accent,
-            size: 22,
-          ),
-          value: 'Course',
-          caption: 'SWITCH',
-          trailing: Icon(Icons.keyboard_arrow_down_rounded,
-              color: accent, size: 18),
-        ),
         chip(
           key: _streakButtonKey,
           tint: const Color(0xFFFF7043),
@@ -628,8 +612,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
         ),
         chip(
           tint: fblaGold,
-          icon: const Icon(Icons.monetization_on_rounded,
-              color: fblaGold, size: 22),
+          icon: Image.asset('assets/coins.png', width: 22, height: 22),
           value: '$_points',
           caption: 'POINTS',
         ),
@@ -1142,6 +1125,7 @@ class _CourseJourneyPanel extends StatefulWidget {
   final Color color;
   final IconData icon;
   final VoidCallback onMoreMenu;
+  final VoidCallback onSwitchCourse;
   final GlobalKey moreMenuButtonKey;
   final Set<int> completedLevels;
   final void Function(int level, int correct, int total) onLevelCompleted;
@@ -1152,6 +1136,7 @@ class _CourseJourneyPanel extends StatefulWidget {
     required this.color,
     required this.icon,
     required this.onMoreMenu,
+    required this.onSwitchCourse,
     required this.moreMenuButtonKey,
     required this.completedLevels,
     required this.onLevelCompleted,
@@ -1259,17 +1244,35 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
               ),
               const SizedBox(width: 14),
               Expanded(
-                child: Text(
-                  widget.course,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
+                child: GestureDetector(
+                  onTap: widget.onSwitchCourse,
+                  behavior: HitTestBehavior.opaque,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          widget.course,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: widget.color,
+                        size: 22,
+                      ),
+                    ],
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
               GestureDetector(
                 key: widget.moreMenuButtonKey,
                 onTap: widget.onMoreMenu,

@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 660" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#07111F"/>
+      <stop offset="0.5" stop-color="#0A1830"/>
+      <stop offset="1" stop-color="#07111F"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFCE45"/>
+      <stop offset="1" stop-color="#E09A00"/>
+    </linearGradient>
+    <linearGradient id="navycard" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#13315F"/>
+      <stop offset="1" stop-color="#0C1E3C"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="4" y="4" width="312" height="652" rx="34" fill="url(#bg)" stroke="#1d2b45" stroke-width="2"/>
+  <text x="26" y="34" fill="#ffffff" font-size="11" font-weight="700">9:41</text>
+  <text x="270" y="34" fill="#ffffff" font-size="10">▮▮▮ ▾</text>
+
+  <!-- top bar -->
+  <text x="26" y="64" fill="#ffffff" fill-opacity="0.6" font-size="11">Good morning,</text>
+  <text x="26" y="82" fill="#ffffff" font-size="18" font-weight="800">Abhinav 👋</text>
+  <circle cx="246" cy="70" r="15" fill="#1d3a5c"/>
+  <text x="246" y="75" text-anchor="middle" fill="#FDB913" font-size="12">🤖</text>
+  <circle cx="284" cy="70" r="15" fill="#1d3a5c"/>
+  <text x="284" y="75" text-anchor="middle" font-size="12">🔔</text>
+
+  <!-- NLC countdown card -->
+  <rect x="22" y="98" width="276" height="92" rx="18" fill="url(#navycard)" stroke="#FDB913" stroke-opacity="0.45"/>
+  <text x="38" y="122" fill="#FDB913" font-size="10" font-weight="700" letter-spacing="1">NLC 2026 · SAN ANTONIO</text>
+  <text x="38" y="150" fill="#ffffff" font-size="15" font-weight="700">National Leadership Conf.</text>
+  <g transform="translate(38,160)">
+    <rect x="0" y="0" width="42" height="20" rx="6" fill="#ffffff" fill-opacity="0.08"/>
+    <text x="21" y="14" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="800">28d</text>
+    <rect x="50" y="0" width="42" height="20" rx="6" fill="#ffffff" fill-opacity="0.08"/>
+    <text x="71" y="14" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="800">14h</text>
+    <rect x="100" y="0" width="42" height="20" rx="6" fill="#ffffff" fill-opacity="0.08"/>
+    <text x="121" y="14" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="800">06m</text>
+  </g>
+  <circle cx="276" cy="130" r="14" fill="#FDB913" fill-opacity="0.15"/>
+  <text x="276" y="135" text-anchor="middle" font-size="14">🏆</text>
+
+  <!-- quick actions -->
+  <text x="26" y="216" fill="#ffffff" font-size="12" font-weight="700">Quick actions</text>
+  <g font-size="9" fill="#ffffff" text-anchor="middle">
+    <g transform="translate(22,226)">
+      <rect width="62" height="58" rx="14" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.08"/>
+      <text x="31" y="28" font-size="18">📅</text><text x="31" y="46">Events</text>
+    </g>
+    <g transform="translate(92,226)">
+      <rect width="62" height="58" rx="14" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.08"/>
+      <text x="31" y="28" font-size="18">📚</text><text x="31" y="46">Courses</text>
+    </g>
+    <g transform="translate(162,226)">
+      <rect width="62" height="58" rx="14" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.08"/>
+      <text x="31" y="28" font-size="18">🎤</text><text x="31" y="46">Practice</text>
+    </g>
+    <g transform="translate(232,226)">
+      <rect width="62" height="58" rx="14" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.08"/>
+      <text x="31" y="28" font-size="18">👥</text><text x="31" y="46">Members</text>
+    </g>
+  </g>
+
+  <!-- upcoming events -->
+  <text x="26" y="312" fill="#ffffff" font-size="12" font-weight="700">Upcoming events</text>
+  <text x="294" y="312" text-anchor="end" fill="#4D9DE0" font-size="10">See all</text>
+  <g>
+    <rect x="22" y="322" width="276" height="52" rx="14" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.08"/>
+    <rect x="34" y="334" width="40" height="28" rx="8" fill="#4D9DE0" fill-opacity="0.18"/>
+    <text x="54" y="349" text-anchor="middle" fill="#4D9DE0" font-size="10" font-weight="800">JUN</text>
+    <text x="54" y="360" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="800">18</text>
+    <text x="86" y="344" fill="#ffffff" font-size="12" font-weight="700">Chapter Meeting</text>
+    <text x="86" y="361" fill="#ffffff" fill-opacity="0.55" font-size="9.5">4:00 PM · Room 204</text>
+  </g>
+  <g>
+    <rect x="22" y="380" width="276" height="52" rx="14" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.08"/>
+    <rect x="34" y="392" width="40" height="28" rx="8" fill="#FDB913" fill-opacity="0.18"/>
+    <text x="54" y="407" text-anchor="middle" fill="#FDB913" font-size="10" font-weight="800">JUL</text>
+    <text x="54" y="418" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="800">12</text>
+    <text x="86" y="402" fill="#ffffff" font-size="12" font-weight="700">NLC Registration Due</text>
+    <text x="86" y="419" fill="#ffffff" fill-opacity="0.55" font-size="9.5">Deadline · 11:59 PM</text>
+  </g>
+
+  <!-- announcements -->
+  <text x="26" y="466" fill="#ffffff" font-size="12" font-weight="700">Latest announcements</text>
+  <rect x="22" y="476" width="276" height="44" rx="14" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.08"/>
+  <circle cx="44" cy="498" r="10" fill="#D9534F" fill-opacity="0.2"/>
+  <text x="44" y="502" text-anchor="middle" font-size="11">📣</text>
+  <text x="62" y="494" fill="#ffffff" font-size="11" font-weight="700">State officer elections open</text>
+  <text x="62" y="509" fill="#ffffff" fill-opacity="0.55" font-size="9">National · 2h ago</text>
+
+  <!-- bottom nav -->
+  <rect x="14" y="600" width="292" height="48" rx="20" fill="#0b1730" stroke="#ffffff" stroke-opacity="0.06"/>
+  <g text-anchor="middle" font-size="8.5">
+    <g transform="translate(46,612)"><rect x="-18" y="-4" width="36" height="34" rx="12" fill="#4D9DE0" fill-opacity="0.18"/><text y="10" font-size="14">🏠</text><text y="26" fill="#4D9DE0" font-weight="700">Home</text></g>
+    <g transform="translate(108,612)"><text y="10" font-size="14">📅</text><text y="26" fill="#ffffff" fill-opacity="0.55">Events</text></g>
+    <g transform="translate(170,612)"><text y="10" font-size="14">📚</text><text y="26" fill="#ffffff" fill-opacity="0.55">Resources</text></g>
+    <g transform="translate(232,612)"><text y="10" font-size="14">📰</text><text y="26" fill="#ffffff" fill-opacity="0.55">Feeds</text></g>
+    <g transform="translate(286,612)"><text y="10" font-size="14">⋯</text><text y="26" fill="#ffffff" fill-opacity="0.55">More</text></g>
+  </g>
+</svg>

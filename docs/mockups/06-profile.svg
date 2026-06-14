@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 660" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#07111F"/><stop offset="0.5" stop-color="#0A1830"/><stop offset="1" stop-color="#07111F"/>
+    </linearGradient>
+    <linearGradient id="hero" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#13315F"/><stop offset="1" stop-color="#0C1E3C"/>
+    </linearGradient>
+    <linearGradient id="rankbar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFD54F"/><stop offset="1" stop-color="#FFB300"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="312" height="652" rx="34" fill="url(#bg)" stroke="#1d2b45" stroke-width="2"/>
+  <text x="26" y="34" fill="#ffffff" font-size="11" font-weight="700">9:41</text>
+  <text x="270" y="34" fill="#ffffff" font-size="10">▮▮▮ ▾</text>
+
+  <!-- hero header -->
+  <rect x="22" y="52" width="276" height="150" rx="20" fill="url(#hero)" stroke="#ffffff" stroke-opacity="0.08"/>
+  <text x="286" y="74" text-anchor="end" fill="#ffffff" fill-opacity="0.6" font-size="13">⚙</text>
+  <circle cx="74" cy="98" r="28" fill="#1d3a5c" stroke="#FDB913" stroke-width="2"/>
+  <text x="74" y="106" text-anchor="middle" font-size="22">🧑</text>
+  <text x="116" y="90" fill="#ffffff" font-size="16" font-weight="800">Abhinav R.</text>
+  <text x="116" y="108" fill="#ffffff" fill-opacity="0.6" font-size="10">Lincoln High · Student</text>
+  <rect x="116" y="118" width="92" height="22" rx="11" fill="#FFD54F" fill-opacity="0.18"/>
+  <text x="162" y="133" text-anchor="middle" fill="#FFD54F" font-size="9.5" font-weight="800">⭐ Analyst</text>
+
+  <!-- stat strip -->
+  <g text-anchor="middle">
+    <line x1="118" y1="158" x2="118" y2="188" stroke="#ffffff" stroke-opacity="0.1"/>
+    <line x1="210" y1="158" x2="210" y2="188" stroke="#ffffff" stroke-opacity="0.1"/>
+    <text x="70" y="172" fill="#FDB913" font-size="16" font-weight="800">840</text><text x="70" y="186" fill="#ffffff" fill-opacity="0.55" font-size="8.5">FBLA COINS</text>
+    <text x="162" y="172" fill="#ffffff" font-size="16" font-weight="800">12🔥</text><text x="162" y="186" fill="#ffffff" fill-opacity="0.55" font-size="8.5">DAY STREAK</text>
+    <text x="254" y="172" fill="#ffffff" font-size="16" font-weight="800">7</text><text x="254" y="186" fill="#ffffff" fill-opacity="0.55" font-size="8.5">BADGES</text>
+  </g>
+
+  <!-- rank progress -->
+  <rect x="22" y="214" width="276" height="62" rx="16" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.08"/>
+  <text x="38" y="236" fill="#ffffff" font-size="11" font-weight="700">Progress to Associate</text>
+  <text x="280" y="236" text-anchor="end" fill="#ffffff" fill-opacity="0.6" font-size="10">360 coins to go</text>
+  <rect x="38" y="246" width="242" height="9" rx="4.5" fill="#ffffff" fill-opacity="0.08"/>
+  <rect x="38" y="246" width="160" height="9" rx="4.5" fill="url(#rankbar)"/>
+  <text x="38" y="270" fill="#ffffff" fill-opacity="0.45" font-size="8.5">Analyst (800) ———————— Associate (1200)</text>
+
+  <!-- badges -->
+  <text x="26" y="300" fill="#ffffff" font-size="12" font-weight="700">Recent badges</text>
+  <g text-anchor="middle" font-size="9" fill="#ffffff" fill-opacity="0.7">
+    <g transform="translate(22,310)"><rect width="58" height="58" rx="14" fill="#ffffff" fill-opacity="0.05"/><text x="29" y="32" font-size="20">🎤</text><text x="29" y="50">Speaker</text></g>
+    <g transform="translate(90,310)"><rect width="58" height="58" rx="14" fill="#ffffff" fill-opacity="0.05"/><text x="29" y="32" font-size="20">📚</text><text x="29" y="50">Scholar</text></g>
+    <g transform="translate(158,310)"><rect width="58" height="58" rx="14" fill="#ffffff" fill-opacity="0.05"/><text x="29" y="32" font-size="20">🔥</text><text x="29" y="50">Streak</text></g>
+    <g transform="translate(226,310)"><rect width="58" height="58" rx="14" fill="#ffffff" fill-opacity="0.05"/><text x="29" y="32" font-size="20">🤝</text><text x="29" y="50">Connector</text></g>
+  </g>
+
+  <!-- menu items -->
+  <g>
+    <rect x="22" y="384" width="276" height="44" rx="14" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.07"/>
+    <text x="42" y="411" font-size="14">✏️</text><text x="64" y="411" fill="#ffffff" font-size="12" font-weight="600">Edit profile</text><text x="282" y="411" text-anchor="end" fill="#ffffff" fill-opacity="0.4">›</text>
+  </g>
+  <g>
+    <rect x="22" y="434" width="276" height="44" rx="14" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.07"/>
+    <text x="42" y="461" font-size="14">🏅</text><text x="64" y="461" fill="#ffffff" font-size="12" font-weight="600">Career rank &amp; leaderboard</text><text x="282" y="461" text-anchor="end" fill="#ffffff" fill-opacity="0.4">›</text>
+  </g>
+  <g>
+    <rect x="22" y="484" width="276" height="44" rx="14" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.07"/>
+    <text x="42" y="511" font-size="14">❓</text><text x="64" y="511" fill="#ffffff" font-size="12" font-weight="600">Help · Replay app tour</text><text x="282" y="511" text-anchor="end" fill="#ffffff" fill-opacity="0.4">›</text>
+  </g>
+  <g>
+    <rect x="22" y="534" width="276" height="44" rx="14" fill="#D9534F" fill-opacity="0.1" stroke="#D9534F" stroke-opacity="0.3"/>
+    <text x="42" y="561" font-size="14">↪️</text><text x="64" y="561" fill="#EF9A9A" font-size="12" font-weight="700">Log out</text>
+  </g>
+
+  <!-- bottom nav -->
+  <rect x="14" y="600" width="292" height="48" rx="20" fill="#0b1730" stroke="#ffffff" stroke-opacity="0.06"/>
+  <g text-anchor="middle" font-size="8.5">
+    <g transform="translate(46,612)"><text y="10" font-size="14">🏠</text><text y="26" fill="#ffffff" fill-opacity="0.55">Home</text></g>
+    <g transform="translate(108,612)"><text y="10" font-size="14">📅</text><text y="26" fill="#ffffff" fill-opacity="0.55">Events</text></g>
+    <g transform="translate(170,612)"><text y="10" font-size="14">📚</text><text y="26" fill="#ffffff" fill-opacity="0.55">Resources</text></g>
+    <g transform="translate(232,612)"><text y="10" font-size="14">📰</text><text y="26" fill="#ffffff" fill-opacity="0.55">Feeds</text></g>
+    <g transform="translate(286,612)"><rect x="-18" y="-4" width="36" height="34" rx="12" fill="#4D9DE0" fill-opacity="0.18"/><text y="10" font-size="14">⋯</text><text y="26" fill="#4D9DE0" font-weight="700">More</text></g>
+  </g>
+</svg>

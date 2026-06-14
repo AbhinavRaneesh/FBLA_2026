@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/firebase_service.dart';
 import '../main.dart';
+import '../utils/validators.dart';
 
 class FirebaseAuthScreen extends StatefulWidget {
   const FirebaseAuthScreen({super.key});
@@ -56,39 +57,23 @@ class _FirebaseAuthScreenState extends State<FirebaseAuthScreen>
     super.dispose();
   }
 
-  String? _validateEmail(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Email is required';
-    const pattern = r'^[^@\s]+@[^@\s]+\.[^@\s]+$';
-    final regExp = RegExp(pattern);
-    if (!regExp.hasMatch(value.trim())) return 'Enter a valid email';
-    return null;
-  }
+  // Email uses the shared semantic validator. Password is strong when creating
+  // an account, lenient when signing in to an existing one.
+  String? _validateEmail(String? value) => Validators.email(value);
 
-  String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) return 'Password is required';
-    if (value.length < 6) return 'Minimum 6 characters';
-    return null;
-  }
+  String? _validatePassword(String? value) =>
+      _isSignUp ? Validators.newPassword(value) : Validators.password(value);
 
   String? _validateConfirmPassword(String? value) {
-    if (_isSignUp && (value == null || value.isEmpty))
-      return 'Please confirm your password';
-    if (_isSignUp && value != _passwordController.text)
-      return 'Passwords do not match';
-    return null;
+    if (!_isSignUp) return null;
+    return Validators.confirmPassword(value, _passwordController.text);
   }
 
-  String? _validateFirstName(String? value) {
-    if (_isSignUp && (value == null || value.trim().isEmpty))
-      return 'First name is required';
-    return null;
-  }
+  String? _validateFirstName(String? value) =>
+      _isSignUp ? Validators.name(value, field: 'First name') : null;
 
-  String? _validateLastName(String? value) {
-    if (_isSignUp && (value == null || value.trim().isEmpty))
-      return 'Last name is required';
-    return null;
-  }
+  String? _validateLastName(String? value) =>
+      _isSignUp ? Validators.name(value, field: 'Last name') : null;
 
   Future<void> _signInWithEmail() async {
     if (!_formKey.currentState!.validate()) return;
