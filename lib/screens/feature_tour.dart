@@ -69,11 +69,11 @@ const List<_TourStep> _steps = [
         'Open FBLA documents in-app, and work through guided courses that track your progress level by level.',
   ),
   _TourStep(
-    icon: Icons.dynamic_feed_rounded,
-    accent: Color(0xFFD9534F),
-    title: 'Feeds',
+    icon: Icons.waves_rounded,
+    accent: Color(0xFF0EA5E9),
+    title: 'Social',
     body:
-        'Stay informed with chapter, state, and national news — plus FBLA social channels right inside the app.',
+        'BlueWave, Instagram, YouTube, forums, and news — one personalized feed powered by your interests.',
   ),
   _TourStep(
     icon: Icons.workspace_premium_rounded,

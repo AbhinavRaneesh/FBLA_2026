@@ -24,6 +24,7 @@ import 'screens/firebase_auth_screen.dart';
 import 'screens/edit_profile_screen.dart';
 import 'screens/chatbot_screen.dart';
 import 'screens/find_members_screen.dart';
+import 'social/screens/social_screen.dart';
 import 'screens/instagram_feed_screen.dart';
 import 'screens/rank_screen.dart';
 import 'screens/feature_tour.dart';
@@ -1391,12 +1392,12 @@ class _RootScreenState extends State<RootScreen> {
   bool _tourChecked = false;
   String _eventsScheduleSignature = '';
 
-  // Order: 0=Home, 1=Events, 2=Resources, 3=Feeds, 4=More
+  // Order: 0=Home, 1=Events, 2=Resources, 3=Social, 4=More
   final _pages = [
     HomeScreen(),
     EventsScreen(),
     const ResourcesScreen(),
-    const FeedsScreen(),
+    const SocialScreen(),
     const MoreScreen(),
   ];
 
@@ -1581,9 +1582,9 @@ class _RootScreenState extends State<RootScreen> {
               label: 'Resources',
             ),
             BottomNavigationBarItem(
-              icon: _navIcon(Icons.dynamic_feed_outlined),
-              activeIcon: _activeNavIcon(Icons.dynamic_feed_rounded, isDark),
-              label: 'Feeds',
+              icon: _navIcon(Icons.waves_outlined),
+              activeIcon: _activeNavIcon(Icons.waves_rounded, isDark),
+              label: 'Social',
             ),
             BottomNavigationBarItem(
               icon: _navIcon(Icons.more_horiz),
