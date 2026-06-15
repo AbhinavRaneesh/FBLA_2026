@@ -3,11 +3,17 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../main.dart'
-    show AppState, ProfileScreen, appBackgroundGradient, fblaLightBackground, fblaLightPrimaryText;
+    show
+        AppState,
+        ProfileScreen,
+        appBackgroundGradient,
+        fblaLightBackground,
+        fblaLightPrimaryText;
 import '../../models/video_model.dart';
 import '../../screens/find_members_screen.dart';
 import '../../screens/instagram_feed_screen.dart';
 import '../../screens/video_player_screen.dart';
+import '../../services/firebase_service.dart';
 import '../models/social_models.dart';
 import '../providers/social_provider.dart';
 import '../theme/bluewave_theme.dart';
@@ -29,6 +35,7 @@ class _SocialScreenState extends State<SocialScreen> {
   late final SocialProvider _socialProvider;
   final _searchController = TextEditingController();
   bool _showSearchResults = false;
+  bool _discordPosting = false;
 
   @override
   void initState() {
@@ -114,7 +121,8 @@ class _SocialScreenState extends State<SocialScreen> {
                       controller: _searchController,
                       onChanged: (q) {
                         social.search(q);
-                        setState(() => _showSearchResults = q.trim().isNotEmpty);
+                        setState(
+                            () => _showSearchResults = q.trim().isNotEmpty);
                       },
                       onClear: () {
                         _searchController.clear();
@@ -288,6 +296,14 @@ class _SocialScreenState extends State<SocialScreen> {
                 ),
               ),
               SliverToBoxAdapter(
+                child: _DiscordBridgeCard(
+                  isDark: isDark,
+                  isPosting: _discordPosting,
+                  onPostLatestAnnouncement: _postLatestAnnouncementToDiscord,
+                  onPostGeneralUpdate: _showGeneralDiscordDialog,
+                ),
+              ),
+              SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 0, 10),
                   child: Text(
@@ -436,6 +452,139 @@ class _SocialScreenState extends State<SocialScreen> {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  Future<void> _postLatestAnnouncementToDiscord() async {
+    final app = context.read<AppState>();
+    if (app.news.isEmpty) {
+      _showDiscordSnack('No announcements are available to post yet.');
+      return;
+    }
+
+    final latestNews = [...app.news]
+      ..sort((left, right) => right.date.compareTo(left.date));
+    final latest = latestNews.first;
+
+    await _queueDiscordPost(
+      title: latest.title,
+      body: latest.body,
+      channel: 'announcements',
+      type: 'announcement',
+      sourceId: latest.id,
+    );
+  }
+
+  Future<void> _showGeneralDiscordDialog() async {
+    final titleController = TextEditingController();
+    final bodyController = TextEditingController();
+
+    final draft = await showDialog<_DiscordPostDraft>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final canSend = titleController.text.trim().isNotEmpty &&
+                bodyController.text.trim().isNotEmpty;
+            return AlertDialog(
+              title: const Text('Send Discord Update'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleController,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'Title',
+                      hintText: 'Chapter meeting reminder',
+                    ),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: bodyController,
+                    minLines: 3,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      labelText: 'Message',
+                      hintText: 'Add the general info you want posted.',
+                    ),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: canSend
+                      ? () => Navigator.pop(
+                            dialogContext,
+                            _DiscordPostDraft(
+                              title: titleController.text,
+                              body: bodyController.text,
+                            ),
+                          )
+                      : null,
+                  child: const Text('Queue Post'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    titleController.dispose();
+    bodyController.dispose();
+
+    if (draft == null) return;
+    await _queueDiscordPost(
+      title: draft.title,
+      body: draft.body,
+      channel: 'general',
+      type: 'general_update',
+    );
+  }
+
+  Future<void> _queueDiscordPost({
+    required String title,
+    required String body,
+    required String channel,
+    required String type,
+    String? sourceId,
+  }) async {
+    if (_discordPosting) return;
+    setState(() => _discordPosting = true);
+
+    try {
+      final app = context.read<AppState>();
+      await FirebaseService.queueDiscordMessage(
+        title: title,
+        body: body,
+        channel: channel,
+        type: type,
+        sourceId: sourceId,
+        authorName: app.resolvedDisplayName,
+      );
+      if (!mounted) return;
+      _showDiscordSnack('Queued for the Discord bot to post.');
+    } catch (e) {
+      if (!mounted) return;
+      _showDiscordSnack('Could not queue Discord post: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _discordPosting = false);
+      }
+    }
+  }
+
+  void _showDiscordSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   IconData _iconForPlatform(SocialPlatform platform) {
     switch (platform) {
       case SocialPlatform.blueWave:
@@ -450,6 +599,16 @@ class _SocialScreenState extends State<SocialScreen> {
         return Icons.newspaper_rounded;
     }
   }
+}
+
+class _DiscordPostDraft {
+  final String title;
+  final String body;
+
+  const _DiscordPostDraft({
+    required this.title,
+    required this.body,
+  });
 }
 
 class _RecommendedStrip extends StatelessWidget {
@@ -562,6 +721,143 @@ class _QuickActionsRow extends StatelessWidget {
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DiscordBridgeCard extends StatelessWidget {
+  final bool isDark;
+  final bool isPosting;
+  final VoidCallback onPostLatestAnnouncement;
+  final VoidCallback onPostGeneralUpdate;
+
+  const _DiscordBridgeCard({
+    required this.isDark,
+    required this.isPosting,
+    required this.onPostLatestAnnouncement,
+    required this.onPostGeneralUpdate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const discordBlurple = Color(0xFF5865F2);
+    final primaryText = isDark ? Colors.white : fblaLightPrimaryText;
+    final secondaryText = isDark ? Colors.white70 : Colors.black54;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [
+                  discordBlurple.withValues(alpha: 0.28),
+                  Colors.white.withValues(alpha: 0.06),
+                ]
+              : [
+                  const Color(0xFFE8EAFF),
+                  Colors.white,
+                ],
+        ),
+        border: Border.all(color: discordBlurple.withValues(alpha: 0.35)),
+        boxShadow: [
+          BoxShadow(
+            color: discordBlurple.withValues(alpha: isDark ? 0.12 : 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: discordBlurple.withValues(alpha: 0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.hub_rounded,
+                  color: discordBlurple,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Discord Bot Sync',
+                      style: TextStyle(
+                        color: primaryText,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      'Post app announcements and general info to your server.',
+                      style: TextStyle(
+                        color: secondaryText,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              FilledButton.icon(
+                onPressed: isPosting ? null : onPostLatestAnnouncement,
+                icon: isPosting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.campaign_rounded, size: 18),
+                label: const Text('Post Latest Announcement'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: discordBlurple,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: isPosting ? null : onPostGeneralUpdate,
+                icon: const Icon(Icons.edit_note_rounded, size: 18),
+                label: const Text('General Update'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: discordBlurple,
+                  side: BorderSide(
+                    color: discordBlurple.withValues(alpha: 0.55),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'The Flutter app only queues posts. The bot token stays in Firebase Functions.',
+            style: TextStyle(
+              color: secondaryText,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],

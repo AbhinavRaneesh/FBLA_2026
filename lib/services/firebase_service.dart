@@ -552,7 +552,9 @@ class FirebaseService {
       'updatedAt': FieldValue.serverTimestamp(),
     });
     batch.set(
-      _firestore.collection('friendships').doc(_friendshipId(fromUserId, toUserId)),
+      _firestore
+          .collection('friendships')
+          .doc(_friendshipId(fromUserId, toUserId)),
       {
         'userIds': [fromUserId, toUserId],
         'createdAt': FieldValue.serverTimestamp(),
@@ -588,8 +590,9 @@ class FirebaseService {
     friends.sort((left, right) {
       final leftName =
           (left['name'] ?? left['displayName'] ?? '').toString().toLowerCase();
-      final rightName =
-          (right['name'] ?? right['displayName'] ?? '').toString().toLowerCase();
+      final rightName = (right['name'] ?? right['displayName'] ?? '')
+          .toString()
+          .toLowerCase();
       return leftName.compareTo(rightName);
     });
     return friends;
@@ -659,6 +662,38 @@ class FirebaseService {
         .collection('threads')
         .doc(id)
         .set(data, SetOptions(merge: true));
+  }
+
+  static Future<String> queueDiscordMessage({
+    required String title,
+    required String body,
+    String channel = 'announcements',
+    String type = 'announcement',
+    String? sourceId,
+    String? authorName,
+  }) async {
+    await _ensureInitialized();
+
+    final trimmedTitle = title.trim();
+    final trimmedBody = body.trim();
+    if (trimmedTitle.isEmpty || trimmedBody.isEmpty) {
+      throw Exception('Discord posts need both a title and message.');
+    }
+
+    final docRef = await _firestore.collection('discord_outbox').add({
+      'title': trimmedTitle,
+      'body': trimmedBody,
+      'channel': channel,
+      'type': type,
+      'sourceId': sourceId,
+      'authorName': authorName,
+      'createdBy': _auth.currentUser?.uid,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'status': 'pending',
+    });
+
+    return docRef.id;
   }
 
   // Direct Messaging Methods
