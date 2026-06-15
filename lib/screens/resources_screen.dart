@@ -91,10 +91,8 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
   int _points = 0;
   int _streak = 0;
   Set<int> _completedLevels = {};
+  bool _coursesLoaded = false;
   final GlobalKey _courseMenuButtonKey = GlobalKey();
-  final GlobalKey _streakButtonKey = GlobalKey();
-  DateTime _streakCalendarMonth =
-      DateTime(DateTime.now().year, DateTime.now().month);
 
   @override
   void initState() {
@@ -104,22 +102,27 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
   }
 
   Future<void> _loadCourses() async {
+    var loadedCourses = <String>[];
+    String? selectedCourse;
     try {
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getStringList('userCourses') ?? <String>[];
       final savedSelection = prefs.getString('selectedCourse');
-      setState(() {
-        _userCourses.clear();
-        _userCourses.addAll(saved);
-        if (savedSelection != null && _userCourses.contains(savedSelection)) {
-          _selectedCourse = savedSelection;
-        } else if (_userCourses.isNotEmpty) {
-          _selectedCourse = _userCourses.first;
-        } else {
-          _selectedCourse = null;
-        }
-      });
+      loadedCourses = saved;
+      if (savedSelection != null && loadedCourses.contains(savedSelection)) {
+        selectedCourse = savedSelection;
+      } else if (loadedCourses.isNotEmpty) {
+        selectedCourse = loadedCourses.first;
+      }
     } catch (_) {}
+    if (!mounted) return;
+    setState(() {
+      _userCourses
+        ..clear()
+        ..addAll(loadedCourses);
+      _selectedCourse = selectedCourse;
+      _coursesLoaded = true;
+    });
   }
 
   Future<void> _saveCourses() async {
@@ -244,7 +247,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             child: Column(
               children: [
-                _buildTopStatsBar(isDark),
+                _buildTopStatsBar(app, isDark),
                 if (activeCourse != null) ...[
                   const SizedBox(height: 12),
                   Container(
@@ -269,6 +272,12 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
   Widget _buildCourseJourney(bool isDark) {
     final course = _selectedCourse ??
         (_userCourses.isNotEmpty ? _userCourses.first : null);
+
+    if (!_coursesLoaded) {
+      return const Center(
+        child: CircularProgressIndicator(color: fblaGold),
+      );
+    }
 
     if (course == null) {
       return Container(
@@ -531,30 +540,26 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
     item.onTap();
   }
 
-  Widget _buildTopStatsBar(bool isDark) {
-    // A stat chip: tinted pill with an icon, a value, and a small uppercase
-    // caption so each stat is self-explanatory (no cryptic single letters).
+  Widget _buildTopStatsBar(AppState app, bool isDark) {
+    final rank = app.userRank;
+
     Widget chip({
       required Color tint,
       required Widget icon,
       required String value,
-      required String caption,
-      Widget? trailing,
-      Key? key,
       VoidCallback? onTap,
     }) {
       return Expanded(
         child: GestureDetector(
-          key: key,
           onTap: onTap,
           behavior: HitTestBehavior.opaque,
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 3.5),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             decoration: BoxDecoration(
-              color: tint.withValues(alpha: isDark ? 0.14 : 0.10),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: tint.withValues(alpha: 0.38)),
+              color: tint.withValues(alpha: isDark ? 0.16 : 0.11),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: tint.withValues(alpha: 0.42)),
             ),
             child: FittedBox(
               fit: BoxFit.scaleDown,
@@ -563,34 +568,16 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                 children: [
                   icon,
                   const SizedBox(width: 7),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        value,
-                        style: TextStyle(
-                          color: isDark ? Colors.white : fblaLightPrimaryText,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          height: 1.0,
-                        ),
-                      ),
-                      const SizedBox(height: 1),
-                      Text(
-                        caption,
-                        style: TextStyle(
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.55)
-                              : fblaLightSecondaryText,
-                          fontSize: 8.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.6,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    value,
+                    maxLines: 1,
+                    style: TextStyle(
+                      color: isDark ? Colors.white : fblaLightPrimaryText,
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w900,
+                      height: 1.0,
+                    ),
                   ),
-                  if (trailing != null) trailing,
                 ],
               ),
             ),
@@ -602,270 +589,31 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
     return Row(
       children: [
         chip(
-          key: _streakButtonKey,
           tint: const Color(0xFFFF7043),
-          onTap: _showStreakCalendar,
-          icon: const Icon(Icons.local_fire_department,
-              color: Color(0xFFFF7043), size: 22),
+          icon: const Icon(
+            Icons.local_fire_department,
+            color: Color(0xFFFF7043),
+            size: 22,
+          ),
           value: '$_streak',
-          caption: 'STREAK',
         ),
         chip(
           tint: fblaGold,
           icon: Image.asset('assets/coins.png', width: 22, height: 22),
           value: '$_points',
-          caption: 'POINTS',
         ),
         chip(
           tint: const Color(0xFFFFD54F),
           onTap: () => RankScreen.open(context),
-          icon: const Icon(Icons.emoji_events_rounded,
-              color: Color(0xFFFFD54F), size: 22),
-          value: 'Rank',
-          caption: 'LEADERS',
+          icon: const Icon(
+            Icons.emoji_events_rounded,
+            color: Color(0xFFFFD54F),
+            size: 22,
+          ),
+          value: rank,
         ),
       ],
     );
-  }
-
-  Future<void> _showStreakCalendar() async {
-    final buttonContext = _streakButtonKey.currentContext;
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-    final buttonBox = buttonContext?.findRenderObject() as RenderBox?;
-    if (overlay == null || buttonBox == null) return;
-
-    final now = DateTime.now();
-    DateTime displayedMonth = DateTime(now.year, now.month);
-
-    final buttonTopLeft =
-        buttonBox.localToGlobal(Offset.zero, ancestor: overlay);
-    final buttonBottomLeft = buttonBox
-        .localToGlobal(Offset(0, buttonBox.size.height), ancestor: overlay);
-
-    await showGeneralDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-      barrierColor: Colors.black54,
-      transitionDuration: const Duration(milliseconds: 220),
-      pageBuilder: (dialogContext, animation, secondaryAnimation) {
-        return StatefulBuilder(
-          builder: (context, setPopupState) {
-            final cardWidth =
-                (overlay.size.width - 24).clamp(300.0, 360.0).toDouble();
-            final cardHeight = 352.0;
-            final left = ((overlay.size.width - cardWidth) / 2).toDouble();
-            final top = (buttonBottomLeft.dy + 10)
-                .clamp(12.0, overlay.size.height - cardHeight - 12.0)
-                .toDouble();
-            final monthStart =
-                DateTime(displayedMonth.year, displayedMonth.month, 1);
-            final daysInMonth =
-                DateTime(displayedMonth.year, displayedMonth.month + 1, 0).day;
-            final firstWeekday = monthStart.weekday % 7;
-            final totalCells = 42;
-            final currentDay = DateTime(now.year, now.month, now.day);
-            final isCurrentMonth = now.year == displayedMonth.year &&
-                now.month == displayedMonth.month;
-
-            return Stack(
-              children: [
-                Positioned(
-                  left: left,
-                  top: top,
-                  child: Material(
-                    color: const Color(0xFF0B1624),
-                    borderRadius: BorderRadius.circular(20),
-                    clipBehavior: Clip.antiAlias,
-                    child: Container(
-                      width: cardWidth,
-                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.white12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.35),
-                            blurRadius: 22,
-                            offset: const Offset(0, 12),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            children: [
-                              IconButton(
-                                visualDensity: VisualDensity.compact,
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                                icon: const Icon(Icons.chevron_left,
-                                    color: Colors.white),
-                                onPressed: () {
-                                  setPopupState(() {
-                                    displayedMonth = DateTime(
-                                      displayedMonth.year,
-                                      displayedMonth.month - 1,
-                                    );
-                                  });
-                                },
-                              ),
-                              Expanded(
-                                child: Center(
-                                  child: Text(
-                                    _monthLabel(displayedMonth),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                visualDensity: VisualDensity.compact,
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                                icon: const Icon(Icons.chevron_right,
-                                    color: Colors.white),
-                                onPressed: () {
-                                  setPopupState(() {
-                                    displayedMonth = DateTime(
-                                      displayedMonth.year,
-                                      displayedMonth.month + 1,
-                                    );
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: const [
-                              Text('S',
-                                  style: TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700)),
-                              Text('M',
-                                  style: TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700)),
-                              Text('T',
-                                  style: TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700)),
-                              Text('W',
-                                  style: TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700)),
-                              Text('T',
-                                  style: TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700)),
-                              Text('F',
-                                  style: TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700)),
-                              Text('S',
-                                  style: TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700)),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          GridView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: totalCells,
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 7,
-                              mainAxisSpacing: 5,
-                              crossAxisSpacing: 5,
-                            ),
-                            itemBuilder: (context, index) {
-                              final dayNumber = index - firstWeekday + 1;
-                              final isInMonth =
-                                  dayNumber >= 1 && dayNumber <= daysInMonth;
-                              final isToday = isCurrentMonth &&
-                                  isInMonth &&
-                                  dayNumber == currentDay.day;
-
-                              if (!isInMonth) {
-                                return const SizedBox.shrink();
-                              }
-
-                              return Container(
-                                decoration: BoxDecoration(
-                                  color: isToday
-                                      ? fblaGold.withOpacity(0.92)
-                                      : Colors.white.withOpacity(0.05),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: isToday ? fblaGold : Colors.white12,
-                                  ),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  '$dayNumber',
-                                  style: TextStyle(
-                                    color: isToday ? fblaNavy : Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final scale = Tween<double>(begin: 0.96, end: 1).animate(
-          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-        );
-        return FadeTransition(
-          opacity: animation,
-          child: ScaleTransition(
-              scale: scale, alignment: Alignment.topCenter, child: child),
-        );
-      },
-    );
-  }
-
-  String _monthLabel(DateTime month) {
-    const names = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-    return '${names[month.month - 1]} ${month.year}';
   }
 
   Future<void> _showCoursePanel() async {
@@ -1392,6 +1140,22 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
               children.addAll(
                   _nodeWidgets(i, centers[i], levels[i], highestCompleted));
             }
+            if (_promptLevel == 1 && count >= 1) {
+              const promptWidth = 248.0;
+              final firstCenter = centers.first;
+              final promptLeft = (firstCenter.dx - promptWidth / 2)
+                  .clamp(8.0, width - promptWidth - 8);
+              children.add(
+                Positioned(
+                  left: promptLeft,
+                  top: firstCenter.dy + nodeSize / 2 - 2,
+                  width: promptWidth,
+                  child: _LevelStartPrompt(
+                    onStart: () => _startLevelLesson(1),
+                  ),
+                ),
+              );
+            }
             return SizedBox(
               width: width,
               height: totalHeight,
@@ -1450,16 +1214,6 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
               fontWeight: FontWeight.w700,
               height: 1.15,
             ),
-          ),
-        ),
-      if (showStartPrompt)
-        Positioned(
-          left: c.dx - 124,
-          top: c.dy + nodeSize / 2 - 2,
-          width: 248,
-          child: _LevelStartPrompt(
-            color: widget.color,
-            onStart: () => _startLevelLesson(levelNum),
           ),
         ),
       if (isActive)
@@ -1663,8 +1417,10 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
                     width: 72,
                     height: 72,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                          colors: [widget.color, widget.color.withValues(alpha: 0.7)]),
+                      gradient: LinearGradient(colors: [
+                        widget.color,
+                        widget.color.withValues(alpha: 0.7)
+                      ]),
                       borderRadius: BorderRadius.circular(22),
                     ),
                     child: Icon(
@@ -1718,8 +1474,8 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
-                  textStyle:
-                      const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  textStyle: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w800),
                 ),
               ),
             ),
@@ -6601,36 +6357,36 @@ class _LevelNodeState extends State<_LevelNode>
 }
 
 class _LevelStartPrompt extends StatelessWidget {
-  final Color color;
   final VoidCallback onStart;
 
   const _LevelStartPrompt({
-    required this.color,
     required this.onStart,
   });
 
   @override
   Widget build(BuildContext context) {
+    const promptTopColor = Color(0xFF102A4E);
+    const promptBottomColor = Color(0xFF1D4E89);
     return Material(
       color: Colors.transparent,
       child: Column(
         children: [
           CustomPaint(
             size: const Size(18, 10),
-            painter: _PromptPointerPainter(color),
+            painter: const _PromptPointerPainter(promptTopColor),
           ),
           Container(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFFE5953F), Color(0xFFFFB057)],
+                colors: [promptTopColor, promptBottomColor],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(14),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.28),
+                  color: promptBottomColor.withValues(alpha: 0.34),
                   blurRadius: 18,
                   offset: const Offset(0, 8),
                 ),
@@ -6676,7 +6432,7 @@ class _LevelStartPrompt extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       elevation: 0,
                       backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFFE07424),
+                      foregroundColor: fblaNavy,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -6708,7 +6464,7 @@ class _PromptPointerPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFFE5953F);
+    final paint = Paint()..color = color;
     final path = Path()
       ..moveTo(size.width / 2, 0)
       ..lineTo(size.width, size.height)
@@ -8247,8 +8003,8 @@ class _CourseSelectionScreenState extends State<CourseSelectionScreen> {
                   final list = items[index].value;
                   final catColor = _eventCategoryColor(category);
                   return Container(
-                    margin: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 5),
+                    margin:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.04),
                       borderRadius: BorderRadius.circular(16),
@@ -8257,115 +8013,115 @@ class _CourseSelectionScreenState extends State<CourseSelectionScreen> {
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: ExpansionTile(
-                    backgroundColor: Colors.transparent,
-                    collapsedBackgroundColor: Colors.transparent,
-                    shape: const Border(),
-                    collapsedShape: const Border(),
-                    iconColor: catColor,
-                    collapsedIconColor: Colors.white54,
-                    tilePadding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                    leading: Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [catColor, catColor.withValues(alpha: 0.7)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(_eventCategoryIcon(category),
-                          color: Colors.white, size: 21),
-                    ),
-                    title: Text(
-                      category,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                    subtitle: Text(
-                      '${list.length} event${list.length == 1 ? '' : 's'}',
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    children: list.map((eventName) {
-                      final selected = _selected == eventName;
-                      return InkWell(
-                        onTap: () => setState(() => _selected = eventName),
-                        borderRadius: BorderRadius.circular(12),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 260),
-                          curve: Curves.easeInOut,
-                          margin: const EdgeInsets.symmetric(
-                              vertical: 6, horizontal: 4),
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 12, horizontal: 12),
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? const Color(0xFF123A6A)
-                                : const Color(0xFF07121A),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: selected ? fblaAccent : Colors.white12,
-                                width: 1.2),
-                            boxShadow: selected
-                                ? [
-                                    BoxShadow(
-                                        color: fblaAccent.withOpacity(0.12),
-                                        blurRadius: 8,
-                                        offset: Offset(0, 4))
-                                  ]
-                                : null,
+                      backgroundColor: Colors.transparent,
+                      collapsedBackgroundColor: Colors.transparent,
+                      shape: const Border(),
+                      collapsedShape: const Border(),
+                      iconColor: catColor,
+                      collapsedIconColor: Colors.white54,
+                      tilePadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                      leading: Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [catColor, catColor.withValues(alpha: 0.7)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: selected
-                                      ? fblaAccent.withOpacity(0.25)
-                                      : Colors.blueGrey.shade700,
-                                  borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(_eventCategoryIcon(category),
+                            color: Colors.white, size: 21),
+                      ),
+                      title: Text(
+                        category,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${list.length} event${list.length == 1 ? '' : 's'}',
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      children: list.map((eventName) {
+                        final selected = _selected == eventName;
+                        return InkWell(
+                          onTap: () => setState(() => _selected = eventName),
+                          borderRadius: BorderRadius.circular(12),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 260),
+                            curve: Curves.easeInOut,
+                            margin: const EdgeInsets.symmetric(
+                                vertical: 6, horizontal: 4),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 12, horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? const Color(0xFF123A6A)
+                                  : const Color(0xFF07121A),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                  color: selected ? fblaAccent : Colors.white12,
+                                  width: 1.2),
+                              boxShadow: selected
+                                  ? [
+                                      BoxShadow(
+                                          color: fblaAccent.withOpacity(0.12),
+                                          blurRadius: 8,
+                                          offset: Offset(0, 4))
+                                    ]
+                                  : null,
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: selected
+                                        ? fblaAccent.withOpacity(0.25)
+                                        : Colors.blueGrey.shade700,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    courseIconForName(eventName),
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
                                 ),
-                                child: Icon(
-                                  courseIconForName(eventName),
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                  child: Text(eventName,
-                                      style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w600))),
-                              AnimatedOpacity(
-                                opacity: selected ? 1.0 : 0.0,
-                                duration: const Duration(milliseconds: 200),
-                                child: AnimatedScale(
-                                  scale: selected ? 1.0 : 0.8,
+                                const SizedBox(width: 12),
+                                Expanded(
+                                    child: Text(eventName,
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w600))),
+                                AnimatedOpacity(
+                                  opacity: selected ? 1.0 : 0.0,
                                   duration: const Duration(milliseconds: 200),
-                                  child: const Icon(Icons.check_circle,
-                                      color: Color(0xFFFDB913)),
+                                  child: AnimatedScale(
+                                    scale: selected ? 1.0 : 0.8,
+                                    duration: const Duration(milliseconds: 200),
+                                    child: const Icon(Icons.check_circle,
+                                        color: Color(0xFFFDB913)),
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                );
+                        );
+                      }).toList(),
+                    ),
+                  );
                 },
               ),
             ),

@@ -228,8 +228,7 @@ class AppState extends ChangeNotifier {
           .toList());
       await prefs.setString('cachedEvents', eventsJson);
       await prefs.setString('cachedNews', newsJson);
-      await prefs.setString(
-          'cacheTimestamp', DateTime.now().toIso8601String());
+      await prefs.setString('cacheTimestamp', DateTime.now().toIso8601String());
     } catch (e) {
       debugPrint('Failed to cache app data: $e');
     }
@@ -550,6 +549,8 @@ class AppState extends ChangeNotifier {
     userProfile = null;
     userChapter = null;
     localProfileImageBytes = null;
+    await prefs.remove('lastRootTabIndex');
+    await prefs.remove('lastRootTabSavedAt');
     await prefs.remove('userEmail');
     await prefs.remove('displayName');
     await prefs.remove('signupRole');
@@ -1384,7 +1385,11 @@ class RootScreen extends StatefulWidget {
   State<RootScreen> createState() => _RootScreenState();
 }
 
-class _RootScreenState extends State<RootScreen> {
+class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
+  static const _lastTabIndexKey = 'lastRootTabIndex';
+  static const _lastTabSavedAtKey = 'lastRootTabSavedAt';
+  static const _sessionRestoreWindow = Duration(hours: 2);
+
   int _index = 0;
   DateTime? _lastBackPressedAt;
   AppState? _appState;
@@ -1393,17 +1398,36 @@ class _RootScreenState extends State<RootScreen> {
   String _eventsScheduleSignature = '';
 
   // Order: 0=Home, 1=Events, 2=Resources, 3=Social, 4=More
-  final _pages = [
-    HomeScreen(),
-    EventsScreen(),
-    const ResourcesScreen(),
-    const SocialScreen(),
-    const MoreScreen(),
-  ];
+  late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _pages = [
+      HomeScreen(onSelectRootTab: _selectTab),
+      EventsScreen(),
+      const ResourcesScreen(),
+      const SocialScreen(),
+      const MoreScreen(),
+    ];
+    _restoreLastTab();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+        unawaited(_saveLastTab());
+        break;
+      case AppLifecycleState.detached:
+        unawaited(_clearLastTab());
+        break;
+      case AppLifecycleState.resumed:
+        break;
+    }
   }
 
   @override
@@ -1437,8 +1461,46 @@ class _RootScreenState extends State<RootScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _appState?.removeListener(_onAppStateChanged);
     super.dispose();
+  }
+
+  Future<void> _restoreLastTab() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedIndex = prefs.getInt(_lastTabIndexKey);
+    final savedAtRaw = prefs.getString(_lastTabSavedAtKey);
+    final savedAt = savedAtRaw == null ? null : DateTime.tryParse(savedAtRaw);
+
+    if (savedIndex == null ||
+        savedAt == null ||
+        savedIndex < 0 ||
+        savedIndex >= _pages.length ||
+        DateTime.now().difference(savedAt) > _sessionRestoreWindow) {
+      await _clearLastTab();
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() => _index = savedIndex);
+  }
+
+  Future<void> _saveLastTab() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_lastTabIndexKey, _index);
+    await prefs.setString(_lastTabSavedAtKey, DateTime.now().toIso8601String());
+  }
+
+  Future<void> _clearLastTab() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_lastTabIndexKey);
+    await prefs.remove(_lastTabSavedAtKey);
+  }
+
+  void _selectTab(int index) {
+    if (index == _index) return;
+    setState(() => _index = index);
+    unawaited(_saveLastTab());
   }
 
   Future<void> _initializeAndScheduleNotifications() async {
@@ -1483,9 +1545,8 @@ class _RootScreenState extends State<RootScreen> {
       decoration: BoxDecoration(
         color: isDark ? fblaGold.withValues(alpha: 0.18) : fblaLightSelectedNav,
         borderRadius: BorderRadius.circular(14),
-        border: isDark
-            ? Border.all(color: fblaGold.withValues(alpha: 0.40))
-            : null,
+        border:
+            isDark ? Border.all(color: fblaGold.withValues(alpha: 0.40)) : null,
         boxShadow: isDark
             ? [
                 BoxShadow(
@@ -1510,7 +1571,7 @@ class _RootScreenState extends State<RootScreen> {
     return WillPopScope(
       onWillPop: () async {
         if (_index != 0) {
-          setState(() => _index = 0);
+          _selectTab(0);
           return false;
         }
 
@@ -1521,6 +1582,7 @@ class _RootScreenState extends State<RootScreen> {
           return false;
         }
 
+        unawaited(_clearLastTab());
         return true;
       },
       child: Scaffold(
@@ -1552,7 +1614,7 @@ class _RootScreenState extends State<RootScreen> {
           ),
           child: BottomNavigationBar(
             currentIndex: _index,
-            onTap: (i) => setState(() => _index = i),
+            onTap: _selectTab,
             type: BottomNavigationBarType.fixed,
             iconSize: 28,
             showSelectedLabels: true,
@@ -1566,31 +1628,31 @@ class _RootScreenState extends State<RootScreen> {
                 isDark ? Colors.white60 : fblaLightDisabledText,
             backgroundColor: Colors.transparent,
             items: [
-            BottomNavigationBarItem(
-              icon: _navIcon(Icons.home_outlined),
-              activeIcon: _activeNavIcon(Icons.home_rounded, isDark),
-              label: 'Home',
-            ),
-            BottomNavigationBarItem(
-              icon: _navIcon(Icons.event_outlined),
-              activeIcon: _activeNavIcon(Icons.event_rounded, isDark),
-              label: 'Events',
-            ),
-            BottomNavigationBarItem(
-              icon: _navIcon(Icons.school_outlined),
-              activeIcon: _activeNavIcon(Icons.school_rounded, isDark),
-              label: 'Resources',
-            ),
-            BottomNavigationBarItem(
-              icon: _navIcon(Icons.waves_outlined),
-              activeIcon: _activeNavIcon(Icons.waves_rounded, isDark),
-              label: 'Social',
-            ),
-            BottomNavigationBarItem(
-              icon: _navIcon(Icons.more_horiz),
-              activeIcon: _activeNavIcon(Icons.more_horiz_rounded, isDark),
-              label: 'More',
-            ),
+              BottomNavigationBarItem(
+                icon: _navIcon(Icons.home_outlined),
+                activeIcon: _activeNavIcon(Icons.home_rounded, isDark),
+                label: 'Home',
+              ),
+              BottomNavigationBarItem(
+                icon: _navIcon(Icons.event_outlined),
+                activeIcon: _activeNavIcon(Icons.event_rounded, isDark),
+                label: 'Events',
+              ),
+              BottomNavigationBarItem(
+                icon: _navIcon(Icons.school_outlined),
+                activeIcon: _activeNavIcon(Icons.school_rounded, isDark),
+                label: 'Resources',
+              ),
+              BottomNavigationBarItem(
+                icon: _navIcon(Icons.people_outline_rounded),
+                activeIcon: _activeNavIcon(Icons.people_alt_rounded, isDark),
+                label: 'Social',
+              ),
+              BottomNavigationBarItem(
+                icon: _navIcon(Icons.more_horiz),
+                activeIcon: _activeNavIcon(Icons.more_horiz_rounded, isDark),
+                label: 'More',
+              ),
             ],
           ),
         ),
@@ -1637,6 +1699,10 @@ class SectionHeader extends StatelessWidget {
 }
 
 class HomeScreen extends StatefulWidget {
+  final ValueChanged<int>? onSelectRootTab;
+
+  const HomeScreen({super.key, this.onSelectRootTab});
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -1646,6 +1712,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _refreshHome() async {
     setState(() {});
+  }
+
+  void _openEventsTab() {
+    if (widget.onSelectRootTab != null) {
+      widget.onSelectRootTab!(1);
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => EventsScreen()),
+    );
+  }
+
+  void _openResourcesTab() {
+    if (widget.onSelectRootTab != null) {
+      widget.onSelectRootTab!(2);
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ResourcesScreen()),
+    );
   }
 
   Future<void> _toggleReminder(AppState app, Event event) async {
@@ -1734,15 +1822,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           SizedBox(height: sectionSpacing),
                           _buildSectionTitle(
                             title: 'Quick Actions',
-                            subtitle: 'Jump into the areas members use most',
                           ),
                           SizedBox(height: smallSpacing),
                           _buildQuickActions(),
                           SizedBox(height: sectionSpacing),
                           _buildSectionTitle(
                             title: 'Upcoming Events',
-                            subtitle:
-                                'Keep track of deadlines, meetings, and reminders',
                           ),
                           SizedBox(height: smallSpacing),
                           if (nextEvents.isEmpty)
@@ -1758,8 +1843,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           SizedBox(height: sectionSpacing),
                           _buildSectionTitle(
                             title: 'Latest Updates',
-                            subtitle:
-                                'Announcements and chapter news at a glance',
                           ),
                           SizedBox(height: smallSpacing),
                           if (featuredNews.isEmpty)
@@ -2259,9 +2342,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openCompetitions() {
+    if (widget.onSelectRootTab != null) {
+      widget.onSelectRootTab!(1);
+      return;
+    }
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => CompetitionsScreen()),
+      MaterialPageRoute(builder: (_) => EventsScreen()),
     );
   }
 
@@ -2295,17 +2382,22 @@ class _HomeScreenState extends State<HomeScreen> {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.94),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF102A4E), Color(0xFF1D4E89)],
+              ),
               shape: BoxShape.circle,
+              border: Border.all(color: fblaGold.withValues(alpha: 0.34)),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 12,
-                  offset: const Offset(0, 5),
+                  color: fblaBlue.withValues(alpha: 0.28),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
-            child: Icon(icon, color: fblaNavy, size: 22),
+            child: Icon(icon, color: fblaGold, size: 22),
           ),
         ),
       ),
@@ -2335,25 +2427,30 @@ class _HomeScreenState extends State<HomeScreen> {
           width: 42,
           height: 42,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.94),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF102A4E), Color(0xFF1D4E89)],
+            ),
             shape: BoxShape.circle,
+            border: Border.all(color: fblaGold.withValues(alpha: 0.34)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
-                blurRadius: 12,
-                offset: const Offset(0, 5),
+                color: fblaBlue.withValues(alpha: 0.28),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
           padding: const EdgeInsets.all(3),
           child: CircleAvatar(
-            backgroundColor: fblaLightSelectedNav,
+            backgroundColor: fblaGold.withValues(alpha: 0.18),
             backgroundImage: imageProvider,
             child: imageProvider == null
                 ? Text(
                     initial,
                     style: const TextStyle(
-                      color: fblaNavy,
+                      color: fblaGold,
                       fontWeight: FontWeight.w900,
                     ),
                   )
@@ -2503,12 +2600,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => EventsScreen()),
-                    );
-                  },
+                  onPressed: _openEventsTab,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
                     side: BorderSide(color: Colors.white.withOpacity(0.30)),
@@ -2525,13 +2617,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const ResourcesScreen()),
-                    );
-                  },
+                  onPressed: _openResourcesTab,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
                     side: BorderSide(color: Colors.white.withOpacity(0.30)),
@@ -2614,12 +2700,7 @@ class _HomeScreenState extends State<HomeScreen> {
           gradient: const LinearGradient(
             colors: [Color(0xFF1D4E89), Color(0xFF2B6CB0)],
           ),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => EventsScreen()),
-            );
-          },
+          onTap: _openEventsTab,
         ),
         _ModernQuickButton(
           icon: Icons.menu_book,
@@ -2628,12 +2709,7 @@ class _HomeScreenState extends State<HomeScreen> {
           gradient: const LinearGradient(
             colors: [Color(0xFF0A8F7A), Color(0xFF0DB39E)],
           ),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ResourcesScreen()),
-            );
-          },
+          onTap: _openResourcesTab,
         ),
         _ModernQuickButton(
           icon: Icons.business_center_outlined,
@@ -2669,7 +2745,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildSectionTitle({
     required String title,
-    required String subtitle,
+    String? subtitle,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
@@ -2683,17 +2759,19 @@ class _HomeScreenState extends State<HomeScreen> {
             fontWeight: FontWeight.w800,
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: TextStyle(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.66)
-                : fblaLightSecondaryText,
-            fontSize: 13,
-            height: 1.35,
+        if (subtitle != null && subtitle.trim().isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: TextStyle(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.66)
+                  : fblaLightSecondaryText,
+              fontSize: 13,
+              height: 1.35,
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -2812,12 +2890,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => EventsScreen()),
-                    );
-                  },
+                  onPressed: _openEventsTab,
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF1D4E89),
                     foregroundColor: Colors.white,
@@ -3211,6 +3284,10 @@ class _ModernQuickButton extends StatelessWidget {
   Widget build(BuildContext context) {
     // Extract the primary color from gradient for text and borders
     final primaryColor = gradient.colors.first;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : primaryColor;
+    final subtitleColor =
+        isDark ? Colors.white.withValues(alpha: 0.84) : fblaLightPrimaryText;
 
     return Material(
       color: Colors.transparent,
@@ -3221,17 +3298,24 @@ class _ModernQuickButton extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                primaryColor.withOpacity(0.1),
-                primaryColor.withOpacity(0.05),
+                primaryColor.withValues(alpha: isDark ? 0.32 : 0.18),
+                primaryColor.withValues(alpha: isDark ? 0.18 : 0.10),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: primaryColor.withOpacity(0.3),
-              width: 1.5,
+              color: primaryColor.withValues(alpha: isDark ? 0.70 : 0.50),
+              width: 1.8,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: primaryColor.withValues(alpha: isDark ? 0.18 : 0.12),
+                blurRadius: 14,
+                offset: const Offset(0, 7),
+              ),
+            ],
           ),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
@@ -3244,9 +3328,9 @@ class _ModernQuickButton extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: primaryColor.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
+                      color: primaryColor.withValues(alpha: 0.40),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
                     ),
                   ],
                 ),
@@ -3265,9 +3349,9 @@ class _ModernQuickButton extends StatelessWidget {
                     Text(
                       label,
                       style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.bold,
-                        color: primaryColor,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w900,
+                        color: titleColor,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -3276,8 +3360,9 @@ class _ModernQuickButton extends StatelessWidget {
                     Text(
                       subtitle,
                       style: TextStyle(
-                        fontSize: 10.5,
-                        color: Colors.grey.shade600,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: subtitleColor,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -5062,8 +5147,8 @@ class CompetitionsScreen extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => Navigator.push(context,
-            MaterialPageRoute(builder: (_) => CompetitionDetail(c))),
+        onTap: () => Navigator.push(
+            context, MaterialPageRoute(builder: (_) => CompetitionDetail(c))),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -5101,9 +5186,7 @@ class CompetitionsScreen extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            color: Colors.white60,
-                            fontSize: 13,
-                            height: 1.3)),
+                            color: Colors.white60, fontSize: 13, height: 1.3)),
                   ],
                 ),
               ),
@@ -5160,8 +5243,7 @@ class CompetitionDetail extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            for (int i = 0; i < board.length; i++)
-              _leaderRow(i + 1, board[i]),
+            for (int i = 0; i < board.length; i++) _leaderRow(i + 1, board[i]),
           ],
         ),
       ),
@@ -6385,8 +6467,8 @@ class ProfileScreen extends StatelessWidget {
                             textColor: isDark ? fblaGold : fblaBlue,
                             fillColor: fblaGold.withValues(
                                 alpha: isDark ? 0.16 : 0.22),
-                            borderColor: fblaGold.withValues(
-                                alpha: isDark ? 0.45 : 0.6),
+                            borderColor:
+                                fblaGold.withValues(alpha: isDark ? 0.45 : 0.6),
                           ),
                         ],
                       ),
@@ -6425,9 +6507,7 @@ class ProfileScreen extends StatelessWidget {
     final divider = Container(
       width: 1,
       height: 44,
-      color: isDark
-          ? Colors.white.withValues(alpha: 0.10)
-          : fblaLightBorder,
+      color: isDark ? Colors.white.withValues(alpha: 0.10) : fblaLightBorder,
     );
 
     return Container(
@@ -6436,9 +6516,8 @@ class ProfileScreen extends StatelessWidget {
         color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.10)
-              : fblaLightBorder,
+          color:
+              isDark ? Colors.white.withValues(alpha: 0.10) : fblaLightBorder,
         ),
         boxShadow: isDark
             ? null
@@ -8967,10 +9046,9 @@ class MoreScreen extends StatelessWidget {
             subtitle: 'Instagram, LinkedIn, and X feeds',
             icon: Icons.public_outlined,
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ResourcesScreen()),
-              );
+              context
+                  .findAncestorStateOfType<_RootScreenState>()
+                  ?._selectTab(3);
             },
           ),
           _buildMoreTile(
@@ -9209,8 +9287,8 @@ class MoreScreen extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: fblaGold.withValues(alpha: 0.14),
                         borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                            color: fblaGold.withValues(alpha: 0.30)),
+                        border:
+                            Border.all(color: fblaGold.withValues(alpha: 0.30)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -9269,9 +9347,7 @@ class MoreScreen extends StatelessWidget {
               fontSize: 12.5,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.8,
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.85)
-                  : fblaBlue,
+              color: isDark ? Colors.white.withValues(alpha: 0.85) : fblaBlue,
             ),
           ),
         ],
@@ -9345,8 +9421,7 @@ class MoreScreen extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color:
-                              isDark ? Colors.white : fblaLightPrimaryText,
+                          color: isDark ? Colors.white : fblaLightPrimaryText,
                         ),
                       ),
                       const SizedBox(height: 3),

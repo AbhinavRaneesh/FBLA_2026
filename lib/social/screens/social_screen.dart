@@ -20,7 +20,6 @@ import '../theme/bluewave_theme.dart';
 import '../widgets/social_feed_widgets.dart';
 import 'bluewave_compose_screen.dart';
 import 'forum_screens.dart';
-import 'onboarding_survey_modal.dart';
 import 'social_messages_screen.dart';
 
 /// Flagship Social tab — unified BlueWave + external platforms feed with ML ranking.
@@ -52,13 +51,6 @@ class _SocialScreenState extends State<SocialScreen> {
       displayName: app.displayName,
       userId: app.firebaseUser?.uid ?? 'guest',
     );
-    if (!mounted) return;
-    if (_socialProvider.needsOnboarding) {
-      await OnboardingSurveyModal.show(
-        context,
-        onComplete: _socialProvider.completeOnboarding,
-      );
-    }
   }
 
   @override
