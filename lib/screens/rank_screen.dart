@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../constants/app_assets.dart';
+
 import '../main.dart' show AppState;
 import '../models/fbla_rank.dart';
 
@@ -232,7 +234,7 @@ class RankScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Image.asset('assets/coins.png', width: 22, height: 22),
+              Image.asset(AppAssets.coins, width: 22, height: 22),
               const SizedBox(width: 8),
               Text(
                 '$coinBalance FBLA Coins',
@@ -480,7 +482,7 @@ class RankScreen extends StatelessWidget {
                           Opacity(
                             opacity: isUnlocked ? 1 : 0.45,
                             child: Image.asset(
-                              'assets/coins.png',
+                              AppAssets.coins,
                               width: 16,
                               height: 16,
                             ),

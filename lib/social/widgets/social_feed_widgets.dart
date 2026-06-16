@@ -198,6 +198,7 @@ class BlueWavePostCard extends StatelessWidget {
   final bool hasWaved;
   final VoidCallback onWave;
   final VoidCallback? onAuthorTap;
+  final VoidCallback? onShare;
 
   const BlueWavePostCard({
     super.key,
@@ -206,6 +207,7 @@ class BlueWavePostCard extends StatelessWidget {
     required this.hasWaved,
     required this.onWave,
     this.onAuthorTap,
+    this.onShare,
   });
 
   @override
@@ -339,6 +341,45 @@ class BlueWavePostCard extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
+              const Spacer(),
+              if (onShare != null)
+                InkWell(
+                  onTap: onShare,
+                  borderRadius: BorderRadius.circular(999),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: BlueWaveTheme.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color:
+                            BlueWaveTheme.primary.withValues(alpha: 0.28),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isReel
+                              ? Icons.ios_share_rounded
+                              : Icons.share_rounded,
+                          size: 16,
+                          color: BlueWaveTheme.waveGlow,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Share',
+                          style: TextStyle(
+                            color: BlueWaveTheme.waveGlow,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
         ],

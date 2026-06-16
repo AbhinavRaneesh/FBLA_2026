@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../constants/app_assets.dart';
+
 /// Displays the in-app Terms & Conditions content during account creation.
 class TermsConditionsScreen extends StatelessWidget {
   const TermsConditionsScreen({super.key});
@@ -51,7 +53,7 @@ class _TermsHtmlViewState extends State<_TermsHtmlView> {
   }
 
   Future<void> _loadTermsHtml() async {
-    const assetPath = 'assets/legal/terms_conditions.html';
+    const assetPath = AppAssets.termsConditionsHtml;
     rootBundle.evict(assetPath);
     final data = await rootBundle.load(assetPath);
     final html = utf8.decode(data.buffer.asUint8List());

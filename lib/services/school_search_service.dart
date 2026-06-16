@@ -1,6 +1,7 @@
 import 'package:csv/csv.dart';
 import 'package:flutter/services.dart';
 
+import '../constants/app_assets.dart';
 import '../models/school.dart';
 
 /// Utah school directory loaded from bundled USBE CSV. Other states coming later.
@@ -8,8 +9,7 @@ class SchoolSearchService {
   SchoolSearchService._();
   static final SchoolSearchService instance = SchoolSearchService._();
 
-  static const String _utahCsvAsset =
-      'assets/USBE Schools Directory Export.csv';
+  static const String _utahCsvAsset = AppAssets.utahSchoolsCsv;
 
   static const List<String> stateAbbreviations = [
     'AL',

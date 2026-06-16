@@ -726,25 +726,186 @@ class FirebaseService {
     required String toUserId,
     required String text,
     required String fromUserName,
+    String type = 'text',
+    Map<String, dynamic>? payload,
   }) async {
     final chatId = _chatId(fromUserId, toUserId);
     final timestamp = FieldValue.serverTimestamp();
+
+    final messageData = <String, dynamic>{
+      'senderId': fromUserId,
+      'senderName': fromUserName,
+      'text': text,
+      'type': type,
+      'timestamp': timestamp,
+    };
+    if (payload != null && payload.isNotEmpty) {
+      messageData['payload'] = payload;
+    }
 
     await _firestore
         .collection('direct_messages')
         .doc(chatId)
         .collection('messages')
-        .add({
-      'senderId': fromUserId,
-      'senderName': fromUserName,
-      'text': text,
-      'timestamp': timestamp,
-    });
+        .add(messageData);
 
     await _firestore.collection('direct_messages').doc(chatId).set({
       'lastMessage': text,
       'lastTimestamp': timestamp,
       'participants': [fromUserId, toUserId],
+      'participantNames': {
+        fromUserId: fromUserName,
+      },
+    }, SetOptions(merge: true));
+  }
+
+  static Future<void> sendEventInviteMessage({
+    required String fromUserId,
+    required String toUserId,
+    required String fromUserName,
+    required Map<String, dynamic> eventPayload,
+  }) async {
+    final title = (eventPayload['eventTitle'] ?? 'Event').toString();
+    await sendDirectMessage(
+      fromUserId: fromUserId,
+      toUserId: toUserId,
+      fromUserName: fromUserName,
+      text: 'Invited you to join "$title"',
+      type: 'event_invite',
+      payload: eventPayload,
+    );
+  }
+
+  static Future<void> sendPostShareMessage({
+    required String fromUserId,
+    required String toUserId,
+    required String fromUserName,
+    required Map<String, dynamic> postPayload,
+  }) async {
+    final preview = (postPayload['postText'] ?? 'a post').toString();
+    final short =
+        preview.length > 48 ? '${preview.substring(0, 48)}…' : preview;
+    await sendDirectMessage(
+      fromUserId: fromUserId,
+      toUserId: toUserId,
+      fromUserName: fromUserName,
+      text: 'Shared $short with you',
+      type: 'post_share',
+      payload: postPayload,
+    );
+  }
+
+  static Stream<List<Map<String, dynamic>>> getUserConversations(
+      String userId) {
+    return _firestore
+        .collection('direct_messages')
+        .where('participants', arrayContains: userId)
+        .snapshots()
+        .map((snapshot) {
+      final items = snapshot.docs
+          .map((doc) => {
+                'id': doc.id,
+                ...doc.data(),
+              })
+          .toList();
+      items.sort((a, b) {
+        final aTs = a['lastTimestamp'];
+        final bTs = b['lastTimestamp'];
+        if (aTs is Timestamp && bTs is Timestamp) {
+          return bTs.compareTo(aTs);
+        }
+        return 0;
+      });
+      return items;
+    });
+  }
+
+  static String _groupChatId(List<String> memberIds) {
+    final sorted = [...memberIds]..sort();
+    return 'group_${sorted.join('_')}';
+  }
+
+  static Future<String> createGroupChat({
+    required String creatorId,
+    required String creatorName,
+    required List<String> memberIds,
+    required String name,
+  }) async {
+    final allMembers = {...memberIds, creatorId}.toList()..sort();
+    final groupId = _groupChatId(allMembers);
+    await _firestore.collection('group_chats').doc(groupId).set({
+      'name': name,
+      'createdBy': creatorId,
+      'memberIds': allMembers,
+      'lastMessage': 'Group created',
+      'lastTimestamp': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    return groupId;
+  }
+
+  static Stream<List<Map<String, dynamic>>> getUserGroupChats(String userId) {
+    return _firestore
+        .collection('group_chats')
+        .where('memberIds', arrayContains: userId)
+        .snapshots()
+        .map((snapshot) {
+      final items = snapshot.docs
+          .map((doc) => {
+                'id': doc.id,
+                ...doc.data(),
+              })
+          .toList();
+      items.sort((a, b) {
+        final aTs = a['lastTimestamp'];
+        final bTs = b['lastTimestamp'];
+        if (aTs is Timestamp && bTs is Timestamp) {
+          return bTs.compareTo(aTs);
+        }
+        return 0;
+      });
+      return items;
+    });
+  }
+
+  static Stream<List<Map<String, dynamic>>> getGroupMessages(String groupId) {
+    return _firestore
+        .collection('group_chats')
+        .doc(groupId)
+        .collection('messages')
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
+  }
+
+  static Future<void> sendGroupMessage({
+    required String groupId,
+    required String fromUserId,
+    required String fromUserName,
+    required String text,
+    String type = 'text',
+    Map<String, dynamic>? payload,
+  }) async {
+    final timestamp = FieldValue.serverTimestamp();
+    final messageData = <String, dynamic>{
+      'senderId': fromUserId,
+      'senderName': fromUserName,
+      'text': text,
+      'type': type,
+      'timestamp': timestamp,
+    };
+    if (payload != null && payload.isNotEmpty) {
+      messageData['payload'] = payload;
+    }
+
+    await _firestore
+        .collection('group_chats')
+        .doc(groupId)
+        .collection('messages')
+        .add(messageData);
+
+    await _firestore.collection('group_chats').doc(groupId).set({
+      'lastMessage': text,
+      'lastTimestamp': timestamp,
     }, SetOptions(merge: true));
   }
 

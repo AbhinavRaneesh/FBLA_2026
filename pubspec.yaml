@@ -48,6 +48,7 @@ dependencies:
   uuid: ^4.2.1
   http: ^1.2.2
   csv: ^6.0.0
+  lottie: ^3.3.1
   xml: ^6.5.0
   crypto: ^3.0.6
   video_player: ^2.10.1
@@ -60,27 +61,26 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: assets/logo.png
+  image_path: assets/icons/logo.png
   adaptive_icon_background: "#ffffff"
-  adaptive_icon_foreground: assets/logo.png
+  adaptive_icon_foreground: assets/icons/logo.png
   adaptive_icon_foreground_inset: 20
   web:
     generate: true
-    image_path: assets/logo.png
+    image_path: assets/icons/logo.png
     background_color: "#ffffff"
     theme_color: "#ffffff"
 
 flutter:
   uses-material-design: true
   assets:
-    - assets/fbla_logo.png
-    - assets/fbla_header.png
-    - assets/coins.png
-    - assets/logo.png
+    - assets/icons/
+    - assets/official_documents/
+    - assets/official_documents/Cybersecurity.pdf
+    - assets/official_documents/Mobile-Application-Development.pdf
+    - assets/LottieAnimations/
+    - assets/character_animation/
+    - assets/character_animation/cybersecurity_speaking_final.mp4
+    - assets/Privacy & TC/
     - assets/San Antonio Pictures/
-    - assets/Mobile-Application-Development.pdf
-    - assets/Cybersecurity.pdf
-    - assets/cybersecurity_speaking_final.mp4
-    - assets/practice.png
-    - assets/legal/
     - assets/USBE Schools Directory Export.csv

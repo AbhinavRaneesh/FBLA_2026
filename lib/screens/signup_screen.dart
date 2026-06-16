@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../constants/app_assets.dart';
 import '../main.dart';
 import '../models/school.dart';
 import '../services/firebase_service.dart';
@@ -364,7 +365,7 @@ class _SignupScreenState extends State<SignupScreen>
                 child: Transform.rotate(
                   angle: 0.18,
                   child: Image.asset(
-                    'assets/fbla_logo.png',
+                    AppAssets.fblaLogo,
                     width: 320,
                     fit: BoxFit.contain,
                   ),
@@ -519,11 +520,11 @@ class _SignupScreenState extends State<SignupScreen>
               0, 0, 0, 0, 255, //
               0, 0, 0, 1, 0, //
             ]),
-            child: Image.asset('assets/fbla_logo.png', fit: BoxFit.contain),
+            child: Image.asset(AppAssets.fblaLogo, fit: BoxFit.contain),
           ),
           ClipRect(
             clipper: _EmblemClipper(),
-            child: Image.asset('assets/fbla_logo.png', fit: BoxFit.contain),
+            child: Image.asset(AppAssets.fblaLogo, fit: BoxFit.contain),
           ),
         ],
       ),

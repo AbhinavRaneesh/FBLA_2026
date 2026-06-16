@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' show Color, Icons;
 
+import '../../constants/app_assets.dart';
 import '../../main.dart' show ChatThread, NewsItem;
 import '../../models/video_model.dart';
 import '../../services/youtube_service.dart';
@@ -135,7 +136,7 @@ class SocialDataService {
         waveCount: 89,
         commentCount: 24,
         tags: ['#Tips', '#NLC', '#Competition'],
-        videoUrl: 'assets/cybersecurity_speaking_final.mp4',
+        videoUrl: AppAssets.cybersecurityIntroVideo,
       ),
     ];
   }

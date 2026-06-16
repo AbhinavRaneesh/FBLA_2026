@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../constants/app_assets.dart';
+
 const _fblaBlue = Color(0xFF1D4E89);
 const _fblaGold = Color(0xFFFDB913);
 const _lightBackground = Color(0xFFEFF3F6);
@@ -11,16 +13,7 @@ const _lightSecondaryText = Color(0xFF475569);
 const _lightBorder = Color(0xFFD5DEE6);
 const _darkBackground = Color(0xFF07111F);
 
-const _nlcImages = [
-  'assets/San Antonio Pictures/picture1.jpg',
-  'assets/San Antonio Pictures/picture2.jpg',
-  'assets/San Antonio Pictures/picture3.jpg',
-  'assets/San Antonio Pictures/picture4.jpg',
-  'assets/San Antonio Pictures/picture5.jpg',
-  'assets/San Antonio Pictures/picture6.jpg',
-  'assets/San Antonio Pictures/picture7.jpg',
-  'assets/San Antonio Pictures/picture8.jpg',
-];
+const _nlcImages = AppAssets.nlcPictures;
 
 class NlcDetailScreen extends StatefulWidget {
   final VoidCallback? onViewCompetitions;

@@ -228,83 +228,260 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
     final school = (member['school'] ?? '').toString().trim();
     final officerPosition = (member['officerPosition'] ?? '').toString().trim();
     final biography = (member['biography'] ?? '').toString().trim();
+    final points = int.tryParse((member['points'] ?? 0).toString()) ?? 0;
+    final streak = int.tryParse((member['streak'] ?? 0).toString()) ?? 0;
+    final rank = (member['rank'] ?? 'Intern').toString().trim();
+    final role = officerPosition.isNotEmpty ? officerPosition : 'Member';
+    final memberId = (member['id'] ?? '').toString();
+    final isFriend = _relationStatuses[memberId] == 'friends';
+    final participatingIds = (member['participatingEvents'] as List?)
+            ?.map((e) => e.toString())
+            .where((e) => e.isNotEmpty)
+            .toList() ??
+        const <String>[];
+    final app = Provider.of<AppState>(context, listen: false);
+    final competingLabels = participatingIds.map((id) {
+      final match = app.events.cast<Event?>().firstWhere(
+            (e) => e?.id == id,
+            orElse: () => null,
+          );
+      return match?.title ?? id;
+    }).toList();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
-      backgroundColor: isDark ? const Color(0xFF101827) : fblaLightSurface,
+      backgroundColor: isDark ? const Color(0xFF0F1C31) : fblaLightSurface,
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: _fblaBlue,
-                      radius: 24,
-                      child: Text(
-                        name.isNotEmpty ? name[0].toUpperCase() : '?',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: _fblaBlue,
+                        radius: 28,
+                        child: Text(
+                          name.isNotEmpty ? name[0].toUpperCase() : '?',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 22,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            name,
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          if (officerPosition.isNotEmpty)
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              officerPosition,
+                              name,
                               style: TextStyle(
                                 color: isDark
-                                    ? Colors.white70
-                                    : fblaLightSecondaryText,
+                                    ? Colors.white
+                                    : fblaLightPrimaryText,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
                               ),
                             ),
-                        ],
+                            const SizedBox(height: 4),
+                            Text(
+                              role,
+                              style: TextStyle(
+                                color: isDark
+                                    ? fblaGold
+                                    : fblaBlue,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                _buildDetailRow(Icons.email_outlined, 'Email', email, isDark),
-                _buildDetailRow(
-                    Icons.school_outlined, 'School', school, isDark),
-                _buildDetailRow(
-                    Icons.groups_outlined, 'Chapter', chapter, isDark),
-                if (biography.isNotEmpty)
-                  _buildDetailRow(Icons.info_outline, 'Bio', biography, isDark),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: email.isEmpty
-                        ? null
-                        : () {
-                            Navigator.pop(context);
-                            _emailMember(email);
-                          },
-                    icon: const Icon(Icons.mail_outline),
-                    label: const Text('Email Member'),
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 18),
+                  Text(
+                    'User Stats',
+                    style: TextStyle(
+                      color: isDark ? Colors.white : fblaLightPrimaryText,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatChip(
+                          'F-Bucks',
+                          '$points',
+                          Icons.monetization_on_outlined,
+                          isDark,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildStatChip(
+                          'Rank',
+                          rank,
+                          Icons.military_tech_outlined,
+                          isDark,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildStatChip(
+                          'Streak',
+                          '$streak',
+                          Icons.local_fire_department_outlined,
+                          isDark,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  _buildDetailRow(
+                    Icons.email_outlined,
+                    'Email',
+                    email.isEmpty ? '—' : email,
+                    isDark,
+                  ),
+                  _buildDetailRow(
+                    Icons.school_outlined,
+                    'School',
+                    school.isEmpty ? '—' : school,
+                    isDark,
+                  ),
+                  _buildDetailRow(
+                    Icons.groups_outlined,
+                    'Chapter',
+                    chapter.isEmpty ? '—' : chapter,
+                    isDark,
+                  ),
+                  _buildDetailRow(
+                    Icons.badge_outlined,
+                    'Role',
+                    role,
+                    isDark,
+                  ),
+                  _buildDetailRow(
+                    Icons.emoji_events_outlined,
+                    'Competing In',
+                    competingLabels.isEmpty
+                        ? '—'
+                        : competingLabels.join(', '),
+                    isDark,
+                  ),
+                  if (biography.isNotEmpty)
+                    _buildDetailRow(
+                        Icons.info_outline, 'Bio', biography, isDark),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      if (isFriend && memberId.isNotEmpty)
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => DirectChatScreen(
+                                    otherUserId: memberId,
+                                    otherUserName: name,
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.chat_bubble_rounded),
+                            label: const Text('Chat'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: fblaGold,
+                              side: BorderSide(
+                                  color: fblaGold.withValues(alpha: 0.6)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                      if (isFriend && memberId.isNotEmpty)
+                        const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: email.isEmpty
+                              ? null
+                              : () {
+                                  Navigator.pop(context);
+                                  _emailMember(email);
+                                },
+                          icon: const Icon(Icons.mail_outline),
+                          label: const Text('Email'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: fblaBlue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildStatChip(
+    String label,
+    String value,
+    IconData icon,
+    bool isDark,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.05)
+            : fblaLightBackground,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark ? Colors.white12 : fblaLightBorder,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: fblaGold, size: 18),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: isDark ? Colors.white : fblaLightPrimaryText,
+              fontWeight: FontWeight.w900,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              color: isDark ? Colors.white60 : fblaLightSecondaryText,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -314,8 +491,6 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
     String value,
     bool isDark,
   ) {
-    if (value.trim().isEmpty) return const SizedBox.shrink();
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
@@ -381,22 +556,46 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
                 : RefreshIndicator(
                     onRefresh: _loadData,
                     child: ListView(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                       children: [
-                        Text(
-                          'Connect with FBLA members',
-                          style: TextStyle(
-                            color: primaryText,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFF0F1C31)
+                                : fblaLightSurface,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: borderColor),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 46,
+                                height: 46,
+                                decoration: BoxDecoration(
+                                  color: fblaBlue.withValues(alpha: 0.14),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: const Icon(
+                                  Icons.people_alt_rounded,
+                                  color: fblaBlue,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Connect with FBLA members',
+                                  style: TextStyle(
+                                    color: primaryText,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Browse members, manage friend requests, and view your friends.',
-                          style: TextStyle(color: secondaryText, height: 1.35),
-                        ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
                         _buildTabSelector(isDark, primaryText),
                         const SizedBox(height: 16),
                         if (_selectedTab != _MembersTab.requests)

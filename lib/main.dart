@@ -15,6 +15,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'constants/app_assets.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/onboarding_screen.dart';
@@ -24,6 +25,7 @@ import 'screens/firebase_auth_screen.dart';
 import 'screens/edit_profile_screen.dart';
 import 'screens/chatbot_screen.dart';
 import 'screens/find_members_screen.dart';
+import 'widgets/friend_picker_sheet.dart';
 import 'social/screens/social_screen.dart';
 import 'screens/instagram_feed_screen.dart';
 import 'screens/rank_screen.dart';
@@ -759,6 +761,14 @@ class AppState extends ChangeNotifier {
       participatingEventIds.add(eventId);
     }
     prefs.setStringList('participatingEvents', participatingEventIds.toList());
+    final userId = firebaseUser?.uid;
+    if (userId != null) {
+      unawaited(
+        FirebaseService.updateUserProfile(userId, {
+          'participatingEvents': participatingEventIds.toList(),
+        }),
+      );
+    }
     notifyListeners();
   }
 
@@ -4178,6 +4188,8 @@ class _AddEventScreenState extends State<AddEventScreen> {
   bool _includeTime = false;
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
+  List<Map<String, dynamic>> _friends = const [];
+  List<Map<String, dynamic>> _selectedInviteFriends = const [];
 
   @override
   void initState() {
@@ -4187,6 +4199,31 @@ class _AddEventScreenState extends State<AddEventScreen> {
       widget.initialDate.month,
       widget.initialDate.day,
     );
+    _loadFriends();
+  }
+
+  Future<void> _loadFriends() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+    final friends = await FirebaseService.getFriendsForUser(userId);
+    if (!mounted) return;
+    setState(() => _friends = friends);
+  }
+
+  Future<void> _pickInviteFriends() async {
+    final picked = await FriendPickerSheet.show(
+      context,
+      friends: _friends,
+      title: 'Invite Friends',
+      confirmLabel: 'Add Invitees',
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _selectedInviteFriends = picked);
+  }
+
+  String _friendLabel(Map<String, dynamic> friend) {
+    final name = (friend['name'] ?? friend['displayName'] ?? '').toString().trim();
+    return name.isEmpty ? 'Member' : name;
   }
 
   @override
@@ -4223,31 +4260,29 @@ class _AddEventScreenState extends State<AddEventScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: Colors.white,
-              onPrimary: Colors.black,
-              surface: Colors.black,
+              primary: fblaGold,
+              onPrimary: fblaNavy,
+              surface: Color(0xFF0F1C31),
               onSurface: Colors.white,
             ),
             datePickerTheme: DatePickerThemeData(
-              backgroundColor: Colors.black,
-              headerBackgroundColor: Colors.black,
+              backgroundColor: const Color(0xFF0F1C31),
+              headerBackgroundColor: fblaNavy,
               headerForegroundColor: Colors.white,
               dayStyle: const TextStyle(color: Colors.white),
-              weekdayStyle: const TextStyle(color: Colors.white70),
+              weekdayStyle: TextStyle(color: Colors.white.withValues(alpha: 0.72)),
               yearStyle: const TextStyle(color: Colors.white),
-              todayBorder: BorderSide(color: Colors.white.withOpacity(0.7)),
+              todayBorder: BorderSide(color: fblaGold.withValues(alpha: 0.7)),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(
-                    color: Colors.white.withOpacity(0.35), width: 1.4),
+                side: const BorderSide(color: Colors.white12),
               ),
             ),
-            dialogTheme: DialogThemeData(
-              backgroundColor: Colors.black,
+            dialogTheme: const DialogThemeData(
+              backgroundColor: Color(0xFF0F1C31),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(
-                    color: Colors.white.withOpacity(0.35), width: 1.4),
+                borderRadius: BorderRadius.all(Radius.circular(16)),
+                side: BorderSide(color: Colors.white12),
               ),
             ),
           ),
@@ -4273,47 +4308,46 @@ class _AddEventScreenState extends State<AddEventScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: Colors.white,
-              onPrimary: Colors.black,
-              surface: Colors.black,
+              primary: fblaGold,
+              onPrimary: fblaNavy,
+              surface: Color(0xFF0F1C31),
               onSurface: Colors.white,
             ),
             timePickerTheme: TimePickerThemeData(
-              backgroundColor: Colors.black,
+              backgroundColor: const Color(0xFF0F1C31),
               hourMinuteShape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: Colors.white.withOpacity(0.3)),
+                side: const BorderSide(color: Colors.white24),
               ),
               dayPeriodShape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: Colors.white.withOpacity(0.3)),
+                side: const BorderSide(color: Colors.white24),
               ),
-              dialHandColor: Colors.white,
-              dialBackgroundColor: const Color(0xFF090909),
-              hourMinuteColor: Colors.black,
-              hourMinuteTextColor: MaterialStateColor.resolveWith((states) {
-                if (states.contains(MaterialState.selected)) {
-                  return Colors.black;
+              dialHandColor: fblaGold,
+              dialBackgroundColor: const Color(0xFF0A1628),
+              hourMinuteColor: const Color(0xFF0A1628),
+              hourMinuteTextColor: WidgetStateColor.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return fblaNavy;
                 }
                 return Colors.white;
               }),
-              dayPeriodTextColor: MaterialStateColor.resolveWith((states) {
-                if (states.contains(MaterialState.selected)) {
-                  return Colors.black;
+              dayPeriodTextColor: WidgetStateColor.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return fblaNavy;
                 }
                 return Colors.white;
               }),
-              dayPeriodColor: MaterialStateColor.resolveWith((states) {
-                if (states.contains(MaterialState.selected)) {
-                  return Colors.white;
+              dayPeriodColor: WidgetStateColor.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return fblaGold;
                 }
-                return Colors.black;
+                return const Color(0xFF0A1628);
               }),
               entryModeIconColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(
-                    color: Colors.white.withOpacity(0.35), width: 1.4),
+                side: const BorderSide(color: Colors.white12),
               ),
             ),
           ),
@@ -4339,7 +4373,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
     setState(() => _endTime = selected);
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
@@ -4390,6 +4424,35 @@ class _AddEventScreenState extends State<AddEventScreen> {
           : _descriptionController.text.trim(),
     );
 
+    final app = Provider.of<AppState>(context, listen: false);
+    final userId = app.firebaseUser?.uid;
+    final userName = app.resolvedDisplayName;
+    if (userId != null && _selectedInviteFriends.isNotEmpty) {
+      final when =
+          DateFormat('EEE, MMM d · h:mm a').format(startDateTime);
+      final payload = {
+        'eventId': event.id,
+        'eventTitle': event.title,
+        'eventLocation': event.location,
+        'eventDescription': event.description,
+        'eventStart': startDateTime.toIso8601String(),
+        'eventEnd': endDateTime.toIso8601String(),
+        'eventWhen': when,
+        'inviterName': userName,
+      };
+      for (final friend in _selectedInviteFriends) {
+        final friendId = (friend['id'] ?? '').toString();
+        if (friendId.isEmpty) continue;
+        await FirebaseService.sendEventInviteMessage(
+          fromUserId: userId,
+          toUserId: friendId,
+          fromUserName: userName,
+          eventPayload: payload,
+        );
+      }
+    }
+
+    if (!mounted) return;
     Navigator.pop(context, event);
   }
 
@@ -4412,19 +4475,69 @@ class _AddEventScreenState extends State<AddEventScreen> {
     return '${weekdays[date.weekday - 1]}, ${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
+  BoxDecoration _panelDecoration(bool isDark) => BoxDecoration(
+        color: isDark ? null : fblaLightSurface,
+        gradient: isDark
+            ? const LinearGradient(
+                colors: [Color(0xFF0F1C31), Color(0xFF0A1628)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color:
+              isDark ? Colors.white12 : fblaLightBorder.withValues(alpha: 0.85),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      );
+
+  Widget _buildSectionHeader(String title, IconData icon, bool isDark) {
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: (isDark ? fblaGold : fblaBlue).withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            icon,
+            color: isDark ? fblaGold : fblaBlue,
+            size: 18,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          title,
+          style: TextStyle(
+            color: isDark ? Colors.white : fblaLightPrimaryText,
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final fblaBlue = const Color(0xFF1D4E89);
-    final fblaGold = const Color(0xFFF6C500);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: isDark ? appBackgroundColor : fblaLightBackground,
       appBar: AppBar(
         title: const Text('Create Event'),
-        backgroundColor: isDark ? Colors.transparent : fblaLightBackground,
-        elevation: 0,
+        backgroundColor: isDark ? fblaNavy : fblaLightBackground,
         foregroundColor: isDark ? Colors.white : fblaLightPrimaryText,
+        elevation: 0,
         actions: [
           TextButton(
             onPressed: _submit,
@@ -4432,7 +4545,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
               'Save',
               style: TextStyle(
                 color: isDark ? fblaGold : fblaBlue,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w800,
                 fontSize: 16,
               ),
             ),
@@ -4444,231 +4557,307 @@ class _AddEventScreenState extends State<AddEventScreen> {
           gradient: isDark ? appBackgroundGradient : null,
           color: isDark ? null : fblaLightBackground,
         ),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-            children: [
-              // Header Icon
-              Center(
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [fblaBlue, fblaBlue.withOpacity(0.6)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: fblaBlue.withOpacity(0.4),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(Icons.event_note,
-                      color: Colors.white, size: 40),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Event Name Section
-              _buildSectionLabel('Event Details', Icons.edit_note),
-              const SizedBox(height: 12),
-              _buildStyledTextField(
-                controller: _titleController,
-                label: 'Event Name',
-                hint: 'Enter event name',
-                icon: Icons.title,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Event name is required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              _buildStyledTextField(
-                controller: _locationController,
-                label: 'Location',
-                hint: 'Where will this take place?',
-                icon: Icons.location_on_outlined,
-              ),
-              const SizedBox(height: 16),
-              _buildStyledTextField(
-                controller: _descriptionController,
-                label: 'Description',
-                hint: 'Add event details...',
-                icon: Icons.notes,
-                maxLines: 3,
-              ),
-
-              const SizedBox(height: 28),
-
-              // Date & Time Section
-              _buildSectionLabel('Date & Time', Icons.schedule),
-              const SizedBox(height: 12),
-
-              // Date Picker Card
-              _buildDateTimeCard(
-                icon: Icons.calendar_today,
-                label: 'Date',
-                value: _formatDate(_pickedDate),
-                onTap: _pickDate,
-                color: fblaBlue,
-              ),
-
-              const SizedBox(height: 12),
-
-              // Time Toggle
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1A2640) : fblaLightSurface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.1)
-                        : fblaLightBorder,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.access_time,
-                        color: isDark
-                            ? Colors.grey.shade400
-                            : fblaLightSecondaryText,
-                        size: 22),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Set specific time',
-                        style: TextStyle(
-                          color: isDark
-                              ? Colors.grey.shade300
-                              : fblaLightPrimaryText,
-                          fontSize: 15,
+        child: SafeArea(
+          top: false,
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
+              children: [
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                  decoration: _panelDecoration(isDark),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: fblaBlue.withValues(alpha: isDark ? 0.22 : 0.12),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: fblaBlue.withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.event_available_rounded,
+                          color: fblaBlue,
+                          size: 24,
                         ),
                       ),
-                    ),
-                    Switch(
-                      value: _includeTime,
-                      activeColor: fblaBlue,
-                      activeTrackColor: fblaBlue.withOpacity(0.4),
-                      onChanged: (value) {
-                        setState(() {
-                          _includeTime = value;
-                          if (!_includeTime) {
-                            _startTime = null;
-                            _endTime = null;
-                          }
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-
-              // Time Pickers (animated)
-              AnimatedSize(
-                duration: const Duration(milliseconds: 200),
-                child: _includeTime
-                    ? Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: Row(
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: _buildDateTimeCard(
-                                icon: Icons.play_arrow_rounded,
-                                label: 'Start',
-                                value:
-                                    _startTime?.format(context) ?? 'Set time',
-                                onTap: _pickStartTime,
-                                color: const Color(0xFF4CAF50),
-                                compact: true,
+                            Text(
+                              'New calendar event',
+                              style: TextStyle(
+                                color: isDark
+                                    ? Colors.white
+                                    : fblaLightPrimaryText,
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildDateTimeCard(
-                                icon: Icons.stop_rounded,
-                                label: 'End',
-                                value: _endTime?.format(context) ?? 'Set time',
-                                onTap: _pickEndTime,
-                                color: const Color(0xFFFF5722),
-                                compact: true,
+                            const SizedBox(height: 4),
+                            Text(
+                              'Add a personal event to your FBLA calendar.',
+                              style: TextStyle(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.68)
+                                    : fblaLightSecondaryText,
+                                fontSize: 13,
+                                height: 1.35,
                               ),
                             ),
                           ],
                         ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-
-              const SizedBox(height: 32),
-
-              // Create Button
-              Container(
-                height: 56,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [fblaBlue, fblaBlue.withOpacity(0.8)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: fblaBlue.withOpacity(0.4),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: ElevatedButton.icon(
-                  onPressed: _submit,
-                  icon: const Icon(Icons.add_circle_outline, size: 24),
-                  label: const Text(
-                    'Create Event',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+                  decoration: _panelDecoration(isDark),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionHeader(
+                          'Event Details', Icons.edit_note_rounded, isDark),
+                      const SizedBox(height: 14),
+                      _buildStyledTextField(
+                        controller: _titleController,
+                        label: 'Event Name',
+                        hint: 'Enter event name',
+                        icon: Icons.title_rounded,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Event name is required';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _buildStyledTextField(
+                        controller: _locationController,
+                        label: 'Location',
+                        hint: 'Where will this take place?',
+                        icon: Icons.location_on_outlined,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildStyledTextField(
+                        controller: _descriptionController,
+                        label: 'Description',
+                        hint: 'Add event details...',
+                        icon: Icons.notes_rounded,
+                        maxLines: 3,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+                  decoration: _panelDecoration(isDark),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionHeader(
+                          'Date & Time', Icons.schedule_rounded, isDark),
+                      const SizedBox(height: 14),
+                      _buildDateTimeCard(
+                        icon: Icons.calendar_today_rounded,
+                        label: 'Date',
+                        value: _formatDate(_pickedDate),
+                        onTap: _pickDate,
+                        accent: fblaBlue,
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.05)
+                              : fblaLightBackground,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isDark ? Colors.white12 : fblaLightBorder,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.access_time_rounded,
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.72)
+                                  : fblaLightSecondaryText,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Set specific time',
+                                style: TextStyle(
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.9)
+                                      : fblaLightPrimaryText,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            Switch(
+                              value: _includeTime,
+                              onChanged: (value) {
+                                setState(() {
+                                  _includeTime = value;
+                                  if (!_includeTime) {
+                                    _startTime = null;
+                                    _endTime = null;
+                                  }
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOutCubic,
+                        child: _includeTime
+                            ? Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildDateTimeCard(
+                                        icon: Icons.play_arrow_rounded,
+                                        label: 'Start',
+                                        value: _startTime?.format(context) ??
+                                            'Set time',
+                                        onTap: _pickStartTime,
+                                        accent: fblaGold,
+                                        compact: true,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildDateTimeCard(
+                                        icon: Icons.stop_rounded,
+                                        label: 'End',
+                                        value: _endTime?.format(context) ??
+                                            'Set time',
+                                        onTap: _pickEndTime,
+                                        accent: fblaBlue,
+                                        compact: true,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+                  decoration: _panelDecoration(isDark),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionHeader(
+                        'Invite Friends',
+                        Icons.group_add_rounded,
+                        isDark,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Send a join invitation in chat when the event is created.',
+                        style: TextStyle(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.68)
+                              : fblaLightSecondaryText,
+                          fontSize: 13,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: _friends.isEmpty ? null : _pickInviteFriends,
+                        icon: const Icon(Icons.person_add_alt_1_rounded),
+                        label: Text(
+                          _selectedInviteFriends.isEmpty
+                              ? 'Select Friends'
+                              : '${_selectedInviteFriends.length} friend${_selectedInviteFriends.length == 1 ? '' : 's'} selected',
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: isDark ? fblaGold : fblaBlue,
+                          side: BorderSide(
+                            color: (isDark ? fblaGold : fblaBlue)
+                                .withValues(alpha: 0.6),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                      if (_selectedInviteFriends.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _selectedInviteFriends
+                              .map(
+                                (friend) => Chip(
+                                  label: Text(_friendLabel(friend)),
+                                  backgroundColor: fblaGold
+                                      .withValues(alpha: isDark ? 0.14 : 0.2),
+                                  labelStyle: TextStyle(
+                                    color: isDark ? Colors.white : fblaNavy,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    onPressed: _submit,
+                    icon: const Icon(Icons.add_circle_outline_rounded, size: 22),
+                    label: const Text(
+                      'Create Event',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: fblaBlue,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildSectionLabel(String text, IconData icon) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Row(
-      children: [
-        Icon(icon,
-            color: isDark ? const Color(0xFFF6C500) : fblaNavy, size: 20),
-        const SizedBox(width: 8),
-        Text(
-          text,
-          style: TextStyle(
-            color: isDark ? Colors.white : fblaLightPrimaryText,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
     );
   }
 
@@ -4681,39 +4870,62 @@ class _AddEventScreenState extends State<AddEventScreen> {
     String? Function(String?)? validator,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1A2640) : fblaLightSurface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.1) : fblaLightBorder,
-        ),
+    return TextFormField(
+      controller: controller,
+      style: TextStyle(
+        color: isDark ? Colors.white : fblaLightPrimaryText,
+        fontSize: 15,
       ),
-      child: TextFormField(
-        controller: controller,
-        style: TextStyle(
-          color: isDark ? Colors.white : fblaLightPrimaryText,
-          fontSize: 15,
+      maxLines: maxLines,
+      validator: validator,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        labelStyle: TextStyle(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.72)
+              : fblaLightSecondaryText,
         ),
-        maxLines: maxLines,
-        validator: validator,
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-          labelStyle: TextStyle(
-            color: isDark ? Colors.grey.shade400 : fblaLightSecondaryText,
+        hintStyle: TextStyle(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.38)
+              : fblaLightDisabledText,
+        ),
+        prefixIcon: Icon(
+          icon,
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.72)
+              : fblaLightSecondaryText,
+          size: 22,
+        ),
+        filled: true,
+        fillColor: isDark
+            ? Colors.white.withValues(alpha: 0.05)
+            : fblaLightBackground,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: isDark ? Colors.white12 : fblaLightBorder,
           ),
-          hintStyle: TextStyle(
-            color: isDark ? Colors.grey.shade600 : fblaLightDisabledText,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: isDark ? fblaGold.withValues(alpha: 0.7) : fblaNavy,
+            width: 1.4,
           ),
-          prefixIcon: Icon(
-            icon,
-            color: isDark ? Colors.grey.shade400 : fblaLightSecondaryText,
-            size: 22,
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: fblaLightDestructive.withValues(alpha: 0.8),
           ),
-          border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: fblaLightDestructive, width: 1.4),
         ),
       ),
     );
@@ -4724,7 +4936,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
     required String label,
     required String value,
     required VoidCallback onTap,
-    required Color color,
+    required Color accent,
     bool compact = false,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -4735,14 +4947,16 @@ class _AddEventScreenState extends State<AddEventScreen> {
         borderRadius: BorderRadius.circular(14),
         child: Container(
           padding: EdgeInsets.symmetric(
-            horizontal: compact ? 12 : 16,
-            vertical: compact ? 14 : 16,
+            horizontal: compact ? 12 : 14,
+            vertical: compact ? 13 : 15,
           ),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1A2640) : fblaLightSurface,
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : fblaLightBackground,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: color.withValues(alpha: isDark ? 0.3 : 0.22),
+              color: accent.withValues(alpha: isDark ? 0.32 : 0.24),
             ),
           ),
           child: Row(
@@ -4750,12 +4964,12 @@ class _AddEventScreenState extends State<AddEventScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.15),
+                  color: accent.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: color, size: compact ? 18 : 22),
+                child: Icon(icon, color: accent, size: compact ? 18 : 20),
               ),
-              SizedBox(width: compact ? 10 : 14),
+              SizedBox(width: compact ? 10 : 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -4764,9 +4978,10 @@ class _AddEventScreenState extends State<AddEventScreen> {
                       label,
                       style: TextStyle(
                         color: isDark
-                            ? Colors.grey.shade500
+                            ? Colors.white.withValues(alpha: 0.55)
                             : fblaLightSecondaryText,
                         fontSize: compact ? 11 : 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -4775,16 +4990,18 @@ class _AddEventScreenState extends State<AddEventScreen> {
                       style: TextStyle(
                         color: isDark ? Colors.white : fblaLightPrimaryText,
                         fontSize: compact ? 14 : 15,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
               ),
               Icon(
-                Icons.chevron_right,
-                color: isDark ? Colors.grey.shade500 : fblaLightDisabledText,
-                size: compact ? 20 : 24,
+                Icons.chevron_right_rounded,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.45)
+                    : fblaLightDisabledText,
+                size: compact ? 20 : 22,
               ),
             ],
           ),
@@ -6419,7 +6636,7 @@ class ProfileScreen extends StatelessWidget {
             child: _buildHeaderStat(
               value: '$coins',
               label: 'FBLA Coins',
-              assetPath: 'assets/coins.png',
+              assetPath: AppAssets.coins,
               color: fblaGold,
               isDark: isDark,
               primaryText: primaryText,
@@ -9165,7 +9382,7 @@ class MoreScreen extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Image.asset('assets/coins.png',
+                          Image.asset(AppAssets.coins,
                               width: 16, height: 16),
                           const SizedBox(width: 6),
                           Text(

@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
+import '../constants/app_assets.dart';
 import 'chatbot_screen.dart';
 import 'rank_screen.dart';
 import 'event_practice_screen.dart';
@@ -40,6 +42,8 @@ IconData courseIconForName(String name) {
     return Icons.video_collection;
   if (n.contains('public') || n.contains('speaking') || n.contains('speech'))
     return Icons.record_voice_over;
+  if (n.contains('cyber') || n.contains('security'))
+    return Icons.shield_outlined;
   return Icons.school;
 }
 
@@ -232,8 +236,6 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context);
     final isDark = app.isDarkMode;
-    final activeCourse = _selectedCourse ??
-        (_userCourses.isNotEmpty ? _userCourses.first : null);
 
     return Scaffold(
       backgroundColor: isDark ? null : fblaLightBackground,
@@ -248,18 +250,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
             child: Column(
               children: [
                 _buildTopStatsBar(app, isDark),
-                if (activeCourse != null) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    height: 2,
-                    decoration: BoxDecoration(
-                      color: _courseColor(activeCourse),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ] else
-                  const SizedBox(height: 12),
+                const SizedBox(height: 12),
                 Expanded(child: _buildCourseJourney(isDark)),
               ],
             ),
@@ -599,7 +590,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
         ),
         chip(
           tint: fblaGold,
-          icon: Image.asset('assets/coins.png', width: 22, height: 22),
+          icon: Image.asset(AppAssets.coins, width: 22, height: 22),
           value: '$_points',
         ),
         chip(
@@ -650,7 +641,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                     color: Colors.transparent,
                     child: Container(
                       constraints: BoxConstraints(
-                        maxHeight: screenHeight * 0.26,
+                        maxHeight: screenHeight * 0.38,
                       ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF0B1624),
@@ -746,69 +737,85 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                           ),
                           if (_userCourses.isEmpty)
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                              child: Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _AddCourseTile(
-                                      onTap: () {
-                                        unawaited(addCourse());
-                                      },
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  return Padding(
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 8),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _AddCourseTile(
+                                          width: constraints.maxWidth,
+                                          onTap: () {
+                                            unawaited(addCourse());
+                                          },
+                                        ),
+                                        const SizedBox(height: 10),
+                                        const Text(
+                                          'No courses added yet',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 8),
-                                    const Text(
-                                      'No courses added yet',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                  );
+                                },
                               ),
                             )
                           else
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                              child: SizedBox(
-                                height: 92,
-                                child: ListView.separated(
-                                  scrollDirection: Axis.horizontal,
-                                  itemCount: _userCourses.length + 1,
-                                  separatorBuilder: (_, __) =>
-                                      const SizedBox(width: 12),
-                                  itemBuilder: (context, index) {
-                                    if (index == _userCourses.length) {
-                                      return _AddCourseTile(onTap: addCourse);
-                                    }
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  const separator = 12.0;
+                                  final tileWidth =
+                                      (constraints.maxWidth - separator) / 2;
+                                  return SizedBox(
+                                    height: 154,
+                                    child: ListView.separated(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: _userCourses.length + 1,
+                                      separatorBuilder: (_, __) =>
+                                          const SizedBox(width: separator),
+                                      itemBuilder: (context, index) {
+                                        if (index == _userCourses.length) {
+                                          return _AddCourseTile(
+                                            width: tileWidth,
+                                            onTap: addCourse,
+                                          );
+                                        }
 
-                                    final course = _userCourses[index];
-                                    return _CourseTile(
-                                      title: course,
-                                      color: _courseColor(course),
-                                      icon: _courseIcon(course),
-                                      selected: course == _selectedCourse,
-                                      onTap: () => _selectCourse(course),
-                                      onRemove: () async {
-                                        setState(() {
-                                          _userCourses.removeAt(index);
-                                          if (_selectedCourse == course) {
-                                            _selectedCourse =
-                                                _userCourses.isNotEmpty
-                                                    ? _userCourses.first
-                                                    : null;
-                                          }
-                                        });
-                                        await _saveCourses();
-                                        setModalState(() {});
+                                        final course = _userCourses[index];
+                                        return _CourseTile(
+                                          width: tileWidth,
+                                          title: course,
+                                          color: _courseColor(course),
+                                          icon: _courseIcon(course),
+                                          selected: course == _selectedCourse,
+                                          onTap: () => _selectCourse(course),
+                                          onRemove: () async {
+                                            setState(() {
+                                              _userCourses.removeAt(index);
+                                              if (_selectedCourse == course) {
+                                                _selectedCourse =
+                                                    _userCourses.isNotEmpty
+                                                        ? _userCourses.first
+                                                        : null;
+                                              }
+                                            });
+                                            await _saveCourses();
+                                            setModalState(() {});
+                                          },
+                                        );
                                       },
-                                    );
-                                  },
-                                ),
+                                    ),
+                                  );
+                                },
                               ),
                             ),
                         ],
@@ -845,6 +852,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
   }
 
   Color _courseColor(String course) {
+    if (_isCybersecurityCourse(course)) return const Color(0xFF1D4E89);
     final palette = [
       const Color(0xFF1D4E89),
       const Color(0xFF2E7D32),
@@ -900,6 +908,14 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
   Future<void>? _preloadIntroVideoFuture;
 
   @override
+  void initState() {
+    super.initState();
+    if (_isCybersecurityCourse(widget.course)) {
+      _preloadIntroVideo();
+    }
+  }
+
+  @override
   void didUpdateWidget(covariant _CourseJourneyPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.course != widget.course) {
@@ -914,44 +930,69 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
     super.dispose();
   }
 
+  Future<void> _initializeIntroVideo(VideoPlayerController controller) async {
+    await controller.initialize();
+    await controller.setVolume(1.0);
+  }
+
   void _preloadIntroVideo() {
-    final existing = _preloadedIntroVideoController;
-    if (existing != null) return;
+    if (_preloadedIntroVideoController != null ||
+        _preloadIntroVideoFuture != null) {
+      return;
+    }
 
     final controller =
-        VideoPlayerController.asset(_cybersecurityIntroVideoAsset);
+        VideoPlayerController.asset(AppAssets.cybersecurityIntroVideo);
     _preloadedIntroVideoController = controller;
-    final preloadFuture = () async {
-      await controller.initialize();
-      await controller.setVolume(1.0);
-    }();
-    _preloadIntroVideoFuture = preloadFuture;
-    unawaited(preloadFuture.catchError((_) {}));
+    _preloadIntroVideoFuture = _initializeIntroVideo(controller);
+  }
+
+  Future<VideoPlayerController?> _createIntroVideoController() async {
+    final controller =
+        VideoPlayerController.asset(AppAssets.cybersecurityIntroVideo);
+    try {
+      await _initializeIntroVideo(controller);
+      if (controller.value.isInitialized) {
+        return controller;
+      }
+    } catch (_) {
+      // Fall through to dispose below.
+    }
+    await controller.dispose();
+    return null;
   }
 
   Future<VideoPlayerController?> _takePreloadedIntroVideoController() async {
-    _preloadIntroVideo();
-    final controller = _preloadedIntroVideoController;
-    final preloadFuture = _preloadIntroVideoFuture;
-    if (controller == null || preloadFuture == null) return null;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      _preloadIntroVideo();
+      final controller = _preloadedIntroVideoController;
+      final preloadFuture = _preloadIntroVideoFuture;
+      if (controller == null || preloadFuture == null) {
+        return _createIntroVideoController();
+      }
 
-    try {
-      await preloadFuture;
-    } catch (_) {
-      if (identical(_preloadedIntroVideoController, controller)) {
-        _preloadedIntroVideoController = null;
-        _preloadIntroVideoFuture = null;
+      try {
+        await preloadFuture;
+      } catch (_) {
+        if (identical(_preloadedIntroVideoController, controller)) {
+          _preloadedIntroVideoController = null;
+          _preloadIntroVideoFuture = null;
+        }
+        await controller.dispose();
+        continue;
+      }
+
+      if (!identical(_preloadedIntroVideoController, controller)) {
+        return null;
+      }
+      _preloadedIntroVideoController = null;
+      _preloadIntroVideoFuture = null;
+      if (controller.value.isInitialized) {
+        return controller;
       }
       await controller.dispose();
-      return null;
     }
-
-    if (!identical(_preloadedIntroVideoController, controller)) {
-      return null;
-    }
-    _preloadedIntroVideoController = null;
-    _preloadIntroVideoFuture = null;
-    return controller;
+    return null;
   }
 
   void _disposePreloadedIntroVideo() {
@@ -1072,8 +1113,9 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
               Text('${(pct * 100).round()}% complete',
                   style: TextStyle(
                       color: widget.color,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w800)),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.2)),
             ],
           ),
           const SizedBox(height: 7),
@@ -1141,6 +1183,27 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
               children.addAll(
                   _nodeWidgets(i, centers[i], levels[i], highestCompleted));
             }
+            if (count >= 3) {
+              children.add(_journeyLottieDecoration(
+                width: width,
+                centerX: centerX,
+                anchorCenter: centers[2],
+                asset: _cyberJourneyLottieAsset,
+              ));
+            }
+            if (count >= 7) {
+              children.add(_journeyLottieDecoration(
+                width: width,
+                centerX: centerX,
+                anchorCenter: Offset(
+                  (centers[5].dx + centers[6].dx) / 2,
+                  (centers[5].dy + centers[6].dy) / 2,
+                ),
+                asset: _personalDataJourneyLottieAsset,
+                zoom: 1.48,
+                horizontalShift: -12.0,
+              ));
+            }
             if (_promptLevel == 1 && count >= 1) {
               const promptWidth = 248.0;
               final firstCenter = centers.first;
@@ -1163,6 +1226,33 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
               child: Stack(clipBehavior: Clip.none, children: children),
             );
           },
+        ),
+      ),
+    );
+  }
+
+  Widget _journeyLottieDecoration({
+    required double width,
+    required double centerX,
+    required Offset anchorCenter,
+    required String asset,
+    double zoom = 1.2,
+    double horizontalShift = 14.0,
+  }) {
+    const lottieSize = 132.0;
+    final anchorOnRight = anchorCenter.dx >= centerX;
+    final lottieLeft = (anchorOnRight ? 8.0 : width - lottieSize - 8.0) +
+        horizontalShift;
+    return Positioned(
+      left: lottieLeft,
+      top: anchorCenter.dy - lottieSize * 0.5,
+      width: lottieSize,
+      height: lottieSize,
+      child: IgnorePointer(
+        child: _CyberJourneyLottie(
+          asset: asset,
+          size: lottieSize,
+          zoom: zoom,
         ),
       ),
     );
@@ -1289,11 +1379,15 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
         await introVideoController?.dispose();
         return;
       }
-      if (introVideoController == null) {
+      if (introVideoController == null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Video could not be loaded.')),
+          const SnackBar(
+            content: Text(
+              'Intro video could not be loaded. You can still continue the lesson.',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
-        return;
       }
     }
 
@@ -1316,7 +1410,7 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
         MaterialPageRoute(
           builder: (_) => CybersecurityFundamentalsLessonScreen(
             color: widget.color,
-            introVideoController: introVideoController!,
+            introVideoController: introVideoController,
           ),
         ),
       );
@@ -6296,12 +6390,30 @@ class _LevelNodeState extends State<_LevelNode>
                                       ],
                                     ),
                                   ),
-                                if (isLocked)
-                                  Icon(
-                                    Icons.lock_rounded,
-                                    color: Colors.white.withValues(alpha: 0.55),
-                                    size: 26,
-                                  )
+                                if (isLocked) ...[
+                                  Center(
+                                    child: Text(
+                                      '${widget.level}',
+                                      style: TextStyle(
+                                        color: Colors.white
+                                            .withValues(alpha: 0.11),
+                                        fontSize: 46,
+                                        fontWeight: FontWeight.w900,
+                                        height: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    right: 6,
+                                    bottom: 5,
+                                    child: Icon(
+                                      Icons.lock_rounded,
+                                      color: Colors.white
+                                          .withValues(alpha: 0.55),
+                                      size: 18,
+                                    ),
+                                  ),
+                                ]
                                 else
                                   Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
@@ -6538,16 +6650,98 @@ class _PromptPointerPainter extends CustomPainter {
       oldDelegate.color != color;
 }
 
-const _cybersecurityIntroVideoAsset = 'assets/cybersecurity_speaking_final.mp4';
+const _cyberJourneyLottieAsset = AppAssets.lottieCybersecurity;
+const _personalDataJourneyLottieAsset = AppAssets.lottiePersonalData;
+
+class _CyberJourneyLottie extends StatefulWidget {
+  final String asset;
+  final double size;
+  final double zoom;
+
+  const _CyberJourneyLottie({
+    required this.asset,
+    required this.size,
+    this.zoom = 1.0,
+  });
+
+  @override
+  State<_CyberJourneyLottie> createState() => _CyberJourneyLottieState();
+}
+
+class _CyberJourneyLottieState extends State<_CyberJourneyLottie> {
+  late final Future<LottieComposition> _compositionFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _compositionFuture = AssetLottie(widget.asset).load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: Transform.scale(
+        scale: widget.zoom,
+        alignment: Alignment.center,
+        child: FutureBuilder<LottieComposition>(
+          future: _compositionFuture,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return _fallbackIcon();
+            }
+            final composition = snapshot.data;
+            if (composition == null) {
+              return SizedBox(
+                width: widget.size,
+                height: widget.size,
+                child: Center(
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: fblaGold.withValues(alpha: 0.75),
+                    ),
+                  ),
+                ),
+              );
+            }
+            return Lottie(
+              composition: composition,
+              width: widget.size,
+              height: widget.size,
+              fit: BoxFit.contain,
+              repeat: true,
+              frameRate: FrameRate(30),
+              addRepaintBoundary: true,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _fallbackIcon() {
+    return SizedBox(
+      width: widget.size,
+      height: widget.size,
+      child: Icon(
+        Icons.shield_rounded,
+        color: fblaGold.withValues(alpha: 0.85),
+        size: widget.size * 0.42,
+      ),
+    );
+  }
+}
 
 class CybersecurityFundamentalsLessonScreen extends StatefulWidget {
   final Color color;
-  final VideoPlayerController introVideoController;
+  final VideoPlayerController? introVideoController;
 
   const CybersecurityFundamentalsLessonScreen({
     super.key,
     required this.color,
-    required this.introVideoController,
+    this.introVideoController,
   });
 
   @override
@@ -6571,9 +6765,11 @@ class _CybersecurityFundamentalsLessonScreenState
   }
 
   Future<void> _playIntroVideo() async {
+    final controller = widget.introVideoController;
+    if (controller == null || !controller.value.isInitialized) return;
     try {
-      await widget.introVideoController.seekTo(Duration.zero);
-      await widget.introVideoController.play();
+      await controller.seekTo(Duration.zero);
+      await controller.play();
     } catch (_) {
       // Keep the lesson usable even if playback fails after preloading.
     }
@@ -6581,7 +6777,7 @@ class _CybersecurityFundamentalsLessonScreenState
 
   @override
   void dispose() {
-    widget.introVideoController.dispose();
+    widget.introVideoController?.dispose();
     super.dispose();
   }
 
@@ -6753,23 +6949,46 @@ class _CybersecurityFundamentalsLessonScreenState
         final videoWidth = min(constraints.maxWidth * 0.9, 310.0);
         final videoHeight = min(max(screenHeight * 0.46, 285.0), 360.0);
 
+        final introVideoController = widget.introVideoController;
+        final showIntroVideo = introVideoController != null &&
+            introVideoController.value.isInitialized;
+
         return SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Align(
-                alignment: Alignment.topCenter,
-                child: _IntroLessonVideo(
-                  controller: widget.introVideoController,
-                  accentColor: widget.color,
-                  borderColor: borderColor,
-                  isDark: isDark,
-                  width: videoWidth,
-                  height: videoHeight,
-                  zoom: 1.08,
+              if (showIntroVideo)
+                Align(
+                  alignment: Alignment.topCenter,
+                  child: _IntroLessonVideo(
+                    controller: introVideoController,
+                    accentColor: widget.color,
+                    borderColor: borderColor,
+                    isDark: isDark,
+                    width: videoWidth,
+                    height: videoHeight,
+                    zoom: 1.08,
+                  ),
+                )
+              else
+                Align(
+                  alignment: Alignment.topCenter,
+                  child: Container(
+                    width: videoWidth,
+                    height: videoHeight * 0.42,
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF07111F) : Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Icon(
+                      Icons.shield_rounded,
+                      color: widget.color.withValues(alpha: 0.9),
+                      size: 56,
+                    ),
+                  ),
                 ),
-              ),
               const SizedBox(height: 14),
               Align(
                 alignment: Alignment.center,
@@ -6972,7 +7191,7 @@ class _CybersecurityFundamentalsLessonScreenState
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Image.asset(
-                        'assets/practice.png',
+                        AppAssets.practice,
                         width: imageSize,
                         height: imageSize,
                         fit: BoxFit.contain,
@@ -7848,6 +8067,7 @@ class _NoGlowScrollBehavior extends ScrollBehavior {
 }
 
 class _CourseTile extends StatelessWidget {
+  final double width;
   final String title;
   final Color color;
   final IconData icon;
@@ -7856,6 +8076,7 @@ class _CourseTile extends StatelessWidget {
   final VoidCallback onRemove;
 
   const _CourseTile({
+    required this.width,
     required this.title,
     required this.color,
     required this.icon,
@@ -7866,26 +8087,27 @@ class _CourseTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final iconBoxHeight = width * 0.62;
     return SizedBox(
-      width: 72,
+      width: width,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           GestureDetector(
             onTap: onTap,
             child: Container(
-              width: 72,
-              height: 40,
+              width: width,
+              height: iconBoxHeight,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [color.withOpacity(0.98), color.withOpacity(0.82)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: selected ? fblaGold : Colors.white12,
-                  width: selected ? 1.6 : 1,
+                  width: selected ? 2 : 1,
                 ),
               ),
               clipBehavior: Clip.antiAlias,
@@ -7893,30 +8115,34 @@ class _CourseTile extends StatelessWidget {
                 children: [
                   Positioned.fill(
                     child: Center(
-                      child: Icon(icon, color: Colors.white, size: 34),
+                      child: Icon(
+                        icon,
+                        color: Colors.white,
+                        size: (iconBoxHeight * 0.48).clamp(36.0, 48.0),
+                      ),
                     ),
                   ),
                   if (selected)
                     const Positioned(
-                      bottom: 2,
-                      left: 2,
+                      bottom: 6,
+                      left: 6,
                       child:
-                          Icon(Icons.check_circle, color: fblaGold, size: 13),
+                          Icon(Icons.check_circle, color: fblaGold, size: 18),
                     ),
                   Positioned(
-                    top: 2,
-                    right: 2,
+                    top: 6,
+                    right: 6,
                     child: GestureDetector(
                       onTap: onRemove,
                       child: Container(
-                        width: 17,
-                        height: 17,
+                        width: 22,
+                        height: 22,
                         decoration: const BoxDecoration(
                           color: Colors.black45,
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(Icons.close,
-                            size: 10, color: Colors.white),
+                            size: 13, color: Colors.white),
                       ),
                     ),
                   ),
@@ -7924,17 +8150,17 @@ class _CourseTile extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 8),
           Text(
             title,
             textAlign: TextAlign.center,
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 10,
-              height: 1.0,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+              height: 1.2,
             ),
           ),
         ],
@@ -7944,48 +8170,50 @@ class _CourseTile extends StatelessWidget {
 }
 
 class _AddCourseTile extends StatelessWidget {
+  final double width;
   final VoidCallback onTap;
 
-  const _AddCourseTile({required this.onTap});
+  const _AddCourseTile({
+    required this.width,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final iconBoxHeight = width * 0.62;
     return SizedBox(
-      width: 72,
+      width: width,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           GestureDetector(
             onTap: onTap,
             child: Container(
-              width: 72,
-              height: 40,
+              width: width,
+              height: iconBoxHeight,
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.white24),
               ),
-              child: const Column(
-                children: [
-                  SizedBox(height: 4),
-                  Expanded(
-                    child: Center(
-                      child: Icon(Icons.add, color: Colors.white70, size: 18),
-                    ),
-                  ),
-                ],
+              child: Center(
+                child: Icon(
+                  Icons.add_rounded,
+                  color: Colors.white70,
+                  size: (iconBoxHeight * 0.34).clamp(28.0, 36.0),
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 1),
+          const SizedBox(height: 8),
           const Text(
-            'Add',
+            'Add Course',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white70,
-              fontWeight: FontWeight.w700,
-              fontSize: 9,
-              height: 1.0,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+              height: 1.2,
             ),
           ),
         ],
@@ -8261,7 +8489,7 @@ class MobileAppDevGuidelinesScreen extends StatelessWidget {
         backgroundColor: fblaBlue,
         foregroundColor: Colors.white,
       ),
-      body: SfPdfViewer.asset('assets/Mobile-Application-Development.pdf'),
+      body: SfPdfViewer.asset(AppAssets.mobileAppDevPdf),
     );
   }
 }
@@ -8552,7 +8780,7 @@ class _CybersecurityGuidelinesPdfScreen extends StatelessWidget {
         backgroundColor: fblaBlue,
         foregroundColor: Colors.white,
       ),
-      body: SfPdfViewer.asset('assets/Cybersecurity.pdf'),
+      body: SfPdfViewer.asset(AppAssets.cybersecurityPdf),
     );
   }
 }

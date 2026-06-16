@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../constants/app_assets.dart';
 import '../main.dart';
 import '../services/firebase_service.dart';
 import '../utils/validators.dart';
@@ -347,7 +348,7 @@ class _LoginScreenState extends State<LoginScreen>
                 child: Transform.rotate(
                   angle: 0.18,
                   child: Image.asset(
-                    'assets/fbla_logo.png',
+                    AppAssets.fblaLogo,
                     width: 320,
                     fit: BoxFit.contain,
                   ),
@@ -623,13 +624,13 @@ class _LoginScreenState extends State<LoginScreen>
               0, 0, 0, 0, 255, //
               0, 0, 0, 1, 0, //
             ]),
-            child: Image.asset('assets/fbla_logo.png', fit: BoxFit.contain),
+            child: Image.asset(AppAssets.fblaLogo, fit: BoxFit.contain),
           ),
           // Overlay: original colors, clipped to just the triangle emblem so
           // only the swoosh keeps its color while the lettering stays white.
           ClipRect(
             clipper: _EmblemClipper(),
-            child: Image.asset('assets/fbla_logo.png', fit: BoxFit.contain),
+            child: Image.asset(AppAssets.fblaLogo, fit: BoxFit.contain),
           ),
         ],
       ),

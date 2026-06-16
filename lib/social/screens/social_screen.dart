@@ -11,6 +11,7 @@ import '../../main.dart'
         fblaLightPrimaryText;
 import '../../models/video_model.dart';
 import '../../screens/find_members_screen.dart';
+import '../../widgets/friend_picker_sheet.dart';
 import '../../screens/instagram_feed_screen.dart';
 import '../../screens/video_player_screen.dart';
 import '../../services/firebase_service.dart';
@@ -352,6 +353,9 @@ class _SocialScreenState extends State<SocialScreen> {
                       onWave: item.blueWave != null
                           ? () => social.toggleWave(item.blueWave!.id)
                           : null,
+                      onShare: item.blueWave != null
+                          ? () => _shareBlueWavePost(context, item.blueWave!)
+                          : null,
                       onOpen: () => _openFeedItem(context, item, isDark),
                       onTrackView: () => social.trackView(item),
                     );
@@ -433,6 +437,63 @@ class _SocialScreenState extends State<SocialScreen> {
       default:
         break;
     }
+  }
+
+  Future<void> _shareBlueWavePost(
+    BuildContext context,
+    BlueWavePostData post,
+  ) async {
+    final app = context.read<AppState>();
+    final userId = app.firebaseUser?.uid;
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sign in to share posts with friends.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final friends = await FirebaseService.getFriendsForUser(userId);
+    if (!context.mounted) return;
+
+    final picked = await FriendPickerSheet.show(
+      context,
+      friends: friends,
+      title: 'Share with Friends',
+      confirmLabel: 'Send',
+    );
+    if (picked == null || picked.isEmpty || !context.mounted) return;
+
+    final payload = {
+      'postId': post.id,
+      'postKind': post.kind.name,
+      'postText': post.text,
+      if (post.videoUrl != null && post.videoUrl!.isNotEmpty)
+        'postVideoUrl': post.videoUrl,
+    };
+
+    for (final friend in picked) {
+      final friendId = (friend['id'] ?? '').toString();
+      if (friendId.isEmpty) continue;
+      await FirebaseService.sendPostShareMessage(
+        fromUserId: userId,
+        toUserId: friendId,
+        fromUserName: app.resolvedDisplayName,
+        postPayload: payload,
+      );
+    }
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Shared with ${picked.length} friend${picked.length == 1 ? '' : 's'} in chat.',
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _openPlatform(SocialPlatformLink platform) async {
@@ -863,6 +924,7 @@ class _FeedItemBuilder extends StatefulWidget {
   final bool isDark;
   final bool hasWaved;
   final VoidCallback? onWave;
+  final VoidCallback? onShare;
   final VoidCallback onOpen;
   final VoidCallback onTrackView;
 
@@ -873,6 +935,7 @@ class _FeedItemBuilder extends StatefulWidget {
     required this.onOpen,
     required this.onTrackView,
     this.onWave,
+    this.onShare,
   });
 
   @override
@@ -912,6 +975,7 @@ class _FeedItemBuilderState extends State<_FeedItemBuilder> {
           isDark: widget.isDark,
           hasWaved: widget.hasWaved,
           onWave: widget.onWave ?? () {},
+          onShare: widget.onShare,
           onAuthorTap: widget.onOpen,
         );
       case FeedItemKind.instagramPost:
