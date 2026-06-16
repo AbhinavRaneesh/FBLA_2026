@@ -1,11 +1,15 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../main.dart';
+import '../models/school.dart';
 import '../services/firebase_service.dart';
+import '../services/school_search_service.dart';
 import '../utils/validators.dart';
+import '../widgets/school_autocomplete_field.dart';
 import 'terms_conditions_screen.dart';
 
 // Shared design tokens with the login screen so the two pages read as siblings.
@@ -64,6 +68,8 @@ class _SignupScreenState extends State<SignupScreen>
   ];
 
   String? _selectedRole;
+  String? _selectedState = 'UT';
+  School? _selectedSchool;
   bool _obscure = true;
   bool _obscureConfirm = true;
   bool _isLoading = false;
@@ -105,6 +111,7 @@ class _SignupScreenState extends State<SignupScreen>
       node.addListener(() => setState(() {}));
     }
     _animationController.forward();
+    unawaited(SchoolSearchService.instance.prefetchState('UT'));
   }
 
   @override
@@ -141,8 +148,19 @@ class _SignupScreenState extends State<SignupScreen>
         _showError('Please select a role');
         return;
       }
-      if (_schoolController.text.trim().isEmpty) {
-        _showError('Please select your school');
+      if (_selectedState == null) {
+        _showError('Please select your state');
+        return;
+      }
+      if (!SchoolSearchService.instance.isStateSupported(_selectedState!)) {
+        _showError(
+          'School search is only available for Utah (UT) right now. '
+          'Select Utah to find your school.',
+        );
+        return;
+      }
+      if (_selectedSchool == null) {
+        _showError('Please choose your school from the list');
         return;
       }
     }
@@ -175,7 +193,7 @@ class _SignupScreenState extends State<SignupScreen>
       name: name,
       email: email,
       password: _passwordController.text,
-      school: _schoolController.text.trim(),
+      school: _selectedSchool!.name,
       role: _selectedRole ?? 'Student',
     );
     await app.login(email, name, role: _selectedRole ?? 'Student', grade: '');
@@ -235,7 +253,10 @@ class _SignupScreenState extends State<SignupScreen>
           name: fullName,
           email: user.email ?? _emailController.text.trim(),
           chapter: null,
-          school: _schoolController.text.trim(),
+          school: _selectedSchool!.name,
+          schoolId: _selectedSchool!.id,
+          schoolCity: _selectedSchool!.city,
+          schoolState: _selectedSchool!.state,
           officerPosition: null,
           biography: null,
           points: 0,
@@ -713,18 +734,30 @@ class _SignupScreenState extends State<SignupScreen>
               child: _buildRoleOption(role, _selectedRole == role),
             )),
         const SizedBox(height: 4),
+        _buildFieldLabel('State'),
+        const SizedBox(height: 8),
+        _buildStateDropdown(),
+        const SizedBox(height: 6),
+        Text(
+          'School search is available for Utah (UT) only right now.',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.48),
+            fontSize: 11.5,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 14),
         _buildFieldLabel('Select your school'),
         const SizedBox(height: 8),
-        _buildBareField(
+        SchoolAutocompleteField(
+          stateAbbr: _selectedState,
           controller: _schoolController,
           focusNode: _schoolFocus,
-          hint: 'Search school name',
-          icon: Icons.apartment_rounded,
-          suffixIcon: Icon(
-            Icons.search_rounded,
-            color: Colors.white.withValues(alpha: 0.45),
-            size: 20,
-          ),
+          selectedSchool: _selectedSchool,
+          accentColor: _accentBlue,
+          onSchoolChanged: (school) {
+            setState(() => _selectedSchool = school);
+          },
         ),
         const SizedBox(height: 22),
         _buildGoldButton(onTap: _nextStep, label: 'Continue'),
@@ -776,6 +809,65 @@ class _SignupScreenState extends State<SignupScreen>
           isLoading: _isLoading,
         ),
       ],
+    );
+  }
+
+  Widget _buildStateDropdown() {
+    final focused = _schoolFocus.hasFocus;
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: Colors.white.withValues(alpha: 0.04),
+        border: Border.all(
+          color: focused
+              ? _accentBlue.withValues(alpha: 0.9)
+              : Colors.white.withValues(alpha: 0.10),
+        ),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedState,
+          isExpanded: true,
+          hint: Text(
+            'Choose your state',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.45),
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          icon: Icon(
+            Icons.expand_more_rounded,
+            color: Colors.white.withValues(alpha: 0.55),
+          ),
+          dropdownColor: const Color(0xFF0E2A56),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+          items: SchoolSearchService.stateAbbreviations
+              .map(
+                (state) => DropdownMenuItem<String>(
+                  value: state,
+                  child: Text(SchoolSearchService.stateLabel(state)),
+                ),
+              )
+              .toList(),
+          onChanged: (value) {
+            setState(() {
+              _selectedState = value;
+              _selectedSchool = null;
+              _schoolController.clear();
+            });
+            if (value == 'UT') {
+              unawaited(SchoolSearchService.instance.prefetchState('UT'));
+            }
+          },
+        ),
+      ),
     );
   }
 

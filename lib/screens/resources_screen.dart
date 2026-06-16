@@ -1105,9 +1105,10 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
         widget.completedLevels.isEmpty ? 0 : widget.completedLevels.reduce(max);
     final highestCompleted = min(rawHighestCompleted, 1);
 
-    const nodeSize = 96.0;
-    const vSpacing = 128.0;
-    final totalHeight = vSpacing * count + 48;
+    const desktopWidth = 112.0;
+    const desktopHeight = 98.0;
+    const vSpacing = 148.0;
+    final totalHeight = vSpacing * count + 56;
 
     return ScrollConfiguration(
       behavior: _NoGlowScrollBehavior(),
@@ -1117,12 +1118,12 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
           builder: (context, constraints) {
             final width = constraints.maxWidth;
             final centerX = width / 2;
-            final amp = (width / 2 - nodeSize / 2 - 6) * 0.66;
+            final amp = (width / 2 - desktopWidth / 2 - 4) * 0.9;
             final centers = <Offset>[
               for (int i = 0; i < count; i++)
                 Offset(
-                  centerX + sin(i * 0.9) * amp,
-                  28 + vSpacing * i + nodeSize / 2,
+                  centerX + sin(i * 0.85) * amp,
+                  32 + vSpacing * i + desktopHeight / 2,
                 ),
             ];
             final children = <Widget>[
@@ -1148,7 +1149,7 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
               children.add(
                 Positioned(
                   left: promptLeft,
-                  top: firstCenter.dy + nodeSize / 2 - 2,
+                  top: firstCenter.dy + desktopHeight / 2 + 4,
                   width: promptWidth,
                   child: _LevelStartPrompt(
                     onStart: () => _startLevelLesson(1),
@@ -1169,7 +1170,8 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
 
   List<Widget> _nodeWidgets(
       int i, Offset c, _CyberLevel level, int highestCompleted) {
-    const nodeSize = 96.0;
+    const desktopWidth = 112.0;
+    const desktopHeight = 98.0;
     final levelNum = i + 1;
     final isLevelTwoLocked = levelNum == 2;
     final isCompleted =
@@ -1188,8 +1190,8 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
         status != _LevelStatus.locked;
     return [
       Positioned(
-        left: c.dx - nodeSize / 2,
-        top: c.dy - nodeSize / 2,
+        left: c.dx - desktopWidth / 2,
+        top: c.dy - desktopHeight / 2,
         child: _LevelNode(
           level: levelNum,
           color: widget.color,
@@ -1199,9 +1201,9 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
       ),
       if (!showStartPrompt)
         Positioned(
-          left: c.dx - 70,
-          top: c.dy + nodeSize / 2 - 8,
-          width: 140,
+          left: c.dx - 78,
+          top: c.dy + desktopHeight / 2 + 6,
+          width: 156,
           child: Text(
             level.title,
             textAlign: TextAlign.center,
@@ -1209,17 +1211,17 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color:
-                  status == _LevelStatus.locked ? Colors.white38 : Colors.white,
-              fontSize: 11.5,
-              fontWeight: FontWeight.w700,
+                  status == _LevelStatus.locked ? Colors.white38 : Colors.white70,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
               height: 1.15,
             ),
           ),
         ),
       if (isActive)
         Positioned(
-          left: c.dx - 32,
-          top: c.dy - nodeSize / 2 - 18,
+          left: c.dx - 34,
+          top: c.dy - desktopHeight / 2 - 22,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
             decoration: BoxDecoration(
@@ -6182,23 +6184,30 @@ class _LevelNodeState extends State<_LevelNode>
   Widget build(BuildContext context) {
     final isActive = widget.status == _LevelStatus.active;
     final isCompleted = widget.status == _LevelStatus.completed;
+    final isLocked = widget.status == _LevelStatus.locked;
 
-    final bubbleGradient = isActive
-        ? LinearGradient(
-            colors: [fblaGold, const Color(0xFFFF8A65)],
+    final bezelColor = isActive
+        ? const Color(0xFF1A3358)
+        : isCompleted
+            ? const Color(0xFF1B3D2A)
+            : const Color(0xFF141E2E);
+
+    final screenGradient = isActive
+        ? const LinearGradient(
+            colors: [Color(0xFF102A4E), Color(0xFF1D4E89)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           )
         : isCompleted
             ? const LinearGradient(
-                colors: [Color(0xFF43A047), Color(0xFF81C784)],
+                colors: [Color(0xFF1B5E20), Color(0xFF43A047)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               )
             : LinearGradient(
                 colors: [
-                  Colors.white.withOpacity(0.08),
-                  Colors.white.withOpacity(0.05),
+                  Colors.white.withValues(alpha: 0.07),
+                  Colors.white.withValues(alpha: 0.03),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -6208,142 +6217,182 @@ class _LevelNodeState extends State<_LevelNode>
         ? fblaGold
         : isCompleted
             ? const Color(0xFF81C784)
-            : Colors.white12;
+            : Colors.white.withValues(alpha: 0.14);
 
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
         final pulse =
             isActive ? (0.5 + 0.5 * sin(_controller.value * pi * 2)) : 0.0;
-        final glowOpacity = isActive ? 0.32 + (pulse * 0.28) : 0.0;
-        final glowBlur = isActive ? 16 + (pulse * 7) : 0.0;
-        final glowSpread = isActive ? 0.4 + (pulse * 0.8) : 0.0;
-        final borderWidth = isActive ? 1.6 + (pulse * 0.9) : 0.9;
+        final glowOpacity = isActive ? 0.28 + (pulse * 0.24) : 0.0;
+        final glowBlur = isActive ? 18 + (pulse * 8) : 0.0;
+        final borderWidth = isActive ? 2.0 + (pulse * 0.6) : 1.2;
 
         return SizedBox(
-          width: 96,
-          height: 96,
+          width: 112,
+          height: 98,
           child: Stack(
             clipBehavior: Clip.none,
-            alignment: Alignment.center,
+            alignment: Alignment.topCenter,
             children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: bubbleGradient,
-                  border: Border.all(color: borderColor, width: borderWidth),
-                  boxShadow: isActive
-                      ? [
-                          BoxShadow(
-                            color: fblaGold.withOpacity(glowOpacity),
-                            blurRadius: glowBlur,
-                            spreadRadius: glowSpread,
-                            offset: const Offset(0, 6),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Center(
-                  child: Stack(
-                    alignment: Alignment.center,
-                    clipBehavior: Clip.none,
-                    children: [
-                      if (isActive)
-                        Container(
-                          width: 70,
-                          height: 70,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white
-                                  .withOpacity(0.18 + (pulse * 0.18)),
-                              width: 1.0 + (pulse * 0.4),
-                            ),
-                          ),
-                        ),
-                      Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.2),
-                            width: 1.0,
-                          ),
-                        ),
-                      ),
-                      if (isActive)
-                        Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.45),
-                              width: 1.0,
-                            ),
-                          ),
-                        ),
-                      if (isCompleted || isActive)
-                        Text(
-                          '${widget.level}',
-                          style: TextStyle(
-                            color: isActive ? fblaNavy : Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        )
-                      else
-                        Text(
-                          '${widget.level}',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              if (!isActive && !isCompleted)
-                Positioned(
-                  right: 1,
-                  bottom: 1,
-                  child: Container(
-                    width: 24,
-                    height: 24,
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 108,
+                    padding: const EdgeInsets.fromLTRB(7, 7, 7, 5),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0A1420),
-                      shape: BoxShape.circle,
+                      color: bezelColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: borderColor, width: borderWidth),
+                      boxShadow: [
+                        if (isActive)
+                          BoxShadow(
+                            color: fblaGold.withValues(alpha: glowOpacity),
+                            blurRadius: glowBlur,
+                            spreadRadius: 1,
+                            offset: const Offset(0, 6),
+                          )
+                        else
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.28),
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
+                          ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        AspectRatio(
+                          aspectRatio: 1.45,
+                          child: Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              gradient: screenGradient,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: isActive
+                                    ? fblaGold.withValues(alpha: 0.35)
+                                    : Colors.white.withValues(alpha: 0.08),
+                              ),
+                            ),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                if (isActive)
+                                  Positioned(
+                                    top: 6,
+                                    left: 8,
+                                    right: 8,
+                                    child: Row(
+                                      children: [
+                                        _screenDot(fblaGold),
+                                        const SizedBox(width: 4),
+                                        _screenDot(
+                                            Colors.white.withValues(alpha: 0.35)),
+                                        const SizedBox(width: 4),
+                                        _screenDot(
+                                            Colors.white.withValues(alpha: 0.35)),
+                                      ],
+                                    ),
+                                  ),
+                                if (isLocked)
+                                  Icon(
+                                    Icons.lock_rounded,
+                                    color: Colors.white.withValues(alpha: 0.55),
+                                    size: 26,
+                                  )
+                                else
+                                  Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        'LEVEL',
+                                        style: TextStyle(
+                                          color: isActive
+                                              ? fblaGold.withValues(alpha: 0.9)
+                                              : Colors.white
+                                                  .withValues(alpha: 0.72),
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 1.1,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '${widget.level}',
+                                        style: TextStyle(
+                                          color: isActive
+                                              ? Colors.white
+                                              : isCompleted
+                                                  ? Colors.white
+                                                  : Colors.white
+                                                      .withValues(alpha: 0.9),
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.w900,
+                                          height: 1,
+                                        ),
+                                      ),
+                                      if (isCompleted)
+                                        Padding(
+                                          padding: const EdgeInsets.only(top: 2),
+                                          child: Icon(
+                                            Icons.check_circle_rounded,
+                                            color: Colors.white
+                                                .withValues(alpha: 0.92),
+                                            size: 14,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Container(
+                          width: 18,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: bezelColor.withValues(alpha: 0.95),
+                            borderRadius: BorderRadius.circular(2),
+                            border: Border.all(
+                              color: borderColor.withValues(alpha: 0.65),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    width: 52,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: bezelColor,
+                      borderRadius: BorderRadius.circular(3),
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.18),
-                        width: 1,
+                        color: borderColor.withValues(alpha: 0.55),
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.22),
-                          blurRadius: 6,
+                          color: Colors.black.withValues(alpha: 0.22),
+                          blurRadius: 4,
                           offset: const Offset(0, 2),
                         ),
                       ],
                     ),
-                    child: const Icon(
-                      Icons.lock_rounded,
-                      color: Colors.white,
-                      size: 12,
-                    ),
                   ),
-                ),
+                ],
+              ),
               if (widget.onTap != null)
                 Positioned.fill(
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: BorderRadius.circular(14),
                       onTap: widget.onTap,
+                      splashColor: fblaGold.withValues(alpha: 0.18),
+                      highlightColor: Colors.white.withValues(alpha: 0.06),
                       child: const SizedBox.expand(),
                     ),
                   ),
@@ -6352,6 +6401,17 @@ class _LevelNodeState extends State<_LevelNode>
           ),
         );
       },
+    );
+  }
+
+  Widget _screenDot(Color color) {
+    return Container(
+      width: 5,
+      height: 5,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+      ),
     );
   }
 }
@@ -9614,12 +9674,12 @@ class _JourneyPathPainter extends CustomPainter {
       // segment i connects level (i+1) -> (i+2); "reached" if level i+1 done
       final reached = (i + 1) <= highestUnlocked;
       final paint = Paint()
-        ..strokeWidth = 6
+        ..strokeWidth = 4
         ..strokeCap = StrokeCap.round
         ..style = PaintingStyle.stroke
         ..color = reached
-            ? color.withValues(alpha: 0.85)
-            : Colors.white.withValues(alpha: 0.12);
+            ? color.withValues(alpha: 0.72)
+            : Colors.white.withValues(alpha: 0.10);
 
       if (reached) {
         canvas.drawLine(a, b, paint);

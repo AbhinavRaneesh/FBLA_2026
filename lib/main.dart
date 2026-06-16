@@ -1537,31 +1537,8 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
     return Icon(icon, size: 28);
   }
 
-  Widget _activeNavIcon(IconData icon, bool isDark) {
-    return Container(
-      width: 58,
-      height: 34,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: isDark ? fblaGold.withValues(alpha: 0.18) : fblaLightSelectedNav,
-        borderRadius: BorderRadius.circular(14),
-        border:
-            isDark ? Border.all(color: fblaGold.withValues(alpha: 0.40)) : null,
-        boxShadow: isDark
-            ? [
-                BoxShadow(
-                  color: fblaGold.withValues(alpha: 0.18),
-                  blurRadius: 12,
-                ),
-              ]
-            : null,
-      ),
-      child: Icon(
-        icon,
-        size: 24,
-        color: isDark ? fblaGold : fblaNavy,
-      ),
-    );
+  Widget _activeNavIcon(IconData icon) {
+    return Icon(icon, size: 28, color: fblaGold);
   }
 
   @override
@@ -1623,34 +1600,34 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
             unselectedFontSize: 11,
             selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
             elevation: 0,
-            selectedItemColor: isDark ? fblaGold : fblaNavy,
+            selectedItemColor: fblaGold,
             unselectedItemColor:
                 isDark ? Colors.white60 : fblaLightDisabledText,
             backgroundColor: Colors.transparent,
             items: [
               BottomNavigationBarItem(
                 icon: _navIcon(Icons.home_outlined),
-                activeIcon: _activeNavIcon(Icons.home_rounded, isDark),
+                activeIcon: _activeNavIcon(Icons.home_rounded),
                 label: 'Home',
               ),
               BottomNavigationBarItem(
                 icon: _navIcon(Icons.event_outlined),
-                activeIcon: _activeNavIcon(Icons.event_rounded, isDark),
+                activeIcon: _activeNavIcon(Icons.event_rounded),
                 label: 'Events',
               ),
               BottomNavigationBarItem(
                 icon: _navIcon(Icons.school_outlined),
-                activeIcon: _activeNavIcon(Icons.school_rounded, isDark),
+                activeIcon: _activeNavIcon(Icons.school_rounded),
                 label: 'Resources',
               ),
               BottomNavigationBarItem(
                 icon: _navIcon(Icons.people_outline_rounded),
-                activeIcon: _activeNavIcon(Icons.people_alt_rounded, isDark),
+                activeIcon: _activeNavIcon(Icons.people_alt_rounded),
                 label: 'Social',
               ),
               BottomNavigationBarItem(
                 icon: _navIcon(Icons.more_horiz),
-                activeIcon: _activeNavIcon(Icons.more_horiz_rounded, isDark),
+                activeIcon: _activeNavIcon(Icons.more_horiz_rounded),
                 label: 'More',
               ),
             ],
@@ -1708,8 +1685,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  bool _nlcSparkleBright = false;
-
   Future<void> _refreshHome() async {
     setState(() {});
   }
@@ -1889,32 +1864,24 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Row(
         children: [
-          Hero(
-            tag: 'fbla_logo',
-            child: Container(
-              width: 104,
-              height: 34,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.96),
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.12),
-                    blurRadius: 12,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Transform.scale(
-                  scale: 2,
-                  child: Image.asset(
-                    'assets/fbla_logo.png',
-                    width: 84,
-                    height: 28,
-                    fit: BoxFit.contain,
-                  ),
-                ),
+          ShaderMask(
+            shaderCallback: (rect) => const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFFFFD75E),
+                fblaGold,
+                Color(0xFFE09A00),
+              ],
+            ).createShader(rect),
+            child: const Text(
+              'FBLA',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 30,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2.0,
+                height: 1.0,
               ),
             ),
           ),
@@ -1986,19 +1953,6 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(28),
         child: Stack(
           children: [
-            Positioned.fill(child: _buildNlcSparkleLayer(isDark)),
-            Positioned(
-              right: -46,
-              top: -52,
-              child: Container(
-                width: 150,
-                height: 150,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: fblaGold.withValues(alpha: isDark ? 0.14 : 0.20),
-                ),
-              ),
-            ),
             Positioned(
               left: -34,
               bottom: -44,
@@ -2255,88 +2209,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildNlcSparkleLayer(bool isDark) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(
-        begin: _nlcSparkleBright ? 0.35 : 1.0,
-        end: _nlcSparkleBright ? 1.0 : 0.35,
-      ),
-      duration: const Duration(milliseconds: 1500),
-      curve: Curves.easeInOut,
-      onEnd: () {
-        if (mounted) {
-          setState(() => _nlcSparkleBright = !_nlcSparkleBright);
-        }
-      },
-      builder: (context, glow, _) {
-        final sparkleColor = isDark ? fblaGold : const Color(0xFFD69E2E);
-        return Stack(
-          children: [
-            _buildNlcSparkle(
-              right: 22,
-              top: 22,
-              size: 18,
-              opacity: glow,
-              color: sparkleColor,
-            ),
-            _buildNlcSparkle(
-              left: 28,
-              top: 78,
-              size: 12,
-              opacity: 1.15 - glow,
-              color: Colors.white,
-            ),
-            _buildNlcSparkle(
-              right: 126,
-              bottom: 44,
-              size: 14,
-              opacity: glow * 0.82,
-              color: sparkleColor,
-            ),
-            _buildNlcSparkle(
-              left: 124,
-              bottom: 28,
-              size: 10,
-              opacity: 1.05 - glow,
-              color: isDark ? Colors.white : fblaBlue,
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildNlcSparkle({
-    double? left,
-    double? right,
-    double? top,
-    double? bottom,
-    required double size,
-    required double opacity,
-    required Color color,
-  }) {
-    return Positioned(
-      left: left,
-      right: right,
-      top: top,
-      bottom: bottom,
-      child: Opacity(
-        opacity: opacity.clamp(0.0, 1.0).toDouble(),
-        child: Icon(
-          Icons.auto_awesome,
-          color: color,
-          size: size,
-          shadows: [
-            Shadow(
-              color: color.withValues(alpha: 0.38),
-              blurRadius: 12,
-            ),
-          ],
-        ),
       ),
     );
   }
