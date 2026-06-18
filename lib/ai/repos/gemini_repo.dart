@@ -8,9 +8,13 @@ import '../utils/constants.dart';
 import 'firebase_ai_repo.dart';
 
 class GeminiRepo {
-  static const String _apiBase =
-      'https://generativelanguage.googleapis.com/v1beta';
+  static const String _openRouterUrl =
+      'https://openrouter.ai/api/v1/chat/completions';
   static const int _maxHistoryMessages = 20;
+  static const String _systemPrompt =
+      'You are a helpful AI assistant for the FBLA Member App and FBLA students. '
+      'Help users navigate the app and answer FBLA questions. Keep answers practical and concise. '
+      'For emphasis, wrap important words in **double asterisks** — the app renders them as bold text.';
 
   static List<String> _candidateModels() {
     final candidates = <String>[];
@@ -22,16 +26,15 @@ class GeminiRepo {
       }
     }
 
-    addModel(geminiModel);
-    addModel('gemini-2.5-flash-lite');
-    addModel('gemini-2.5-flash');
-    addModel('gemini-2.0-flash');
+    addModel(openRouterModel);
+    addModel('meta-llama/llama-3.1-8b-instruct');
+    addModel('google/gemini-2.5-flash');
 
     return candidates;
   }
 
-  /// Production path: Firebase Cloud Function (secret API key).
-  /// Dev fallback: direct Gemini API when `GEMINI_API_KEY` is passed via --dart-define.
+  /// Production path: Firebase Cloud Function (OpenRouter key in secrets).
+  /// Dev fallback: direct OpenRouter when `OPENROUTER_API_KEY` is passed via --dart-define.
   static Future<String> chatTextGenerationRepo(
     List<ChatMessageModel> previousMessages,
   ) async {
@@ -41,26 +44,26 @@ class GeminiRepo {
         return viaFirebase;
       }
     } catch (e) {
-      if (geminiApiKey.trim().isEmpty) {
+      if (openRouterApiKey.trim().isEmpty) {
         return 'AI assistant error: $e';
       }
       if (kDebugMode) {
-        print('Firebase AI failed, falling back to local Gemini key: $e');
+        print('Firebase AI failed, falling back to local OpenRouter key: $e');
       }
     }
 
-    if (geminiApiKey.trim().isEmpty) {
-      return 'Sign in to use the AI assistant. Your chapter stores the Gemini key securely in Firebase.';
+    if (openRouterApiKey.trim().isEmpty) {
+      return 'Sign in to use the AI assistant. Your chapter stores the OpenRouter key securely in Firebase.';
     }
 
     if (kIsWeb) {
       return 'Sign in to use the AI assistant on web, or configure the Firebase chat function.';
     }
 
-    return _chatDirectGemini(previousMessages);
+    return _chatDirectOpenRouter(previousMessages);
   }
 
-  static Future<String> _chatDirectGemini(
+  static Future<String> _chatDirectOpenRouter(
     List<ChatMessageModel> previousMessages,
   ) async {
     final trimmed = previousMessages.length > _maxHistoryMessages
@@ -69,133 +72,57 @@ class GeminiRepo {
           )
         : previousMessages;
 
-    final turns = <Map<String, String>>[];
+    final messages = <Map<String, String>>[
+      {'role': 'system', 'content': _systemPrompt},
+    ];
     for (final message in trimmed) {
-      final role = message.role == 'assistant' ? 'model' : 'user';
-      turns.add({'role': role, 'text': message.content});
+      final role = message.role == 'assistant' ? 'assistant' : 'user';
+      messages.add({'role': role, 'content': message.content});
     }
 
-    final contents = _normalizeGeminiTurns(turns);
-    if (contents.isEmpty) {
-      contents.add({
-        'role': 'user',
-        'parts': [
-          {'text': 'Hello'}
-        ],
-      });
-    }
-
-    final requestBody = {
-      'systemInstruction': {
-        'parts': [
-          {
-            'text':
-                'You are a helpful AI assistant for the FBLA Member App and FBLA students. Help users navigate the app and answer FBLA questions. Keep answers practical and concise.',
-          }
-        ],
-      },
-      'contents': contents,
-      'generationConfig': {
-        'temperature': 0.6,
-        'maxOutputTokens': 768,
-      },
-    };
     String? lastError;
 
     for (final model in _candidateModels()) {
-      final endpoint = '$_apiBase/models/$model:generateContent';
       final response = await http
           .post(
-            Uri.parse(endpoint),
+            Uri.parse(_openRouterUrl),
             headers: {
               'Content-Type': 'application/json',
-              'x-goog-api-key': geminiApiKey,
+              'Authorization': 'Bearer $openRouterApiKey',
+              'HTTP-Referer': 'https://fbla-2026-kushal.web.app',
+              'X-Title': 'FBLA Member App',
             },
-            body: jsonEncode(requestBody),
+            body: jsonEncode({
+              'model': model,
+              'messages': messages,
+              'temperature': 0.6,
+              'max_tokens': 768,
+            }),
           )
           .timeout(const Duration(seconds: 45));
 
       if (response.statusCode != 200) {
-        lastError = _parseGeminiFailure(model, response);
+        lastError = _parseOpenRouterFailure(model, response);
         continue;
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final candidates = data['candidates'] as List<dynamic>?;
-      if (candidates != null && candidates.isNotEmpty) {
-        final firstCandidate = candidates.first;
-        if (firstCandidate is Map<String, dynamic>) {
-          final finishReason = firstCandidate['finishReason']?.toString();
-          final content = firstCandidate['content'];
-          if (content is Map<String, dynamic>) {
-            final parts = content['parts'] as List<dynamic>?;
-            if (parts != null && parts.isNotEmpty) {
-              final buffer = StringBuffer();
-              for (final part in parts) {
-                if (part is Map<String, dynamic>) {
-                  final text = part['text']?.toString();
-                  if (text != null && text.trim().isNotEmpty) {
-                    if (buffer.isNotEmpty) {
-                      buffer.writeln();
-                    }
-                    buffer.write(text.trim());
-                  }
-                }
-              }
-
-              final combined = buffer.toString().trim();
-              if (combined.isNotEmpty) {
-                if (finishReason == 'MAX_TOKENS') {
-                  return '$combined\n\n(Reply truncated by token limit. Ask "continue" for the rest.)';
-                }
-                return combined;
-              }
-            }
-          }
+      final text = data['choices']?[0]?['message']?['content']?.toString().trim();
+      if (text != null && text.isNotEmpty) {
+        final finishReason = data['choices']?[0]?['finish_reason']?.toString();
+        if (finishReason == 'length') {
+          return '$text\n\n(Reply truncated by token limit. Ask "continue" for the rest.)';
         }
+        return text;
       }
 
-      lastError = 'Gemini model "$model" returned no text content.';
+      lastError = 'OpenRouter model "$model" returned no text content.';
     }
 
-    return lastError ?? 'Gemini request failed.';
+    return lastError ?? 'OpenRouter request failed.';
   }
 
-  static List<Map<String, dynamic>> _normalizeGeminiTurns(
-    List<Map<String, String>> turns,
-  ) {
-    final merged = <Map<String, dynamic>>[];
-
-    for (final turn in turns) {
-      final role = turn['role']!;
-      final text = turn['text']!.trim();
-      if (text.isEmpty) continue;
-
-      if (merged.isNotEmpty && merged.last['role'] == role) {
-        final parts = merged.last['parts'] as List<dynamic>;
-        final current = parts.first as Map<String, dynamic>;
-        current['text'] = '${current['text']}\n\n$text';
-      } else {
-        merged.add({
-          'role': role,
-          'parts': [
-            {'text': text}
-          ],
-        });
-      }
-    }
-
-    while (merged.isNotEmpty && merged.first['role'] != 'user') {
-      merged.removeAt(0);
-    }
-    while (merged.isNotEmpty && merged.last['role'] != 'user') {
-      merged.removeLast();
-    }
-
-    return merged;
-  }
-
-  static String _parseGeminiFailure(String model, http.Response response) {
+  static String _parseOpenRouterFailure(String model, http.Response response) {
     try {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       final message = data['error']?['message']?.toString() ?? '';
@@ -204,11 +131,11 @@ class GeminiRepo {
         return 'The AI is temporarily busy (quota limit). Wait a minute and try again.';
       }
       if (message.isNotEmpty) {
-        return 'Gemini model "$model" failed: $message';
+        return 'OpenRouter model "$model" failed: $message';
       }
     } catch (_) {
       // ignore
     }
-    return 'Gemini model "$model" failed: HTTP ${response.statusCode}';
+    return 'OpenRouter model "$model" failed: HTTP ${response.statusCode}';
   }
 }

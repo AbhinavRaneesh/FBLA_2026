@@ -5,6 +5,7 @@ import '../ai/bloc/chat_bloc.dart';
 import '../ai/bloc/chat_event.dart';
 import '../ai/bloc/chat_state.dart';
 import '../ai/models/chat_message_model.dart';
+import 'markdown_chat_text.dart';
 
 const fblaNavy = Color(0xFF00274D);
 const fblaGold = Color(0xFFFDB913);
@@ -333,8 +334,8 @@ class _AiChatPanelState extends State<AiChatPanel> {
                   color: chatBlueGlow.withValues(alpha: isUser ? 0.35 : 0.5),
                 ),
               ),
-              child: Text(
-                message.content,
+              child: MarkdownChatText(
+                text: message.content,
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 14,

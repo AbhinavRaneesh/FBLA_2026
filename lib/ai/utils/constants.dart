@@ -15,14 +15,20 @@ const String ollamaHostIp = String.fromEnvironment(
   defaultValue: '',
 );
 
-String get geminiApiKey =>
-    const String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
-
-String get geminiModel =>
-    const String.fromEnvironment(
-      'GEMINI_MODEL',
-      defaultValue: 'gemini-2.5-flash-lite',
+String get openRouterApiKey => const String.fromEnvironment(
+      'OPENROUTER_API_KEY',
+      defaultValue: '',
     );
+
+String get openRouterModel => const String.fromEnvironment(
+      'OPENROUTER_MODEL',
+      defaultValue: 'meta-llama/llama-3.1-8b-instruct',
+    );
+
+/// Legacy dart-define names still accepted for local dev.
+String get geminiApiKey => openRouterApiKey;
+
+String get geminiModel => openRouterModel;
 
 final List<String> apiEndpoints = [
   if (ollamaBaseUrl.isNotEmpty) "$ollamaBaseUrl/api/chat",

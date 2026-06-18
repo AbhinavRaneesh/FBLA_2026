@@ -21,17 +21,19 @@ function getDb() {
 }
 
 const discordBotToken = defineSecret("DISCORD_BOT_TOKEN");
-const geminiApiKey = defineSecret("GEMINI_API_KEY");
-const DEFAULT_GEMINI_MODELS = [
-  "gemini-2.5-flash-lite",
-  "gemini-2.5-flash",
-  "gemini-2.0-flash",
-];
+const openRouterApiKey = defineSecret("OPENROUTER_API_KEY");
+const legacyGeminiApiKey = defineSecret("GEMINI_API_KEY");
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+// Use the same model slug you test in Postman. Free :free models are rate-limited
+// from Cloud Functions, so default to a low-cost model that works server-side.
+const DEFAULT_OPENROUTER_MODEL = "meta-llama/llama-3.1-8b-instruct";
+const OPENROUTER_FALLBACK_MODELS = ["google/gemini-2.5-flash"];
 const FBLA_SYSTEM_PROMPT =
   "You are a helpful AI assistant for the FBLA Member App and FBLA (Future Business Leaders of America). " +
   "Help users navigate the app (Home, Events, Resources, Social/BlueWave, More), find features, " +
   "upload videos, share posts, save events, and use resources. Also help with competitions, " +
-  "leadership, chapter activities, business topics, and FBLA event prep. Keep answers practical and concise.";
+  "leadership, chapter activities, business topics, and FBLA event prep. Keep answers practical and concise. " +
+  "For emphasis, wrap important words in **double asterisks** — the app renders them as bold text.";
 
 const CHANNEL_ENV_BY_NAME = {
   announcements: "DISCORD_ANNOUNCEMENTS_CHANNEL_ID",
@@ -143,11 +145,11 @@ exports.postDiscordOutboxMessage = onDocumentCreated(
   },
 );
 
-/** Authenticated AI chat — Gemini API key stays in Firebase Secret Manager. */
+/** Authenticated AI chat — OpenRouter API key stays in Firebase Secret Manager. */
 exports.chatWithGemini = onCall(
   {
     region: "us-central1",
-    secrets: [geminiApiKey],
+    secrets: [openRouterApiKey, legacyGeminiApiKey],
     timeoutSeconds: 120,
     memory: "256MiB",
   },
@@ -159,11 +161,17 @@ exports.chatWithGemini = onCall(
       );
     }
 
-    const apiKey = cleanText(geminiApiKey.value());
+    const apiKey = resolveOpenRouterApiKey();
     if (!apiKey) {
       throw new HttpsError(
         "failed-precondition",
-        "Gemini API key is not configured. Run: .\\scripts\\set-gemini-secret.ps1",
+        "OpenRouter API key is not configured. Get a key at https://openrouter.ai/keys, save to assets/gemini.txt, then run: .\\scripts\\set-gemini-secret.ps1",
+      );
+    }
+    if (!apiKey.startsWith("sk-or")) {
+      throw new HttpsError(
+        "failed-precondition",
+        "OpenRouter API key must start with sk-or-v1. Get one at https://openrouter.ai/keys",
       );
     }
 
@@ -173,11 +181,11 @@ exports.chatWithGemini = onCall(
     }
 
     const model =
-      cleanText(process.env.GEMINI_MODEL) || DEFAULT_GEMINI_MODELS[0];
-    const modelsToTry = uniqueStrings([model, ...DEFAULT_GEMINI_MODELS]);
+      cleanText(process.env.OPENROUTER_MODEL) || DEFAULT_OPENROUTER_MODEL;
+    const modelsToTry = uniqueStrings([model, ...OPENROUTER_FALLBACK_MODELS]);
 
     try {
-      const text = await generateGeminiReply(apiKey, modelsToTry, rawMessages);
+      const text = await generateOpenRouterReply(apiKey, modelsToTry, rawMessages);
       logger.info("chatWithGemini success", {
         uid: request.auth.uid,
         model: text.model,
@@ -347,9 +355,21 @@ function uniqueStrings(values) {
   return result;
 }
 
-function toGeminiRequest(rawMessages) {
-  let systemText = FBLA_SYSTEM_PROMPT;
-  const turns = [];
+function resolveOpenRouterApiKey() {
+  const fromOpenRouter = cleanText(openRouterApiKey.value());
+  if (fromOpenRouter) return fromOpenRouter;
+
+  const fromLegacy = cleanText(legacyGeminiApiKey.value());
+  if (fromLegacy.startsWith("sk-or")) return fromLegacy;
+
+  return (
+    cleanText(process.env.OPENROUTER_API_KEY) ||
+    cleanText(process.env.GEMINI_API_KEY)
+  );
+}
+
+function toOpenRouterMessages(rawMessages) {
+  const messages = [{ role: "system", content: FBLA_SYSTEM_PROMPT }];
 
   for (const item of rawMessages) {
     if (!item || typeof item !== "object") continue;
@@ -358,62 +378,21 @@ function toGeminiRequest(rawMessages) {
     if (!content) continue;
 
     if (role === "system") {
-      systemText = `${systemText}\n\n${content}`;
+      messages[0].content += `\n\n${content}`;
       continue;
     }
 
-    const geminiRole =
-      role === "assistant" || role === "model" ? "model" : "user";
-    turns.push({ role: geminiRole, text: content });
+    const openAiRole =
+      role === "assistant" || role === "model" ? "assistant" : "user";
+    messages.push({ role: openAiRole, content });
   }
 
-  const contents = normalizeGeminiTurns(turns).slice(-20);
-  if (contents.length === 0) {
-    contents.push({
-      role: "user",
-      parts: [{ text: "Hello" }],
-    });
-  }
-
-  return {
-    systemInstruction: {
-      parts: [{ text: systemText }],
-    },
-    contents,
-    generationConfig: {
-      temperature: 0.6,
-      maxOutputTokens: 768,
-    },
-  };
+  const system = messages[0];
+  const history = messages.slice(1).slice(-20);
+  return [system, ...history];
 }
 
-function normalizeGeminiTurns(turns) {
-  const merged = [];
-
-  for (const turn of turns) {
-    const last = merged[merged.length - 1];
-    if (last && last.role === turn.role) {
-      last.parts[0].text += `\n\n${turn.text}`;
-      continue;
-    }
-
-    merged.push({
-      role: turn.role,
-      parts: [{ text: turn.text }],
-    });
-  }
-
-  while (merged.length > 0 && merged[0].role !== "user") {
-    merged.shift();
-  }
-  while (merged.length > 0 && merged[merged.length - 1].role !== "user") {
-    merged.pop();
-  }
-
-  return merged;
-}
-
-async function readGeminiError(response) {
+async function readOpenRouterError(response) {
   try {
     const data = await response.json();
     const message = cleanText(data?.error?.message);
@@ -424,102 +403,104 @@ async function readGeminiError(response) {
   return `HTTP ${response.status}`;
 }
 
-function buildGeminiHeaders(apiKey) {
-  const headers = { "Content-Type": "application/json" };
-  const token = cleanText(apiKey);
-  // AI Studio access tokens (Postman: Authorization Bearer) vs API keys (x-goog-api-key).
-  if (token.startsWith("AQ.") || token.startsWith("ya29.")) {
-    headers.Authorization = `Bearer ${token}`;
-  } else {
-    headers["x-goog-api-key"] = token;
-  }
-  return headers;
-}
-
-function friendlyGeminiError(status, message) {
+function friendlyOpenRouterError(status, message) {
   const lower = message.toLowerCase();
   if (
-    lower.includes("api key not found") ||
-    lower.includes("api key invalid") ||
-    lower.includes("invalid api key")
+    status === 401 ||
+    lower.includes("invalid api key") ||
+    lower.includes("unauthorized") ||
+    lower.includes("authentication")
   ) {
-    return "invalid API key — create a new key at https://aistudio.google.com/apikey and run: firebase functions:secrets:set GEMINI_API_KEY";
+    return "authentication failed — check your OpenRouter key at https://openrouter.ai/keys";
   }
-  if (status === 429 || lower.includes("quota") || lower.includes("rate limit")) {
-    return "quota limit reached";
+  if (status === 402 || lower.includes("insufficient credits")) {
+    return "OpenRouter credits needed — add credits at https://openrouter.ai/settings/credits";
+  }
+  if (status === 429 || lower.includes("rate limit") || lower.includes("rate-limited")) {
+    return message || "rate limit reached for this model";
+  }
+  if (lower.includes("quota")) {
+    return message || "quota limit reached for this model";
   }
   return message;
 }
 
-async function generateGeminiReply(apiKey, modelsToTry, rawMessages) {
-  const requestBody = toGeminiRequest(rawMessages);
+async function generateOpenRouterReply(apiKey, modelsToTry, rawMessages) {
+  const messages = toOpenRouterMessages(rawMessages);
   const errors = [];
 
   for (const model of modelsToTry) {
-    const endpoint =
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-
-    const response = await fetch(endpoint, {
+    const response = await fetch(OPENROUTER_API_URL, {
       method: "POST",
-      headers: buildGeminiHeaders(apiKey),
-      body: JSON.stringify(requestBody),
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://fbla-2026-kushal.web.app",
+        "X-Title": "FBLA Member App",
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.6,
+        max_tokens: 768,
+      }),
     });
 
     if (!response.ok) {
-      const detail = await readGeminiError(response);
-      const friendly = friendlyGeminiError(response.status, detail);
+      const detail = await readOpenRouterError(response);
+      const friendly = friendlyOpenRouterError(response.status, detail);
       errors.push(`${model}: ${friendly}`);
-      logger.warn("Gemini model failed", {
+      logger.warn("OpenRouter model failed", {
         model,
         status: response.status,
         detail,
       });
+      // Do not hammer fallbacks when the account/model is rate-limited.
+      if (response.status === 429 || response.status === 402) {
+        break;
+      }
       continue;
     }
 
     const data = await response.json();
-    const candidates = data.candidates;
-    if (!Array.isArray(candidates) || candidates.length === 0) {
-      errors.push(`${model}: returned no candidates`);
-      continue;
-    }
-
-    const firstCandidate = candidates[0] || {};
-    const parts = firstCandidate.content?.parts;
-    if (!Array.isArray(parts)) {
-      errors.push(`${model}: returned no content parts`);
-      continue;
-    }
-
-    const combined = parts
-      .map((part) => (part && typeof part.text === "string" ? part.text.trim() : ""))
-      .filter(Boolean)
-      .join("\n")
-      .trim();
-
-    if (!combined) {
+    const text = cleanText(data?.choices?.[0]?.message?.content);
+    if (!text) {
       errors.push(`${model}: returned empty text`);
       continue;
     }
 
-    if (firstCandidate.finishReason === "MAX_TOKENS") {
+    const finishReason = data?.choices?.[0]?.finish_reason;
+    if (finishReason === "length") {
       return {
-        reply: `${combined}\n\n(Reply truncated by token limit. Ask "continue" for the rest.)`,
+        reply: `${text}\n\n(Reply truncated by token limit. Ask "continue" for the rest.)`,
         model,
       };
     }
 
-    return { reply: combined, model };
+    return { reply: text, model };
   }
 
-  const quotaHit = errors.some((entry) => entry.includes("quota"));
-  if (quotaHit) {
+  const authHit = errors.some((entry) =>
+    entry.toLowerCase().includes("authentication"),
+  );
+  if (authHit) {
     throw new Error(
-      "The AI is temporarily busy (API quota limit). Wait a minute and try again.",
+      "OpenRouter authentication failed. Put your sk-or-v1 key in assets/gemini.txt and run .\\scripts\\set-gemini-secret.ps1",
+    );
+  }
+
+  const creditsHit = errors.some((entry) =>
+    entry.toLowerCase().includes("credits"),
+  );
+  if (creditsHit) {
+    throw new Error(
+      "OpenRouter needs credits for this model. Add credits at https://openrouter.ai/settings/credits or set OPENROUTER_MODEL in functions/.env to a free model you use in Postman.",
     );
   }
 
   throw new Error(
-    errors.length > 0 ? errors[errors.length - 1] : "Gemini request failed.",
+    errors.length > 0
+      ? errors[0]
+      : "OpenRouter request failed. Set OPENROUTER_MODEL in functions/.env to the same model slug you use in Postman, then redeploy.",
   );
 }

@@ -4,6 +4,7 @@ import '../ai/bloc/chat_bloc.dart';
 import '../ai/bloc/chat_event.dart';
 import '../ai/bloc/chat_state.dart';
 import '../ai/models/chat_message_model.dart';
+import '../widgets/markdown_chat_text.dart';
 
 // FBLA Colors
 const fblaNavy = Color(0xFF00274D);
@@ -385,8 +386,8 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    message.content,
+                  MarkdownChatText(
+                    text: message.content,
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
