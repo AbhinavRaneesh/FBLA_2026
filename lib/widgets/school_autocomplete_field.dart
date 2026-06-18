@@ -115,6 +115,17 @@ class _SchoolAutocompleteFieldState extends State<SchoolAutocompleteField> {
       return;
     }
 
+    if (trimmed.length < 2) {
+      if (!mounted) return;
+      setState(() {
+        _options = const [];
+        _isSearching = false;
+        _searchError = 'Type at least 2 letters to search';
+      });
+      if (widget.focusNode.hasFocus) _showOverlay();
+      return;
+    }
+
     if (widget.stateAbbr == null || widget.stateAbbr!.isEmpty) {
       if (!mounted) return;
       setState(() {

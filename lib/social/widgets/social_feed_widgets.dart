@@ -1,8 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:lottie/lottie.dart';
 
+import '../../constants/app_assets.dart';
 import '../../main.dart' show fblaGold, fblaLightBorder, fblaLightPrimaryText, fblaLightSecondaryText, fblaNavy;
+import '../screens/local_video_player_screen.dart';
 import '../models/social_models.dart';
 import '../theme/bluewave_theme.dart';
 
@@ -290,15 +293,74 @@ class BlueWavePostCard extends StatelessWidget {
             const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: CachedNetworkImage(
+              child: _FeedImage(
                 imageUrl: post.imageUrls.first,
                 height: 180,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => Container(
-                  height: 180,
-                  color: BlueWaveTheme.deep,
-                  child: const Icon(Icons.image_outlined, color: Colors.white54),
+                isDark: isDark,
+              ),
+            ),
+          ],
+          if (post.hasVideo && post.videoUrl != null) ...[
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => LocalVideoPlayerScreen(
+                      videoSource: post.videoUrl!,
+                      title: post.text,
+                    ),
+                  ),
+                );
+              },
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  height: 200,
+                  width: double.infinity,
+                  color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.08),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Icon(
+                        Icons.play_circle_fill_rounded,
+                        size: 56,
+                        color: BlueWaveTheme.primary.withValues(alpha: 0.9),
+                      ),
+                      if (post.isOnYouTube)
+                        Positioned(
+                          top: 10,
+                          right: 10,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFF0000),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.smart_display_rounded,
+                                    color: Colors.white, size: 14),
+                                SizedBox(width: 4),
+                                Text(
+                                  'YouTube',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -480,11 +542,10 @@ class InstagramPostCard extends StatelessWidget {
           ),
           ClipRRect(
             borderRadius: const BorderRadius.vertical(bottom: Radius.zero),
-            child: CachedNetworkImage(
+            child: _FeedImage(
               imageUrl: post.imageUrl,
               height: 200,
-              width: double.infinity,
-              fit: BoxFit.cover,
+              isDark: isDark,
             ),
           ),
           Padding(
@@ -820,10 +881,89 @@ class SocialPlatformCard extends StatelessWidget {
   }
 }
 
+/// Network or bundled asset image for social feed cards.
+class _FeedImage extends StatelessWidget {
+  final String imageUrl;
+  final double height;
+  final bool isDark;
+
+  const _FeedImage({
+    required this.imageUrl,
+    required this.height,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (imageUrl.startsWith('assets/')) {
+      return Image.asset(
+        imageUrl,
+        height: height,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _placeholder(),
+      );
+    }
+
+    return CachedNetworkImage(
+      imageUrl: imageUrl,
+      height: height,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      placeholder: (_, __) => Container(
+        height: height,
+        color: isDark ? const Color(0xFF13243D) : const Color(0xFFE8EDF3),
+        child: const Center(
+          child: SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      ),
+      errorWidget: (_, __, ___) => _placeholder(),
+    );
+  }
+
+  Widget _placeholder() {
+    return Container(
+      height: height,
+      width: double.infinity,
+      color: isDark ? const Color(0xFF13243D) : const Color(0xFFE8EDF3),
+      child: Icon(
+        Icons.image_outlined,
+        size: 48,
+        color: isDark ? Colors.white38 : Colors.black26,
+      ),
+    );
+  }
+}
+
 String _timeAgo(DateTime time) {
   final diff = DateTime.now().difference(time);
   if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
   if (diff.inHours < 24) return '${diff.inHours}h ago';
   if (diff.inDays < 7) return '${diff.inDays}d ago';
   return DateFormat.MMMd().format(time);
+}
+
+/// Full-tab loading state for the Social feed (initial load and refresh).
+class SocialTabLoading extends StatelessWidget {
+  const SocialTabLoading({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Lottie.asset(
+        AppAssets.lottieLoading,
+        width: 180,
+        height: 180,
+        fit: BoxFit.contain,
+        repeat: true,
+        errorBuilder: (_, __, ___) => const CircularProgressIndicator(
+          color: BlueWaveTheme.primary,
+        ),
+      ),
+    );
+  }
 }

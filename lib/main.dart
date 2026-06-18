@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -16,6 +17,7 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'constants/app_assets.dart';
+import 'data/national_calendar_events.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/onboarding_screen.dart';
@@ -25,7 +27,11 @@ import 'screens/firebase_auth_screen.dart';
 import 'screens/edit_profile_screen.dart';
 import 'screens/chatbot_screen.dart';
 import 'screens/find_members_screen.dart';
+import 'screens/document_library_screen.dart';
+import 'screens/faq_screen.dart';
+import 'screens/fbucks_leaderboard_screen.dart';
 import 'widgets/friend_picker_sheet.dart';
+import 'widgets/home_slideshow.dart';
 import 'social/screens/social_screen.dart';
 import 'screens/instagram_feed_screen.dart';
 import 'screens/rank_screen.dart';
@@ -70,6 +76,10 @@ const LinearGradient appBackgroundGradient = LinearGradient(
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
+
   // Initialize timezone
   tz.initializeTimeZones();
   tz.setLocalLocation(tz.getLocation('America/Denver'));
@@ -107,6 +117,10 @@ class AppState extends ChangeNotifier {
   Set<String> participatingEventIds = {};
   bool hasSeenOnboarding;
   bool isDarkMode = true;
+
+  /// Bumped when Home (or elsewhere) asks Events tab to switch filter/view.
+  String eventsFilterRequest = 'all';
+  int eventsFilterRequestVersion = 0;
 
   // Firebase integration
   User? firebaseUser;
@@ -743,6 +757,12 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void requestEventsView(String filter) {
+    eventsFilterRequest = filter;
+    eventsFilterRequestVersion++;
+    notifyListeners();
+  }
+
   // First-run feature tour gating.
   bool get hasSeenFeatureTour => prefs.getBool('hasSeenFeatureTour') ?? false;
 
@@ -915,7 +935,17 @@ class ChatMessage {
    Sample seed data
    ------------------------ */
 
+Event _eventFromNationalSeed(NationalCalendarEventSeed seed) => Event(
+      id: seed.id,
+      title: seed.title,
+      start: seed.start,
+      end: seed.end,
+      location: seed.location,
+      description: seed.description,
+    );
+
 final sampleEvents = [
+  ...nationalCalendarEventSeeds.map(_eventFromNationalSeed),
   Event(
     id: 'e_ga_2026',
     title: 'Georgia State Leadership Conference',
@@ -991,15 +1021,6 @@ final sampleEvents = [
         'Dry-run of the 7-minute presentation with Q&A. Bring laptops and demo devices.',
   ),
   Event(
-    id: 'e_nlc_reg_deadline',
-    title: 'NLC Registration Deadline',
-    start: DateTime(2026, 6, 19, 23, 59),
-    end: DateTime(2026, 6, 19, 23, 59),
-    location: 'Online',
-    description:
-        'Final day to confirm National Leadership Conference registration and housing.',
-  ),
-  Event(
     id: 'e_awards_banquet_jun',
     title: 'Chapter Awards Banquet (Social)',
     start: DateTime(2026, 6, 26, 18, 0),
@@ -1007,15 +1028,6 @@ final sampleEvents = [
     location: 'School Cafeteria',
     description:
         'End-of-year celebration recognizing competitors and graduating seniors.',
-  ),
-  Event(
-    id: 'e_nlc_2026',
-    title: 'FBLA National Leadership Conference',
-    start: DateTime(2026, 6, 29, 8, 0),
-    end: DateTime(2026, 7, 2, 17, 0),
-    location: 'San Antonio, TX',
-    description:
-        'Compete at the national level, attend workshops, and network with members nationwide.',
   ),
 ];
 
@@ -1508,7 +1520,10 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
   }
 
   void _selectTab(int index) {
-    if (index == _index) return;
+    if (index == _index) {
+      if (index == 1) setState(() {});
+      return;
+    }
     setState(() => _index = index);
     unawaited(_saveLastTab());
   }
@@ -1626,8 +1641,8 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
                 label: 'Events',
               ),
               BottomNavigationBarItem(
-                icon: _navIcon(Icons.school_outlined),
-                activeIcon: _activeNavIcon(Icons.school_rounded),
+                icon: _navIcon(Icons.menu_book_outlined),
+                activeIcon: _activeNavIcon(Icons.menu_book_rounded),
                 label: 'Resources',
               ),
               BottomNavigationBarItem(
@@ -1695,18 +1710,24 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final GlobalKey _updatesSectionKey = GlobalKey();
+
   Future<void> _refreshHome() async {
     setState(() {});
   }
 
-  void _openEventsTab() {
+  void _openEventsTab({String filter = 'all'}) {
+    final app = Provider.of<AppState>(context, listen: false);
+    if (filter != 'all') {
+      app.requestEventsView(filter);
+    }
     if (widget.onSelectRootTab != null) {
       widget.onSelectRootTab!(1);
       return;
     }
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => EventsScreen()),
+      MaterialPageRoute(builder: (_) => const EventsScreen()),
     );
   }
 
@@ -1721,7 +1742,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _toggleReminder(AppState app, Event event) async {
+  Future<void> _toggleSaveEvent(AppState app, Event event) async {
     final isSaved = app.savedEventIds.contains(event.id);
     app.toggleSaveEvent(event.id);
 
@@ -1736,11 +1757,135 @@ class _HomeScreenState extends State<HomeScreen> {
       SnackBar(
         content: Text(
           isSaved
-              ? 'Reminder removed for ${event.title}'
-              : 'Reminder saved for ${event.title}',
+              ? 'Removed ${event.title} from saved'
+              : 'Saved ${event.title} — reminder set',
         ),
         behavior: SnackBarBehavior.floating,
+        action: isSaved
+            ? null
+            : SnackBarAction(
+                label: 'View',
+                onPressed: () => _openEventsTab(filter: 'saved'),
+              ),
       ),
+    );
+  }
+
+  void _showUpdatesSheet(AppState app) {
+    final news = [...app.news]..sort((a, b) => b.date.compareTo(a.date));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.72,
+          minChildSize: 0.45,
+          maxChildSize: 0.92,
+          builder: (_, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                gradient: isDark
+                    ? appBackgroundGradient
+                    : null,
+                color: isDark ? null : fblaLightBackground,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border.all(
+                  color: isDark ? Colors.white12 : fblaLightBorder,
+                ),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 10),
+                  Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6C63FF).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.campaign_rounded,
+                            color: Color(0xFF6C63FF),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Chapter Updates',
+                                style: TextStyle(
+                                  color: isDark
+                                      ? Colors.white
+                                      : fblaLightPrimaryText,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              Text(
+                                '${news.length} announcement${news.length == 1 ? '' : 's'}',
+                                style: TextStyle(
+                                  color: isDark
+                                      ? Colors.white70
+                                      : fblaLightSecondaryText,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: isDark ? Colors.white70 : fblaLightSecondaryText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: news.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No announcements yet.',
+                              style: TextStyle(
+                                color: isDark
+                                    ? Colors.white70
+                                    : fblaLightSecondaryText,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            controller: scrollController,
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+                            itemCount: news.length,
+                            itemBuilder: (_, i) =>
+                                _buildAnnouncementCard(news[i]),
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1796,12 +1941,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: EdgeInsets.zero,
                   children: [
+                    const HomeSlideshow(),
                     Padding(
-                      padding: listPadding,
+                      padding: listPadding.copyWith(top: 0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildNlcConferenceCard(isDark),
+                          Transform.translate(
+                            offset: const Offset(0, -10),
+                            child: _buildNlcConferenceCard(isDark),
+                          ),
                           SizedBox(height: sectionSpacing),
                           _buildStatsRow(app, nextEvents, featuredNews),
                           SizedBox(height: sectionSpacing),
@@ -1813,6 +1962,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           SizedBox(height: sectionSpacing),
                           _buildSectionTitle(
                             title: 'Upcoming Events',
+                            actionLabel: 'See all',
+                            onAction: () => _openEventsTab(filter: 'upcoming'),
                           ),
                           SizedBox(height: smallSpacing),
                           if (nextEvents.isEmpty)
@@ -1826,8 +1977,14 @@ class _HomeScreenState extends State<HomeScreen> {
                             ...nextEvents
                                 .map((event) => _buildEventCard(app, event)),
                           SizedBox(height: sectionSpacing),
-                          _buildSectionTitle(
-                            title: 'Latest Updates',
+                          KeyedSubtree(
+                            key: _updatesSectionKey,
+                            child: _buildSectionTitle(
+                              title: 'Latest Updates',
+                              subtitle: 'Tap Updates above for the full feed',
+                              actionLabel: 'See all',
+                              onAction: () => _showUpdatesSheet(app),
+                            ),
                           ),
                           SizedBox(height: smallSpacing),
                           if (featuredNews.isEmpty)
@@ -2525,41 +2682,47 @@ class _HomeScreenState extends State<HomeScreen> {
     List<Event> nextEvents,
     List<NewsItem> featuredNews,
   ) {
+    final upcomingCount = app.events
+        .where((e) => e.end.isAfter(DateTime.now()))
+        .length;
     return Row(
       children: [
         Expanded(
           child: _StatCard(
-            icon: Icons.event,
+            icon: Icons.event_rounded,
             label: 'Upcoming',
-            value: '${nextEvents.length}',
+            value: '$upcomingCount',
             color: const Color(0xFF1D4E89),
             gradient: const LinearGradient(
               colors: [Color(0xFF1D4E89), Color(0xFF163B6B)],
             ),
+            onTap: () => _openEventsTab(filter: 'upcoming'),
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
           child: _StatCard(
-            icon: Icons.notifications_active,
+            icon: Icons.bookmark_rounded,
             label: 'Saved',
             value: '${app.savedEventIds.length}',
             color: const Color(0xFFFDB913),
             gradient: const LinearGradient(
               colors: [Color(0xFFD39A0B), Color(0xFFB87F05)],
             ),
+            onTap: () => _openEventsTab(filter: 'saved'),
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
           child: _StatCard(
-            icon: Icons.campaign,
+            icon: Icons.campaign_rounded,
             label: 'Updates',
-            value: '${featuredNews.length}',
+            value: '${app.news.length}',
             color: const Color(0xFF6C63FF),
             gradient: const LinearGradient(
               colors: [Color(0xFF6C63FF), Color(0xFF4C44D6)],
             ),
+            onTap: () => _showUpdatesSheet(app),
           ),
         ),
       ],
@@ -2628,18 +2791,38 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSectionTitle({
     required String title,
     String? subtitle,
+    String? actionLabel,
+    VoidCallback? onAction,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: isDark ? Colors.white : fblaLightPrimaryText,
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  color: isDark ? Colors.white : fblaLightPrimaryText,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            if (actionLabel != null && onAction != null)
+              TextButton(
+                onPressed: onAction,
+                style: TextButton.styleFrom(
+                  foregroundColor: fblaGold,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                child: Text(
+                  actionLabel,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+          ],
         ),
         if (subtitle != null && subtitle.trim().isNotEmpty) ...[
           const SizedBox(height: 4),
@@ -2720,23 +2903,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-              if (saved)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFDB913).withOpacity(0.16),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: const Text(
-                    'Saved',
-                    style: TextStyle(
-                      color: Color(0xFFFDB913),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+              IconButton(
+                onPressed: () => _toggleSaveEvent(app, event),
+                tooltip: saved ? 'Remove from saved' : 'Save event',
+                icon: Icon(
+                  saved ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
+                  color: saved ? const Color(0xFFFDB913) : secondaryText,
                 ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -2755,30 +2929,33 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => _toggleReminder(app, event),
+                  onPressed: () => _toggleSaveEvent(app, event),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: isDark ? Colors.white : fblaNavy,
                     side: BorderSide(
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.12)
-                          : fblaNavy.withValues(alpha: 0.28),
+                      color: saved
+                          ? const Color(0xFFFDB913).withValues(alpha: 0.65)
+                          : (isDark
+                              ? Colors.white.withValues(alpha: 0.12)
+                              : fblaNavy.withValues(alpha: 0.28)),
                     ),
                   ),
                   icon: Icon(
-                      saved ? Icons.notifications_off : Icons.notifications),
-                  label: Text(saved ? 'Remove Reminder' : 'Set Reminder'),
+                    saved ? Icons.bookmark_rounded : Icons.bookmark_add_outlined,
+                  ),
+                  label: Text(saved ? 'Saved' : 'Save'),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: _openEventsTab,
+                  onPressed: () => _openEventsTab(filter: 'upcoming'),
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF1D4E89),
                     foregroundColor: Colors.white,
                   ),
-                  icon: const Icon(Icons.open_in_new),
-                  label: const Text('Open Events'),
+                  icon: const Icon(Icons.calendar_month_rounded, size: 18),
+                  label: const Text('Details'),
                 ),
               ),
             ],
@@ -3086,6 +3263,7 @@ class _StatCard extends StatelessWidget {
   final String value;
   final Color color;
   final Gradient gradient;
+  final VoidCallback? onTap;
 
   const _StatCard({
     required this.icon,
@@ -3093,55 +3271,63 @@ class _StatCard extends StatelessWidget {
     required this.value,
     required this.color,
     required this.gradient,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark ? null : fblaLightSurface,
-        gradient: isDark ? gradient : null,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        border: isDark ? null : Border.all(color: fblaLightBorder),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.06),
-            blurRadius: isDark ? 8 : 14,
-            offset: const Offset(0, 6),
+        child: Ink(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isDark ? null : fblaLightSurface,
+            gradient: isDark ? gradient : null,
+            borderRadius: BorderRadius.circular(16),
+            border: isDark ? null : Border.all(color: fblaLightBorder),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.06),
+                blurRadius: isDark ? 8 : 14,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: isDark ? Colors.white : color, size: 24),
-          SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : fblaLightPrimaryText,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: isDark ? Colors.white : color, size: 22),
+              const SizedBox(height: 6),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : fblaLightPrimaryText,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.9)
+                      : fblaLightSecondaryText,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
-          SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.9)
-                  : fblaLightSecondaryText,
-              fontWeight: FontWeight.w500,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -3344,8 +3530,9 @@ class _EventsScreenState extends State<EventsScreen> {
 
   late DateTime _focusedDay;
   late DateTime _selectedDay;
-  CalendarFormat _format = CalendarFormat.month;
   String _filter = 'all';
+  bool _listMode = false;
+  int _lastFilterRequestVersion = 0;
 
   @override
   void initState() {
@@ -3355,10 +3542,35 @@ class _EventsScreenState extends State<EventsScreen> {
     _selectedDay = DateTime(now.year, now.month, now.day);
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _applyFilterRequestIfNeeded();
+  }
+
+  void _applyFilterRequestIfNeeded() {
+    final app = Provider.of<AppState>(context);
+    if (app.eventsFilterRequestVersion == _lastFilterRequestVersion) return;
+    _lastFilterRequestVersion = app.eventsFilterRequestVersion;
+    final filter = app.eventsFilterRequest;
+    if (filter == 'all') return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _filter = filter;
+        _listMode = filter == 'upcoming' || filter == 'saved';
+      });
+    });
+  }
+
   // ---- data helpers ----
 
-  bool _passesFilter(Event e) {
+  bool _passesFilter(Event e, AppState app) {
     switch (_filter) {
+      case 'upcoming':
+        return e.end.isAfter(DateTime.now());
+      case 'saved':
+        return app.savedEventIds.contains(e.id);
       case 'official':
         return _isOfficialEvent(e);
       case 'mine':
@@ -3373,7 +3585,7 @@ class _EventsScreenState extends State<EventsScreen> {
   }
 
   List<Event> _visibleEvents(AppState app) =>
-      app.events.where(_passesFilter).toList();
+      app.events.where((e) => _passesFilter(e, app)).toList();
 
   bool _occursOn(Event e, DateTime day) {
     final d = DateTime(day.year, day.month, day.day);
@@ -3421,9 +3633,11 @@ class _EventsScreenState extends State<EventsScreen> {
   @override
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context);
+    _applyFilterRequestIfNeeded();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final visible = _visibleEvents(app);
     final dayEvents = _eventsForDay(visible, _selectedDay);
+    final listEvents = [...visible]..sort((a, b) => a.start.compareTo(b.start));
 
     return Scaffold(
       backgroundColor: isDark ? Colors.transparent : fblaLightBackground,
@@ -3440,12 +3654,16 @@ class _EventsScreenState extends State<EventsScreen> {
         bottom: false,
         child: Column(
           children: [
-            _buildHeader(isDark, visible),
+            _buildHeader(isDark, visible, app),
             const SizedBox(height: 2),
             _buildFilterChips(isDark),
-            _buildCalendarCard(isDark, visible),
-            const SizedBox(height: 2),
-            Expanded(child: _buildAgenda(isDark, app, dayEvents)),
+            if (_listMode)
+              Expanded(child: _buildFilteredList(isDark, app, listEvents))
+            else ...[
+              _buildCalendarCard(isDark, visible),
+              const SizedBox(height: 2),
+              Expanded(child: _buildAgenda(isDark, app, dayEvents)),
+            ],
           ],
         ),
       ),
@@ -3454,9 +3672,10 @@ class _EventsScreenState extends State<EventsScreen> {
 
   // ---- header ----
 
-  Widget _buildHeader(bool isDark, List<Event> visible) {
+  Widget _buildHeader(bool isDark, List<Event> visible, AppState app) {
     final now = DateTime.now();
     final upcoming = visible.where((e) => e.end.isAfter(now)).length;
+    final savedCount = app.savedEventIds.length;
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 10, 14, 8),
       padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
@@ -3470,7 +3689,11 @@ class _EventsScreenState extends State<EventsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      DateFormat('MMMM').format(_focusedDay),
+                      _listMode
+                          ? (_filter == 'saved'
+                              ? 'Saved Events'
+                              : 'Upcoming Events')
+                          : DateFormat('MMMM').format(_focusedDay),
                       style: TextStyle(
                         color: isDark ? Colors.white : fblaLightPrimaryText,
                         fontSize: 22,
@@ -3480,7 +3703,9 @@ class _EventsScreenState extends State<EventsScreen> {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      '${DateFormat('yyyy').format(_focusedDay)}  •  $upcoming upcoming',
+                      _listMode
+                          ? '${visible.length} event${visible.length == 1 ? '' : 's'} • $savedCount saved total'
+                          : '${DateFormat('yyyy').format(_focusedDay)}  •  $upcoming upcoming',
                       style: TextStyle(
                         color: isDark
                             ? Colors.grey.shade400
@@ -3492,18 +3717,40 @@ class _EventsScreenState extends State<EventsScreen> {
                   ],
                 ),
               ),
-              _circleNavButton(
-                  Icons.chevron_left, isDark, () => _shiftMonth(-1)),
-              const SizedBox(width: 6),
-              _circleNavButton(
-                  Icons.chevron_right, isDark, () => _shiftMonth(1)),
-              const SizedBox(width: 8),
-              _todayButton(isDark),
+              if (!_listMode) ...[
+                _circleNavButton(
+                    Icons.chevron_left, isDark, () => _shiftMonth(-1)),
+                const SizedBox(width: 6),
+                _circleNavButton(
+                    Icons.chevron_right, isDark, () => _shiftMonth(1)),
+                const SizedBox(width: 8),
+                _todayButton(isDark),
+              ] else
+                _viewToggleButton(isDark),
             ],
           ),
-          const SizedBox(height: 12),
-          _buildFormatToggle(isDark),
         ],
+      ),
+    );
+  }
+
+  Widget _viewToggleButton(bool isDark) {
+    return OutlinedButton.icon(
+      onPressed: () => setState(() {
+        _listMode = false;
+        if (_filter == 'upcoming' || _filter == 'saved') {
+          _filter = 'all';
+        }
+      }),
+      icon: const Icon(Icons.calendar_month_rounded, size: 16),
+      label: const Text('Calendar'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: isDark ? _fblaGold : _fblaBlue,
+        side: BorderSide(
+          color: (isDark ? _fblaGold : _fblaBlue).withValues(alpha: 0.7),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
       ),
     );
   }
@@ -3535,7 +3782,6 @@ class _EventsScreenState extends State<EventsScreen> {
         setState(() {
           _focusedDay = now;
           _selectedDay = DateTime(now.year, now.month, now.day);
-          _format = CalendarFormat.month;
         });
       },
       style: OutlinedButton.styleFrom(
@@ -3556,59 +3802,13 @@ class _EventsScreenState extends State<EventsScreen> {
     });
   }
 
-  Widget _buildFormatToggle(bool isDark) {
-    const formats = <CalendarFormat, String>{
-      CalendarFormat.month: 'Month',
-      CalendarFormat.twoWeeks: '2 Weeks',
-      CalendarFormat.week: 'Week',
-    };
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color:
-            isDark ? Colors.white.withValues(alpha: 0.06) : fblaLightBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: isDark ? Colors.white12 : fblaLightBorder),
-      ),
-      child: Row(
-        children: formats.entries.map((entry) {
-          final selected = _format == entry.key;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _format = entry.key),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: selected ? _fblaBlue : Colors.transparent,
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Text(
-                  entry.value,
-                  style: TextStyle(
-                    color: selected
-                        ? Colors.white
-                        : (isDark
-                            ? Colors.grey.shade400
-                            : fblaLightSecondaryText),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12.5,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
   // ---- filter chips ----
 
   Widget _buildFilterChips(bool isDark) {
     const chips = <List<String>>[
       ['all', 'All'],
+      ['upcoming', 'Upcoming'],
+      ['saved', 'Saved'],
       ['official', 'FBLA Official'],
       ['mine', 'My Events'],
       ['competition', 'Competitions'],
@@ -3627,7 +3827,10 @@ class _EventsScreenState extends State<EventsScreen> {
           final selected = _filter == id;
           return Center(
             child: GestureDetector(
-              onTap: () => setState(() => _filter = id),
+              onTap: () => setState(() {
+                _filter = id;
+                _listMode = id == 'upcoming' || id == 'saved';
+              }),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 160),
                 padding:
@@ -3677,7 +3880,7 @@ class _EventsScreenState extends State<EventsScreen> {
         firstDay: DateTime.utc(2020, 1, 1),
         lastDay: DateTime.utc(2035, 12, 31),
         focusedDay: _focusedDay,
-        calendarFormat: _format,
+        calendarFormat: CalendarFormat.month,
         availableGestures: AvailableGestures.horizontalSwipe,
         headerVisible: false,
         daysOfWeekHeight: 26,
@@ -3692,7 +3895,6 @@ class _EventsScreenState extends State<EventsScreen> {
           });
         },
         onPageChanged: (focused) => setState(() => _focusedDay = focused),
-        onFormatChanged: (f) => setState(() => _format = f),
         daysOfWeekStyle: DaysOfWeekStyle(
           weekdayStyle: TextStyle(
             color: isDark ? Colors.grey.shade400 : fblaLightSecondaryText,
@@ -3783,6 +3985,106 @@ class _EventsScreenState extends State<EventsScreen> {
       child: Text(
         '${day.day}',
         style: TextStyle(color: text, fontWeight: weight, fontSize: 13.5),
+      ),
+    );
+  }
+
+  // ---- filtered list (upcoming / saved) ----
+
+  Widget _buildFilteredList(bool isDark, AppState app, List<Event> events) {
+    if (events.isEmpty) {
+      return _emptyFilteredList(isDark);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
+          child: Row(
+            children: [
+              Icon(
+                _filter == 'saved'
+                    ? Icons.bookmark_rounded
+                    : Icons.event_available_rounded,
+                size: 18,
+                color: isDark ? _fblaGold : _fblaBlue,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _filter == 'saved'
+                      ? 'Events you bookmarked'
+                      : 'All future events, soonest first',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : fblaLightPrimaryText,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 100),
+            itemCount: events.length,
+            itemBuilder: (c, i) => _eventCard(isDark, app, events[i]),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _emptyFilteredList(bool isDark) {
+    final isSaved = _filter == 'saved';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 36),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 78,
+              height: 78,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isDark ? const Color(0xFF13243D) : fblaLightSurface,
+                border: Border.all(
+                    color: isDark ? Colors.white12 : fblaLightBorder),
+              ),
+              child: Icon(
+                isSaved
+                    ? Icons.bookmark_border_rounded
+                    : Icons.event_busy_rounded,
+                size: 38,
+                color: isDark ? Colors.grey.shade400 : fblaLightSecondaryText,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isSaved ? 'No saved events yet' : 'No upcoming events',
+              style: TextStyle(
+                color: isDark ? Colors.grey.shade200 : fblaLightPrimaryText,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              isSaved
+                  ? 'Tap the bookmark on any event card to save it here and get a reminder.'
+                  : 'Check back later or browse the calendar for past and future dates.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isDark ? Colors.grey.shade500 : fblaLightSecondaryText,
+                fontSize: 13.5,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -3945,6 +4247,17 @@ class _EventsScreenState extends State<EventsScreen> {
                               await flutterLocalNotificationsPlugin
                                   .cancel(e.id.hashCode);
                             }
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  saved
+                                      ? 'Removed from saved'
+                                      : 'Saved — reminder set',
+                                ),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
                           },
                         ),
                       ],
@@ -3980,19 +4293,29 @@ class _EventsScreenState extends State<EventsScreen> {
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: () async {
+                              if (!saved) {
+                                app.toggleSaveEvent(e.id);
+                              }
                               await scheduleEventReminder(e);
                               if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('Reminder set for ${e.title}'),
+                                  content: Text(
+                                    saved
+                                        ? 'Reminder updated for ${e.title}'
+                                        : 'Saved & reminder set for ${e.title}',
+                                  ),
                                   behavior: SnackBarBehavior.floating,
                                 ),
                               );
                             },
-                            icon: const Icon(
-                                Icons.notifications_active_outlined,
-                                size: 16),
-                            label: const Text('Remind me'),
+                            icon: Icon(
+                              saved
+                                  ? Icons.notifications_active
+                                  : Icons.bookmark_add_outlined,
+                              size: 16,
+                            ),
+                            label: Text(saved ? 'Remind me' : 'Save & remind'),
                             style: OutlinedButton.styleFrom(
                               foregroundColor:
                                   isDark ? Colors.white : _fblaBlue,
@@ -7738,7 +8061,9 @@ class ProfileScreen extends StatelessWidget {
               isDark: isDark,
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => CompetitionsScreen()),
+                MaterialPageRoute(
+                  builder: (_) => const FbucksLeaderboardScreen(),
+                ),
               ),
             ),
             _buildQuickActionButton(
@@ -9119,7 +9444,6 @@ class MoreScreen extends StatelessWidget {
             context,
             accent: _MoreAccent.blue,
             title: 'Find Members',
-            subtitle: 'Search local members and officers',
             icon: Icons.badge_outlined,
             onTap: () {
               Navigator.push(
@@ -9132,7 +9456,6 @@ class MoreScreen extends StatelessWidget {
             context,
             accent: _MoreAccent.blue,
             title: 'Social Wall',
-            subtitle: 'Instagram, LinkedIn, and X feeds',
             icon: Icons.public_outlined,
             onTap: () {
               context
@@ -9144,14 +9467,12 @@ class MoreScreen extends StatelessWidget {
             context,
             accent: _MoreAccent.blue,
             title: 'Message Center',
-            subtitle: 'Connect with chapter officers or advisers',
             icon: Icons.mark_chat_unread_outlined,
           ),
           _buildMoreTile(
             context,
             accent: _MoreAccent.blue,
             title: 'Official FBLA Hub',
-            subtitle: 'Divisions, NLC, network, and get involved',
             icon: Icons.business_center_outlined,
             onTap: () {
               Navigator.push(
@@ -9168,21 +9489,18 @@ class MoreScreen extends StatelessWidget {
             context,
             accent: _MoreAccent.gold,
             title: 'BAA Progress Tracker',
-            subtitle: 'Track Business Achievement Awards checklist',
             icon: Icons.checklist_outlined,
           ),
           _buildMoreTile(
             context,
             accent: _MoreAccent.gold,
             title: 'Scholarship Hub',
-            subtitle: 'FBLA scholarships and deadlines',
             icon: Icons.school_outlined,
           ),
           _buildMoreTile(
             context,
             accent: _MoreAccent.gold,
             title: 'Officer Corner',
-            subtitle: 'Resources for current or aspiring officers',
             icon: Icons.workspace_premium_outlined,
           ),
           const SizedBox(height: 22),
@@ -9192,22 +9510,27 @@ class MoreScreen extends StatelessWidget {
             context,
             accent: _MoreAccent.teal,
             title: 'Attendance Tracker',
-            subtitle: 'Scan QR code to check in at meetings',
             icon: Icons.qr_code_scanner_outlined,
           ),
           _buildMoreTile(
             context,
             accent: _MoreAccent.teal,
             title: 'Dues & Payments',
-            subtitle: 'Check membership status and payment portal',
             icon: Icons.payments_outlined,
           ),
           _buildMoreTile(
             context,
             accent: _MoreAccent.teal,
             title: 'Document Library',
-            subtitle: 'Bylaws, Robert’s Rules, and meeting minutes',
             icon: Icons.folder_open_outlined,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const DocumentLibraryScreen(),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 22),
           _buildGroupHeader(context, 'Support', Icons.support_agent_outlined,
@@ -9216,7 +9539,6 @@ class MoreScreen extends StatelessWidget {
             context,
             accent: _MoreAccent.violet,
             title: 'Help / FAQ',
-            subtitle: 'Answers about dress code, events, and troubleshooting',
             icon: Icons.help_outline,
             onTap: () {
               Navigator.push(
@@ -9229,7 +9551,6 @@ class MoreScreen extends StatelessWidget {
             context,
             accent: _MoreAccent.violet,
             title: 'Replay App Tour',
-            subtitle: 'Take the guided walkthrough of the app again',
             icon: Icons.tips_and_updates_outlined,
             onTap: () async {
               final app = Provider.of<AppState>(context, listen: false);
@@ -9243,7 +9564,6 @@ class MoreScreen extends StatelessWidget {
             context,
             accent: _MoreAccent.violet,
             title: 'Settings',
-            subtitle: 'Notifications, privacy, and account logout',
             icon: Icons.settings_outlined,
             onTap: () {
               Navigator.push(
@@ -9260,7 +9580,6 @@ class MoreScreen extends StatelessWidget {
               context,
               accent: _MoreAccent.red,
               title: 'Extra Developer Options',
-              subtitle: 'Developer-only testing utilities',
               icon: Icons.build_outlined,
               onTap: () {
                 Navigator.push(
@@ -9447,7 +9766,6 @@ class MoreScreen extends StatelessWidget {
   Widget _buildMoreTile(
     BuildContext context, {
     required String title,
-    required String subtitle,
     required IconData icon,
     required Color accent,
     VoidCallback? onTap,
@@ -9502,29 +9820,13 @@ class MoreScreen extends StatelessWidget {
                 ),
                 const SizedBox(width: 14),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : fblaLightPrimaryText,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 12,
-                          height: 1.25,
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.6)
-                              : Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : fblaLightPrimaryText,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -9599,166 +9901,6 @@ class ExtraDeveloperOptionsScreen extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class FaqScreen extends StatelessWidget {
-  const FaqScreen({super.key});
-
-  static const List<Map<String, String>> _faqItems = [
-    {
-      'q': 'How do I join FBLA at my school?',
-      'a':
-          'Ask your chapter adviser about local membership steps and dues payment deadlines.'
-    },
-    {
-      'q': 'Where do I see upcoming chapter events?',
-      'a':
-          'Open the Events tab to view monthly and weekly schedules with event details.'
-    },
-    {
-      'q': 'How do I RSVP to an event?',
-      'a': 'Open an event card and tap RSVP, then choose Yes, Maybe, or No.'
-    },
-    {
-      'q': 'Can I set reminders for competitions?',
-      'a':
-          'Yes, tap Remind on an event card to schedule a local notification reminder.'
-    },
-    {
-      'q': 'How do I update my profile photo?',
-      'a':
-          'Go to Profile and tap the camera icon on your avatar to pick a new image.'
-    },
-    {
-      'q': 'Why is dark mode always on?',
-      'a':
-          'The app currently uses a fixed dark theme to keep the interface consistent.'
-    },
-    {
-      'q': 'Where can I find competitive event categories?',
-      'a': 'Open Resources > Study Materials > FBLA Competitive Events.'
-    },
-    {
-      'q': 'How do I search competitive events quickly?',
-      'a': 'Use the search bar at the top of the Competitive Events page.'
-    },
-    {
-      'q': 'Can I filter only roleplay events?',
-      'a': 'Yes, tap Filters and select Roleplay Events.'
-    },
-    {
-      'q': 'What does the circle badge on event cards mean?',
-      'a': 'Badge letters indicate category type (for example Pr, Po, R, or V).'
-    },
-    {
-      'q': 'How do I access FBLA Connect?',
-      'a': 'Go to Resources and tap FBLA Connect to open it in your browser.'
-    },
-    {
-      'q': 'Can I save events for later?',
-      'a': 'Yes, tap the bookmark icon on any event card to save or unsave it.'
-    },
-    {
-      'q': 'Why does AI chat say it cannot connect?',
-      'a':
-          'AI requires a running Ollama server endpoint reachable from your device.'
-    },
-    {
-      'q': 'How do I sign out of the app?',
-      'a': 'Open Profile and tap Log Out at the bottom of the page.'
-    },
-    {
-      'q': 'Where are chapter documents stored?',
-      'a':
-          'Use More > Document Library for bylaws, minutes, and chapter resources.'
-    },
-    {
-      'q': 'Can I use the app offline?',
-      'a':
-          'Some local content may remain visible, but most live features require internet.'
-    },
-    {
-      'q': 'How do I report incorrect event information?',
-      'a':
-          'Share details with your chapter officer or adviser to update official data.'
-    },
-    {
-      'q': 'Where can I review scholarship opportunities?',
-      'a': 'Open More > Scholarship Hub to see scholarship-related resources.'
-    },
-    {
-      'q': 'How do I check attendance at meetings?',
-      'a': 'Use More > Attendance Tracker when your chapter enables check-in.'
-    },
-    {
-      'q': 'Who should I contact for app support?',
-      'a':
-          'Start with your chapter adviser or officer team for account and access help.'
-    },
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final Color fblaBlue = const Color(0xFF1D4E89);
-    final bottomSafe = MediaQuery.of(context).viewPadding.bottom;
-
-    return Scaffold(
-      backgroundColor: appBackgroundColor,
-      appBar: AppBar(
-        title: const Text('Help / FAQ'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: Colors.white,
-      ),
-      body: Container(
-        decoration: const BoxDecoration(gradient: appBackgroundGradient),
-        child: ListView.separated(
-          padding: EdgeInsets.fromLTRB(14, 14, 14, 20 + bottomSafe + 16),
-          itemCount: _faqItems.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (context, index) {
-            final item = _faqItems[index];
-            return Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF111111),
-                borderRadius: BorderRadius.circular(14),
-                border:
-                    Border.all(color: fblaBlue.withOpacity(0.35), width: 1.1),
-              ),
-              child: ExpansionTile(
-                collapsedIconColor: Colors.white70,
-                iconColor: Colors.white,
-                tilePadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-                childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                title: Text(
-                  item['q'] ?? '',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      item['a'] ?? '',
-                      style: TextStyle(
-                        color: Colors.grey.shade300,
-                        fontSize: 13,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
         ),
       ),
     );

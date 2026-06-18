@@ -19,8 +19,7 @@ class SocialDataService {
     return [
       InstagramPostData(
         id: 'ig_1',
-        imageUrl:
-            'https://images.unsplash.com/photo-1521737713597-5099a14e1cc0?w=800',
+        imageUrl: AppAssets.nlcPictures[0],
         caption:
             'NLC 2026 is almost here! San Antonio is ready for FBLA leaders. #FBLA #NLC2026',
         permalink: 'https://www.instagram.com/fbla_national/',
@@ -28,8 +27,7 @@ class SocialDataService {
       ),
       InstagramPostData(
         id: 'ig_2',
-        imageUrl:
-            'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800',
+        imageUrl: AppAssets.nlcPictures[1],
         caption:
             'Competition season prep tips from national officers. Drop a wave if you are ready!',
         permalink: 'https://www.instagram.com/fbla_national/',
@@ -53,8 +51,7 @@ class SocialDataService {
         id: 'yt_fallback_1',
         title: 'FBLA National Leadership Conference Highlights',
         channelName: 'FBLA National',
-        thumbnailUrl:
-            'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
+        thumbnailUrl: AppAssets.nlcPictures[2],
         duration: '4:32',
         publishedAt: DateTime.now().subtract(const Duration(days: 2)),
       ),
@@ -119,9 +116,7 @@ class SocialDataService {
         waveCount: 67,
         commentCount: 19,
         tags: ['#Community', '#Service'],
-        imageUrls: [
-          'https://images.unsplash.com/photo-1559027617-791a3b8baf9f?w=800',
-        ],
+        imageUrls: [AppAssets.nlcPictures[3]],
       ),
       BlueWavePostData(
         id: 'bw_seed_4',

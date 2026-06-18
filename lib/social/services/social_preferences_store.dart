@@ -86,6 +86,19 @@ class SocialPreferencesStore {
     );
   }
 
+  Future<List<BlueWavePostData>> loadVideoPostsForUser(String userId) async {
+    final all = await loadBlueWavePosts();
+    return all
+        .where(
+          (p) =>
+              p.author.id == userId &&
+              (p.hasVideo ||
+                  p.kind == BlueWavePostKind.video ||
+                  p.kind == BlueWavePostKind.reel),
+        )
+        .toList();
+  }
+
   Future<Set<String>> loadWavedPostIds() async {
     final prefs = await SharedPreferences.getInstance();
     return (prefs.getStringList(_wavedKey) ?? []).toSet();

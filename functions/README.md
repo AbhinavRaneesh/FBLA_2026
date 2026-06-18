@@ -1,44 +1,69 @@
 # Discord Bot Sync
 
-The Flutter app writes pending posts to the `discord_outbox` Firestore collection.
-This Firebase Function watches new documents and posts them to Discord using the
-bot token on the server side.
+The Flutter app queues posts in Firestore; Cloud Functions deliver them to your
+Discord server using the bot token (never stored in the app).
 
-## Required Firebase Cloud Setup
-
-Firebase Functions must be enabled for the project. Deploying Cloud Functions
-usually requires the Firebase Blaze plan because the function makes an outgoing
-network request to Discord.
-
-Set the bot token as a Firebase secret:
+## Deploy (Blaze plan required)
 
 ```bash
+# 1. Bot token (secret)
 firebase functions:secrets:set DISCORD_BOT_TOKEN
-```
 
-Create `functions/.env` locally for non-secret IDs:
+# 2. Channel IDs — create functions/.env
+#    DISCORD_ANNOUNCEMENTS_CHANNEL_ID=...
+#    DISCORD_GENERAL_CHANNEL_ID=...
+#    DISCORD_EVENTS_CHANNEL_ID=...
 
-```env
-DISCORD_ANNOUNCEMENTS_CHANNEL_ID=your_announcements_channel_id
-DISCORD_GENERAL_CHANNEL_ID=your_general_channel_id
-DISCORD_GUILD_ID=your_server_id
-```
-
-The function also loads the repository root `.env` during local development, so
-the IDs you already saved there will work with the emulator.
-
-## Install And Deploy
-
-```bash
 cd functions
 npm install
 cd ..
-firebase deploy --only functions
+firebase deploy --only functions,firestore:rules
 ```
 
-## Firestore Queue Shape
+## Firestore config (optional)
 
-The app creates documents like this:
+The app falls back to bundled defaults in `lib/constants/discord_defaults.dart`.
+To also store config in Firestore (recommended), either:
+
+**A. Firebase Console** — create `discord_config/default` (see JSON below).
+
+**B. After deploying functions**, call the setup endpoint once:
+
+```bash
+curl https://us-central1-fbla-2026-kushal.cloudfunctions.net/setupDiscordConfig
+```
+
+**C. Local seed script** (requires `gcloud auth application-default login`):
+
+```bash
+cd functions && node scripts/seed-discord-config.js
+```
+
+```json
+{
+  "inviteUrl": "https://discord.gg/your-invite",
+  "guildName": "FBLA Chapter Server",
+  "botEnabled": true,
+  "channels": {
+    "announcements": "CHANNEL_ID",
+    "general": "CHANNEL_ID",
+    "events": "CHANNEL_ID"
+  }
+}
+```
+
+## App features (Social → Discord Hub)
+
+| Action | Discord channel |
+|--------|-----------------|
+| Latest Announcement | `#announcements` (@here on major news) |
+| Next Upcoming Event | `#events` |
+| BlueWave Highlight | `#general` |
+| Custom Update | User picks channel |
+
+**Recent Bot Activity** shows live queue status: Queued → Posted / Failed.
+
+## Queue document shape
 
 ```json
 {
@@ -46,9 +71,12 @@ The app creates documents like this:
   "body": "Join us at 3 PM for competition prep.",
   "channel": "announcements",
   "type": "announcement",
-  "status": "pending"
+  "status": "pending",
+  "authorName": "Member Name",
+  "createdBy": "firebase_uid"
 }
 ```
 
-The function updates `status` to `sent` after Discord accepts the message, or
-`failed` with an `error` if the Discord API call fails.
+Supported `type` values: `announcement`, `general_update`, `event`, `bluewave`, `forum`.
+
+The function sets `status` to `sent` or `failed` with `discordMessageId` on success.

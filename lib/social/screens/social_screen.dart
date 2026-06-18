@@ -5,7 +5,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../main.dart'
     show
         AppState,
-        ProfileScreen,
         appBackgroundGradient,
         fblaLightBackground,
         fblaLightPrimaryText;
@@ -20,8 +19,11 @@ import '../providers/social_provider.dart';
 import '../theme/bluewave_theme.dart';
 import '../widgets/social_feed_widgets.dart';
 import 'bluewave_compose_screen.dart';
+import 'discord_hub_screen.dart';
 import 'forum_screens.dart';
+import 'local_video_player_screen.dart';
 import 'social_messages_screen.dart';
+import 'video_studio_screen.dart';
 
 /// Flagship Social tab — unified BlueWave + external platforms feed with ML ranking.
 class SocialScreen extends StatefulWidget {
@@ -35,7 +37,6 @@ class _SocialScreenState extends State<SocialScreen> {
   late final SocialProvider _socialProvider;
   final _searchController = TextEditingController();
   bool _showSearchResults = false;
-  bool _discordPosting = false;
 
   @override
   void initState() {
@@ -71,6 +72,126 @@ class _SocialScreenState extends State<SocialScreen> {
     );
   }
 
+  void _openVideoStudio(
+    BuildContext context, {
+    VideoStudioLaunchMode launchMode = VideoStudioLaunchMode.none,
+  }) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChangeNotifierProvider.value(
+          value: _socialProvider,
+          child: VideoStudioScreen(launchMode: launchMode),
+        ),
+      ),
+    );
+  }
+
+  void _showCreateOptions(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF0F1C31) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.black12,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Create',
+                style: TextStyle(
+                  color: isDark ? Colors.white : fblaLightPrimaryText,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                ),
+              ),
+              const SizedBox(height: 14),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: BlueWaveTheme.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.upload_file_rounded,
+                      color: BlueWaveTheme.primary),
+                ),
+                title: const Text('Upload from Phone',
+                    style: TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: const Text(
+                    'Pick a video from your gallery and post to BlueWave'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openVideoStudio(context, launchMode: VideoStudioLaunchMode.gallery);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: BlueWaveTheme.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.videocam_rounded,
+                      color: BlueWaveTheme.primary),
+                ),
+                title: const Text('Video Studio',
+                    style: TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: const Text('Record, post, and upload to YouTube'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openVideoStudio(context);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: BlueWaveTheme.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.waves_rounded,
+                      color: BlueWaveTheme.primary),
+                ),
+                title: const Text('Text Post',
+                    style: TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: const Text('Share an update on BlueWave'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChangeNotifierProvider.value(
+                        value: _socialProvider,
+                        child: const BlueWaveComposeScreen(),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -80,17 +201,7 @@ class _SocialScreenState extends State<SocialScreen> {
       child: Scaffold(
         backgroundColor: isDark ? Colors.transparent : fblaLightBackground,
         floatingActionButton: FloatingActionButton.extended(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ChangeNotifierProvider.value(
-                  value: _socialProvider,
-                  child: const BlueWaveComposeScreen(),
-                ),
-              ),
-            );
-          },
+          onPressed: () => _showCreateOptions(context),
           backgroundColor: BlueWaveTheme.primary,
           foregroundColor: Colors.white,
           icon: const Icon(Icons.add_rounded),
@@ -248,9 +359,7 @@ class _SocialScreenState extends State<SocialScreen> {
     return Consumer<SocialProvider>(
       builder: (context, social, _) {
         if (social.loading) {
-          return const Center(
-            child: CircularProgressIndicator(color: BlueWaveTheme.primary),
-          );
+          return const SocialTabLoading();
         }
         if (social.error != null) {
           return Center(
@@ -277,6 +386,15 @@ class _SocialScreenState extends State<SocialScreen> {
                   ),
                 ),
               SliverToBoxAdapter(
+                child: _PhoneVideoUploadBanner(
+                  isDark: isDark,
+                  onUpload: () => _openVideoStudio(
+                    context,
+                    launchMode: VideoStudioLaunchMode.gallery,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
                 child: _QuickActionsRow(
                   onStartForum: () {
                     Navigator.push(
@@ -286,14 +404,27 @@ class _SocialScreenState extends State<SocialScreen> {
                       ),
                     );
                   },
+                  onOpenVideoStudio: () => _openVideoStudio(context),
+                  onUploadFromPhone: () => _openVideoStudio(
+                    context,
+                    launchMode: VideoStudioLaunchMode.gallery,
+                  ),
                 ),
               ),
               SliverToBoxAdapter(
                 child: _DiscordBridgeCard(
                   isDark: isDark,
-                  isPosting: _discordPosting,
-                  onPostLatestAnnouncement: _postLatestAnnouncementToDiscord,
-                  onPostGeneralUpdate: _showGeneralDiscordDialog,
+                  onOpenHub: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ChangeNotifierProvider.value(
+                          value: _socialProvider,
+                          child: const DiscordHubScreen(),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
               SliverToBoxAdapter(
@@ -426,12 +557,18 @@ class _SocialScreenState extends State<SocialScreen> {
       case FeedItemKind.blueWavePost:
       case FeedItemKind.blueWaveReel:
         if (item.blueWave != null) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ProfileScreen(),
-            ),
-          );
+          final post = item.blueWave!;
+          if (post.hasVideo && post.videoUrl != null) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => LocalVideoPlayerScreen(
+                  videoSource: post.videoUrl!,
+                  title: post.text,
+                ),
+              ),
+            );
+          }
         }
         break;
       default:
@@ -505,139 +642,6 @@ class _SocialScreenState extends State<SocialScreen> {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
-  Future<void> _postLatestAnnouncementToDiscord() async {
-    final app = context.read<AppState>();
-    if (app.news.isEmpty) {
-      _showDiscordSnack('No announcements are available to post yet.');
-      return;
-    }
-
-    final latestNews = [...app.news]
-      ..sort((left, right) => right.date.compareTo(left.date));
-    final latest = latestNews.first;
-
-    await _queueDiscordPost(
-      title: latest.title,
-      body: latest.body,
-      channel: 'announcements',
-      type: 'announcement',
-      sourceId: latest.id,
-    );
-  }
-
-  Future<void> _showGeneralDiscordDialog() async {
-    final titleController = TextEditingController();
-    final bodyController = TextEditingController();
-
-    final draft = await showDialog<_DiscordPostDraft>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final canSend = titleController.text.trim().isNotEmpty &&
-                bodyController.text.trim().isNotEmpty;
-            return AlertDialog(
-              title: const Text('Send Discord Update'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'Title',
-                      hintText: 'Chapter meeting reminder',
-                    ),
-                    onChanged: (_) => setDialogState(() {}),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: bodyController,
-                    minLines: 3,
-                    maxLines: 5,
-                    decoration: const InputDecoration(
-                      labelText: 'Message',
-                      hintText: 'Add the general info you want posted.',
-                    ),
-                    onChanged: (_) => setDialogState(() {}),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: canSend
-                      ? () => Navigator.pop(
-                            dialogContext,
-                            _DiscordPostDraft(
-                              title: titleController.text,
-                              body: bodyController.text,
-                            ),
-                          )
-                      : null,
-                  child: const Text('Queue Post'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    titleController.dispose();
-    bodyController.dispose();
-
-    if (draft == null) return;
-    await _queueDiscordPost(
-      title: draft.title,
-      body: draft.body,
-      channel: 'general',
-      type: 'general_update',
-    );
-  }
-
-  Future<void> _queueDiscordPost({
-    required String title,
-    required String body,
-    required String channel,
-    required String type,
-    String? sourceId,
-  }) async {
-    if (_discordPosting) return;
-    setState(() => _discordPosting = true);
-
-    try {
-      final app = context.read<AppState>();
-      await FirebaseService.queueDiscordMessage(
-        title: title,
-        body: body,
-        channel: channel,
-        type: type,
-        sourceId: sourceId,
-        authorName: app.resolvedDisplayName,
-      );
-      if (!mounted) return;
-      _showDiscordSnack('Queued for the Discord bot to post.');
-    } catch (e) {
-      if (!mounted) return;
-      _showDiscordSnack('Could not queue Discord post: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _discordPosting = false);
-      }
-    }
-  }
-
-  void _showDiscordSnack(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
-
   IconData _iconForPlatform(SocialPlatform platform) {
     switch (platform) {
       case SocialPlatform.blueWave:
@@ -652,16 +656,6 @@ class _SocialScreenState extends State<SocialScreen> {
         return Icons.newspaper_rounded;
     }
   }
-}
-
-class _DiscordPostDraft {
-  final String title;
-  final String body;
-
-  const _DiscordPostDraft({
-    required this.title,
-    required this.body,
-  });
 }
 
 class _RecommendedStrip extends StatelessWidget {
@@ -751,10 +745,107 @@ class _RecommendedStrip extends StatelessWidget {
   }
 }
 
+class _PhoneVideoUploadBanner extends StatelessWidget {
+  final bool isDark;
+  final VoidCallback onUpload;
+
+  const _PhoneVideoUploadBanner({
+    required this.isDark,
+    required this.onUpload,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = isDark ? Colors.white : fblaLightPrimaryText;
+    final secondary = isDark ? Colors.white70 : Colors.black54;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onUpload,
+          borderRadius: BorderRadius.circular(20),
+          child: Ink(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                colors: isDark
+                    ? [
+                        BlueWaveTheme.primary.withValues(alpha: 0.35),
+                        const Color(0xFF0A1628),
+                      ]
+                    : [
+                        const Color(0xFFD6F0FF),
+                        const Color(0xFFF0F8FF),
+                      ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              border: Border.all(
+                color: BlueWaveTheme.primary.withValues(alpha: 0.4),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: BlueWaveTheme.primary.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.upload_file_rounded,
+                    color: BlueWaveTheme.primary,
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Upload a video from your phone',
+                        style: TextStyle(
+                          color: primary,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Share on BlueWave now — upload to YouTube anytime',
+                        style: TextStyle(color: secondary, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: isDark ? Colors.white54 : Colors.black38,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _QuickActionsRow extends StatelessWidget {
   final VoidCallback onStartForum;
+  final VoidCallback onOpenVideoStudio;
+  final VoidCallback onUploadFromPhone;
 
-  const _QuickActionsRow({required this.onStartForum});
+  const _QuickActionsRow({
+    required this.onStartForum,
+    required this.onOpenVideoStudio,
+    required this.onUploadFromPhone,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -764,9 +855,39 @@ class _QuickActionsRow extends StatelessWidget {
         children: [
           Expanded(
             child: OutlinedButton.icon(
+              onPressed: onUploadFromPhone,
+              icon: const Icon(Icons.upload_file_rounded, size: 18),
+              label: const Text('Upload'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: BlueWaveTheme.waveGlow,
+                side: BorderSide(
+                  color: BlueWaveTheme.primary.withValues(alpha: 0.45),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: onOpenVideoStudio,
+              icon: const Icon(Icons.videocam_rounded, size: 18),
+              label: const Text('Studio'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: BlueWaveTheme.waveGlow,
+                side: BorderSide(
+                  color: BlueWaveTheme.primary.withValues(alpha: 0.45),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: OutlinedButton.icon(
               onPressed: onStartForum,
               icon: const Icon(Icons.forum_outlined, size: 18),
-              label: const Text('Start Forum'),
+              label: const Text('Forum'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: BlueWaveTheme.waveGlow,
                 side: BorderSide(
@@ -784,15 +905,11 @@ class _QuickActionsRow extends StatelessWidget {
 
 class _DiscordBridgeCard extends StatelessWidget {
   final bool isDark;
-  final bool isPosting;
-  final VoidCallback onPostLatestAnnouncement;
-  final VoidCallback onPostGeneralUpdate;
+  final VoidCallback onOpenHub;
 
   const _DiscordBridgeCard({
     required this.isDark,
-    required this.isPosting,
-    required this.onPostLatestAnnouncement,
-    required this.onPostGeneralUpdate,
+    required this.onOpenHub,
   });
 
   @override
@@ -820,13 +937,6 @@ class _DiscordBridgeCard extends StatelessWidget {
                 ],
         ),
         border: Border.all(color: discordBlurple.withValues(alpha: 0.35)),
-        boxShadow: [
-          BoxShadow(
-            color: discordBlurple.withValues(alpha: isDark ? 0.12 : 0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -840,10 +950,7 @@ class _DiscordBridgeCard extends StatelessWidget {
                   color: discordBlurple.withValues(alpha: 0.18),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.hub_rounded,
-                  color: discordBlurple,
-                ),
+                child: const Icon(Icons.hub_rounded, color: discordBlurple),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -859,7 +966,7 @@ class _DiscordBridgeCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'Post app announcements and general info to your server.',
+                      'Post announcements, events, and BlueWave updates to your server.',
                       style: TextStyle(
                         color: secondaryText,
                         fontSize: 12,
@@ -872,45 +979,17 @@ class _DiscordBridgeCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              FilledButton.icon(
-                onPressed: isPosting ? null : onPostLatestAnnouncement,
-                icon: isPosting
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.campaign_rounded, size: 18),
-                label: const Text('Post Latest Announcement'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: discordBlurple,
-                  foregroundColor: Colors.white,
-                ),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: onOpenHub,
+              icon: const Icon(Icons.open_in_new_rounded, size: 18),
+              label: const Text('Open Discord Hub'),
+              style: FilledButton.styleFrom(
+                backgroundColor: discordBlurple,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              OutlinedButton.icon(
-                onPressed: isPosting ? null : onPostGeneralUpdate,
-                icon: const Icon(Icons.edit_note_rounded, size: 18),
-                label: const Text('General Update'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: discordBlurple,
-                  side: BorderSide(
-                    color: discordBlurple.withValues(alpha: 0.55),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'The Flutter app only queues posts. The bot token stays in Firebase Functions.',
-            style: TextStyle(
-              color: secondaryText,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
             ),
           ),
         ],

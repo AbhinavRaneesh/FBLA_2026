@@ -1,0 +1,30 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Profile photos uploaded from Edit Profile.
+    match /profile_images/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn()
+        && fileName == request.auth.uid + '.jpg'
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // BlueWave member videos (phone gallery or camera).
+    match /bluewave_videos/{userId}/{videoFile} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId)
+        && request.resource.size < 500 * 1024 * 1024
+        && request.resource.contentType.matches('video/.*');
+    }
+  }
+}

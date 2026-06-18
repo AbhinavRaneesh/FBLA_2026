@@ -75,9 +75,41 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icons/
+    - assets/home_page_slideshow/1.png
+    - assets/home_page_slideshow/2.png
+    - assets/home_page_slideshow/3.png
+    - assets/home_page_slideshow/4.png
     - assets/official_documents/
+    - assets/official_documents/Champion-Chapter-Adviser-Resource.pdf
+    - assets/official_documents/Creating_Your_SMART_Goals.pdf.pdf
     - assets/official_documents/Cybersecurity.pdf
+    - assets/official_documents/EOY_Report.pdf
+    - assets/official_documents/FBLA_Collegiate_Excellence_Award.pdf
+    - assets/official_documents/FBLA_MS_Business_Achievement_Awards.pdf
+    - assets/official_documents/Marketing_Plan_Template.pdf
     - assets/official_documents/Mobile-Application-Development.pdf
+    - assets/official_documents/Mythbusters_Competitive_Events_Strategy_Guide.pdf
+    - assets/official_documents/POW_Template.pdf
+    - assets/official_documents/Press_Release_Template.pdf
+    - assets/official_documents/Recruitment_Strategies.pdf
+    - assets/official_documents/SMART_Goals.pdf
+    - assets/official_documents/Sample_Agenda.pdf
+    - assets/official_documents/Sample_Bylaws.pdf
+    - assets/official_documents/Sample_Emblem_Ceremony_Script.pdf
+    - assets/official_documents/Sample_FBLA_Committee_Meeting_Report.pdf
+    - assets/official_documents/Sample_FBLA_Officer_Roles_Responsibilites.pdf
+    - assets/official_documents/Sample_Fundraising_Letter.pdf
+    - assets/official_documents/Sample_HS_MS_Officer_Application.pdf
+    - assets/official_documents/Sample_Minutes.pdf
+    - assets/official_documents/Sample_Officer_Elections_Qualifications.pdf
+    - assets/official_documents/Sample_Point_System.pdf
+    - assets/official_documents/Schedule-at-a-Glance-2026-2027.pdf
+    - assets/official_documents/Tips_For_A_Strong_POW.pdf
+    - assets/official_documents/Tips_Sharing_Press_Release.pdf
+    - assets/official_documents/Top_10_Benefits_FBLA_Collegiate_v4.pdf
+    - assets/official_documents/Top_10_Benefits_FBLA_HS.pdf
+    - assets/official_documents/Top_10_Benefits_FBLA_MS_v4.pdf
+    - assets/official_documents/Treasurers_Report.pdf
     - assets/LottieAnimations/
     - assets/character_animation/
     - assets/character_animation/cybersecurity_speaking_final.mp4

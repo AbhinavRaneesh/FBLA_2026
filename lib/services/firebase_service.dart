@@ -3,8 +3,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_core/firebase_core.dart';
 import '../firebase_options.dart';
+import '../social/models/discord_models.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'dart:io';
 import 'dart:typed_data';
+import 'dart:async';
 
 class FirebaseService {
   // Use getters to avoid accessing Firebase instances before
@@ -628,8 +631,10 @@ class FirebaseService {
         if (id.isEmpty) continue;
         final docRef = collectionRef.doc(id);
         final existingDoc = await docRef.get();
-        if (!existingDoc.exists) {
-          batch.set(docRef, data);
+        final isNationalEvent =
+            entry.key == 'events' && id.startsWith('national_');
+        if (!existingDoc.exists || isNationalEvent) {
+          batch.set(docRef, data, SetOptions(merge: true));
           hasWrites = true;
         }
       }
@@ -678,6 +683,9 @@ class FirebaseService {
     String type = 'announcement',
     String? sourceId,
     String? authorName,
+    String? imageUrl,
+    String? actionUrl,
+    String? actionLabel,
   }) async {
     await _ensureInitialized();
 
@@ -687,6 +695,9 @@ class FirebaseService {
       throw Exception('Discord posts need both a title and message.');
     }
 
+    final safeImageUrl = discordSafeMediaUrl(imageUrl);
+    final safeActionUrl = discordSafeMediaUrl(actionUrl);
+
     final docRef = await _firestore.collection('discord_outbox').add({
       'title': trimmedTitle,
       'body': trimmedBody,
@@ -694,6 +705,9 @@ class FirebaseService {
       'type': type,
       'sourceId': sourceId,
       'authorName': authorName,
+      if (safeImageUrl != null) 'imageUrl': safeImageUrl,
+      if (safeActionUrl != null) 'actionUrl': safeActionUrl,
+      'actionLabel': actionLabel,
       'createdBy': _auth.currentUser?.uid,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -701,6 +715,95 @@ class FirebaseService {
     });
 
     return docRef.id;
+  }
+
+  /// Discord embeds require a public http(s) URL — not asset or file paths.
+  static String? discordSafeMediaUrl(String? url) {
+    if (url == null) return null;
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return null;
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null) return null;
+    if (uri.scheme != 'http' && uri.scheme != 'https') return null;
+    if (uri.host.isEmpty) return null;
+    return trimmed;
+  }
+
+  static Stream<List<DiscordOutboxItem>> watchDiscordOutbox({int limit = 25}) {
+    return _firestore
+        .collection('discord_outbox')
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map(
+                (doc) => DiscordOutboxItem.fromMap(
+                  doc.id,
+                  doc.data(),
+                ),
+              )
+              .toList(),
+        );
+  }
+
+  static Future<void> deleteDiscordOutboxItem(String id) async {
+    await _ensureInitialized();
+    await _firestore.collection('discord_outbox').doc(id).delete();
+  }
+
+  static Future<int> deleteFailedDiscordOutboxItems(
+    List<DiscordOutboxItem> items,
+  ) async {
+    await _ensureInitialized();
+    final failed = items
+        .where((i) => i.status == DiscordOutboxStatus.failed)
+        .toList();
+    if (failed.isEmpty) return 0;
+
+    final batch = _firestore.batch();
+    for (final item in failed) {
+      batch.delete(_firestore.collection('discord_outbox').doc(item.id));
+    }
+    await batch.commit();
+    return failed.length;
+  }
+
+  /// Removes all pending (queued) and failed outbox documents.
+  static Future<int> clearQueuedAndFailedOutbox(
+    List<DiscordOutboxItem> items,
+  ) async {
+    await _ensureInitialized();
+    final removable = items
+        .where(
+          (i) =>
+              i.status == DiscordOutboxStatus.pending ||
+              i.status == DiscordOutboxStatus.failed,
+        )
+        .toList();
+    if (removable.isEmpty) return 0;
+
+    final batch = _firestore.batch();
+    for (final item in removable) {
+      batch.delete(_firestore.collection('discord_outbox').doc(item.id));
+    }
+    await batch.commit();
+    return removable.length;
+  }
+
+  static Future<DiscordConfig> getDiscordConfig() async {
+    await _ensureInitialized();
+    try {
+      final doc =
+          await _firestore.collection('discord_config').doc('default').get();
+      final data = doc.data();
+      if (data == null || !doc.exists) {
+        return const DiscordConfig().withAppDefaults();
+      }
+      return DiscordConfig.fromMap(data).withAppDefaults();
+    } catch (_) {
+      return const DiscordConfig().withAppDefaults();
+    }
   }
 
   // Direct Messaging Methods
@@ -922,6 +1025,86 @@ class FirebaseService {
     } catch (e) {
       print('Upload profile image error: $e');
       return null;
+    }
+  }
+
+  static String _videoContentTypeForPath(String path) {
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.mov')) return 'video/quicktime';
+    if (lower.endsWith('.webm')) return 'video/webm';
+    if (lower.endsWith('.mkv')) return 'video/x-matroska';
+    if (lower.endsWith('.3gp')) return 'video/3gpp';
+    return 'video/mp4';
+  }
+
+  static String _videoExtensionForPath(String path) {
+    final lower = path.toLowerCase();
+    for (final ext in ['.mov', '.webm', '.mkv', '.3gp', '.mp4']) {
+      if (lower.endsWith(ext)) return ext;
+    }
+    return '.mp4';
+  }
+
+  static Future<String?> uploadBlueWaveVideo(
+    String userId,
+    String postId,
+    File videoFile, {
+    void Function(double progress)? onProgress,
+  }) async {
+    StreamSubscription<TaskSnapshot>? progressSub;
+    try {
+      await _ensureInitialized();
+      if (_auth.currentUser == null) {
+        throw Exception('You must be signed in to upload videos.');
+      }
+      if (!await videoFile.exists()) {
+        throw Exception('Video file was not found on this device.');
+      }
+      final fileLength = await videoFile.length();
+      if (fileLength == 0) {
+        throw Exception('Video file is empty.');
+      }
+
+      final ext = _videoExtensionForPath(videoFile.path);
+      final contentType = _videoContentTypeForPath(videoFile.path);
+      final ref = _storage.ref().child('bluewave_videos/$userId/$postId$ext');
+      final task = ref.putFile(
+        videoFile,
+        SettableMetadata(contentType: contentType),
+      );
+      if (onProgress != null) {
+        progressSub = task.snapshotEvents.listen(
+          (snapshot) {
+            final total = snapshot.totalBytes;
+            if (total <= 0) return;
+            onProgress(snapshot.bytesTransferred / total);
+          },
+          onError: (_) {},
+        );
+      }
+      final snapshot = await task;
+      if (snapshot.state != TaskState.success) {
+        throw Exception('Video upload did not complete (${snapshot.state.name}).');
+      }
+      return await snapshot.ref.getDownloadURL();
+    } on FirebaseException catch (e) {
+      print('Upload BlueWave video error: [${e.code}] ${e.message}');
+      if (e.code == 'unauthorized' || e.code == 'permission-denied') {
+        throw Exception(
+          'Storage permission denied. Ask your admin to deploy Firebase Storage rules.',
+        );
+      }
+      if (e.code == 'object-not-found') {
+        throw Exception(
+          'Firebase Storage rejected the upload. Deploy storage.rules from this project, then try again.',
+        );
+      }
+      rethrow;
+    } catch (e) {
+      print('Upload BlueWave video error: $e');
+      rethrow;
+    } finally {
+      await progressSub?.cancel();
     }
   }
 

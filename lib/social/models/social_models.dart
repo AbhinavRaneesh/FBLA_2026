@@ -238,6 +238,7 @@ class BlueWavePostData {
   final String text;
   final List<String> imageUrls;
   final String? videoUrl;
+  final String? youtubeVideoId;
   final BlueWavePostKind kind;
   final DateTime createdAt;
   final int waveCount;
@@ -251,6 +252,7 @@ class BlueWavePostData {
     required this.text,
     this.imageUrls = const [],
     this.videoUrl,
+    this.youtubeVideoId,
     this.kind = BlueWavePostKind.standard,
     required this.createdAt,
     this.waveCount = 0,
@@ -258,6 +260,47 @@ class BlueWavePostData {
     this.tags = const [],
     this.isRecommended = false,
   });
+
+  bool get hasVideo =>
+      videoUrl != null &&
+      videoUrl!.isNotEmpty &&
+      (kind == BlueWavePostKind.video ||
+          kind == BlueWavePostKind.reel ||
+          videoUrl!.contains('.mp4') ||
+          videoUrl!.contains('video'));
+
+  bool get isOnYouTube =>
+      youtubeVideoId != null && youtubeVideoId!.isNotEmpty;
+
+  String? get youtubeWatchUrl => isOnYouTube
+      ? 'https://www.youtube.com/watch?v=$youtubeVideoId'
+      : null;
+
+  BlueWavePostData copyWith({
+    String? text,
+    List<String>? imageUrls,
+    String? videoUrl,
+    String? youtubeVideoId,
+    BlueWavePostKind? kind,
+    int? waveCount,
+    int? commentCount,
+    List<String>? tags,
+  }) {
+    return BlueWavePostData(
+      id: id,
+      author: author,
+      text: text ?? this.text,
+      imageUrls: imageUrls ?? this.imageUrls,
+      videoUrl: videoUrl ?? this.videoUrl,
+      youtubeVideoId: youtubeVideoId ?? this.youtubeVideoId,
+      kind: kind ?? this.kind,
+      createdAt: createdAt,
+      waveCount: waveCount ?? this.waveCount,
+      commentCount: commentCount ?? this.commentCount,
+      tags: tags ?? this.tags,
+      isRecommended: isRecommended,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -268,6 +311,7 @@ class BlueWavePostData {
         'text': text,
         'imageUrls': imageUrls,
         'videoUrl': videoUrl,
+        'youtubeVideoId': youtubeVideoId,
         'kind': kind.name,
         'createdAt': createdAt.toIso8601String(),
         'waveCount': waveCount,
@@ -287,6 +331,7 @@ class BlueWavePostData {
       text: json['text'] as String? ?? '',
       imageUrls: (json['imageUrls'] as List?)?.cast<String>() ?? const [],
       videoUrl: json['videoUrl'] as String?,
+      youtubeVideoId: json['youtubeVideoId'] as String?,
       kind: BlueWavePostKind.values.firstWhere(
         (e) => e.name == json['kind'],
         orElse: () => BlueWavePostKind.standard,

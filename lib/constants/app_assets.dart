@@ -21,6 +21,7 @@ class AppAssets {
       '${lottieDir}Personal Data Information Storage in Smartphone.json';
   static const String lottieAiMarketing =
       '${lottieDir}Ai-powered marketing tools abstract.json';
+  static const String lottieLoading = '${lottieDir}loading.json';
 
   static const String characterAnimationDir = 'assets/character_animation/';
   static const String cybersecurityIntroVideo =
@@ -45,4 +46,12 @@ class AppAssets {
 
   static const String utahSchoolsCsv =
       'assets/USBE Schools Directory Export.csv';
+
+  static const String homeSlideshowDir = 'assets/home_page_slideshow/';
+  static const List<String> homeSlideshowImages = [
+    '${homeSlideshowDir}1.png',
+    '${homeSlideshowDir}2.png',
+    '${homeSlideshowDir}3.png',
+    '${homeSlideshowDir}4.png',
+  ];
 }

@@ -96,7 +96,9 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
   int _streak = 0;
   Set<int> _completedLevels = {};
   bool _coursesLoaded = false;
+  bool _coursePanelOpen = false;
   final GlobalKey _courseMenuButtonKey = GlobalKey();
+  final GlobalKey _courseBarKey = GlobalKey();
 
   @override
   void initState() {
@@ -358,6 +360,8 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
         onMoreMenu: () => _showCourseMenu(course),
         onSwitchCourse: _openCoursePicker,
         moreMenuButtonKey: _courseMenuButtonKey,
+        courseBarKey: _courseBarKey,
+        coursePanelOpen: _coursePanelOpen,
         completedLevels: _completedLevels,
         onLevelCompleted: _onLevelCompleted,
       ),
@@ -533,40 +537,69 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
 
   Widget _buildTopStatsBar(AppState app, bool isDark) {
     final rank = app.userRank;
+    final surface = isDark ? const Color(0xFF0B1624) : fblaLightSurface;
+    final border =
+        isDark ? Colors.white.withValues(alpha: 0.1) : fblaLightBorder;
+    final divider = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : fblaLightBorder.withValues(alpha: 0.85);
+    final valueColor = isDark ? Colors.white : fblaLightPrimaryText;
+    final labelColor = isDark
+        ? Colors.white.withValues(alpha: 0.62)
+        : fblaLightSecondaryText;
 
-    Widget chip({
-      required Color tint,
+    Widget statTile({
+      required Color accent,
       required Widget icon,
+      required String label,
       required String value,
       VoidCallback? onTap,
     }) {
       return Expanded(
-        child: GestureDetector(
-          onTap: onTap,
-          behavior: HitTestBehavior.opaque,
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 3.5),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            decoration: BoxDecoration(
-              color: tint.withValues(alpha: isDark ? 0.16 : 0.11),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: tint.withValues(alpha: 0.42)),
-            ),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Row(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(14),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  icon,
-                  const SizedBox(width: 7),
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: isDark ? 0.18 : 0.12),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: accent.withValues(alpha: 0.38),
+                      ),
+                    ),
+                    child: Center(child: icon),
+                  ),
+                  const SizedBox(height: 7),
                   Text(
                     value,
                     maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: isDark ? Colors.white : fblaLightPrimaryText,
-                      fontSize: 15.5,
+                      color: valueColor,
+                      fontSize: 16,
                       fontWeight: FontWeight.w900,
                       height: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: labelColor,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
                     ),
                   ),
                 ],
@@ -577,45 +610,81 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
       );
     }
 
-    return Row(
-      children: [
-        chip(
-          tint: const Color(0xFFFF7043),
-          icon: const Icon(
-            Icons.local_fire_department,
-            color: Color(0xFFFF7043),
-            size: 22,
+    return Container(
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
-          value: '$_streak',
-        ),
-        chip(
-          tint: fblaGold,
-          icon: Image.asset(AppAssets.coins, width: 22, height: 22),
-          value: '$_points',
-        ),
-        chip(
-          tint: const Color(0xFFFFD54F),
-          onTap: () => RankScreen.open(context),
-          icon: const Icon(
-            Icons.emoji_events_rounded,
-            color: Color(0xFFFFD54F),
-            size: 22,
+        ],
+      ),
+      child: Row(
+        children: [
+          statTile(
+            accent: const Color(0xFFFF7043),
+            icon: const Icon(
+              Icons.local_fire_department_rounded,
+              color: Color(0xFFFF7043),
+              size: 20,
+            ),
+            label: 'Streak',
+            value: '$_streak',
           ),
-          value: rank,
-        ),
-      ],
+          Container(width: 1, height: 58, color: divider),
+          statTile(
+            accent: fblaGold,
+            icon: Image.asset(AppAssets.coins, width: 20, height: 20),
+            label: 'FBucks',
+            value: '$_points',
+          ),
+          Container(width: 1, height: 58, color: divider),
+          statTile(
+            accent: const Color(0xFFFFD54F),
+            onTap: () => RankScreen.open(context),
+            icon: const Icon(
+              Icons.emoji_events_rounded,
+              color: Color(0xFFFFD54F),
+              size: 20,
+            ),
+            label: 'Rank',
+            value: rank,
+          ),
+        ],
+      ),
     );
   }
 
   Future<void> _showCoursePanel() async {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final topOffset = MediaQuery.of(context).padding.top + 72;
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    double panelTop = MediaQuery.paddingOf(context).top + 12 + 70 + 12;
+    double panelLeft = 16;
+    double panelRight = 16;
 
-    await showGeneralDialog<void>(
+    final barContext = _courseBarKey.currentContext;
+    if (barContext != null) {
+      final box = barContext.findRenderObject() as RenderBox?;
+      if (box != null && box.hasSize) {
+        final origin = box.localToGlobal(Offset.zero);
+        panelTop = origin.dy + box.size.height + 8;
+        panelLeft = origin.dx;
+        panelRight = screenWidth - origin.dx - box.size.width;
+      }
+    }
+
+    setState(() => _coursePanelOpen = true);
+
+    try {
+      await showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
       barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-      barrierColor: Colors.black54,
+      barrierColor: Colors.transparent,
       transitionDuration: const Duration(milliseconds: 280),
       pageBuilder: (dialogContext, animation, secondaryAnimation) {
         return SafeArea(
@@ -633,9 +702,9 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                 alignment: Alignment.topCenter,
                 child: Padding(
                   padding: EdgeInsets.only(
-                    top: topOffset,
-                    left: 12,
-                    right: 12,
+                    top: panelTop,
+                    left: panelLeft,
+                    right: panelRight,
                   ),
                   child: Material(
                     color: Colors.transparent,
@@ -830,7 +899,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                 child: panel,
                 builder: (context, child) {
                   final slide = Tween<Offset>(
-                    begin: const Offset(0, -0.18),
+                    begin: const Offset(0, -0.05),
                     end: Offset.zero,
                   ).animate(
                     CurvedAnimation(
@@ -849,6 +918,11 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
         );
       },
     );
+    } finally {
+      if (mounted) {
+        setState(() => _coursePanelOpen = false);
+      }
+    }
   }
 
   Color _courseColor(String course) {
@@ -883,6 +957,8 @@ class _CourseJourneyPanel extends StatefulWidget {
   final VoidCallback onMoreMenu;
   final VoidCallback onSwitchCourse;
   final GlobalKey moreMenuButtonKey;
+  final GlobalKey courseBarKey;
+  final bool coursePanelOpen;
   final Set<int> completedLevels;
   final void Function(int level, int correct, int total) onLevelCompleted;
 
@@ -894,6 +970,8 @@ class _CourseJourneyPanel extends StatefulWidget {
     required this.onMoreMenu,
     required this.onSwitchCourse,
     required this.moreMenuButtonKey,
+    required this.courseBarKey,
+    required this.coursePanelOpen,
     required this.completedLevels,
     required this.onLevelCompleted,
   });
@@ -1004,83 +1082,111 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Provider.of<AppState>(context).isDarkMode;
+    final courseBarColor =
+        isDark ? const Color(0xFF0B1624) : fblaLightSurface;
+    final courseBarBorder =
+        isDark ? Colors.white.withValues(alpha: 0.1) : fblaLightBorder;
+    final courseTitleColor = isDark ? Colors.white : fblaLightPrimaryText;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(2, 0, 2, 8),
-          child: Row(
-            children: [
-              Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [widget.color, widget.color.withOpacity(0.72)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: widget.color.withOpacity(0.28),
-                      blurRadius: 18,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Icon(widget.icon, color: Colors.white, size: 28),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: GestureDetector(
-                  onTap: widget.onSwitchCourse,
-                  behavior: HitTestBehavior.opaque,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          widget.course,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        color: widget.color,
-                        size: 22,
+          child: Container(
+            key: widget.courseBarKey,
+            padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+            decoration: BoxDecoration(
+              color: courseBarColor,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: courseBarBorder),
+              boxShadow: isDark
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
                     ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                key: widget.moreMenuButtonKey,
-                onTap: widget.onMoreMenu,
-                child: Container(
-                  width: 34,
-                  height: 34,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.07),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white12),
+                    color: widget.color.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: widget.color.withValues(alpha: 0.45),
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.menu,
-                    color: Colors.white,
-                    size: 18,
+                  child: Icon(widget.icon, color: Colors.white, size: 26),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: widget.onSwitchCourse,
+                    behavior: HitTestBehavior.opaque,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            widget.course,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: courseTitleColor,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        AnimatedRotation(
+                          turns: widget.coursePanelOpen ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 280),
+                          curve: Curves.easeOutCubic,
+                          child: Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: fblaGold,
+                            size: 22,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                GestureDetector(
+                  key: widget.moreMenuButtonKey,
+                  onTap: widget.onMoreMenu,
+                  child: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.06)
+                          : fblaLightBackground,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.12)
+                            : fblaLightBorder,
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.menu_rounded,
+                      color: isDark ? Colors.white : fblaNavy,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         _buildProgressHeader(),
@@ -6539,6 +6645,35 @@ class _LevelStartPrompt extends StatelessWidget {
   Widget build(BuildContext context) {
     const promptTopColor = Color(0xFF102A4E);
     const promptBottomColor = Color(0xFF1D4E89);
+    final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              height: 1.2,
+            ) ??
+        const TextStyle(
+          color: Colors.white,
+          fontSize: 15,
+          fontWeight: FontWeight.w900,
+          height: 1.2,
+        );
+    final subtitleStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Colors.white.withValues(alpha: 0.92),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ) ??
+        TextStyle(
+          color: Colors.white.withValues(alpha: 0.92),
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+        );
+    const buttonTextStyle = TextStyle(
+      fontSize: 16,
+      fontWeight: FontWeight.w900,
+      letterSpacing: 0.2,
+      height: 1.1,
+    );
+
     return Material(
       color: Colors.transparent,
       child: Column(
@@ -6548,14 +6683,14 @@ class _LevelStartPrompt extends StatelessWidget {
             painter: const _PromptPointerPainter(promptTopColor),
           ),
           Container(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [promptTopColor, promptBottomColor],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
                   color: promptBottomColor.withValues(alpha: 0.34),
@@ -6569,55 +6704,42 @@ class _LevelStartPrompt extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Cybersecurity Fundamentals',
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                  ),
+                  style: titleStyle,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Row(
                   children: [
                     const Icon(Icons.savings_rounded,
-                        color: Colors.white, size: 16),
-                    const SizedBox(width: 6),
+                        color: fblaGold, size: 18),
+                    const SizedBox(width: 8),
                     Text(
                       'Earn 50 FBucks',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.92),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: subtitleStyle,
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 SizedBox(
                   width: double.infinity,
-                  height: 46,
+                  height: 52,
                   child: ElevatedButton(
                     onPressed: onStart,
                     style: ElevatedButton.styleFrom(
                       elevation: 0,
-                      backgroundColor: Colors.white,
+                      backgroundColor: fblaGold,
                       foregroundColor: fblaNavy,
+                      disabledBackgroundColor:
+                          Colors.white.withValues(alpha: 0.35),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(16),
                       ),
+                      textStyle: buttonTextStyle,
                     ),
-                    child: const Text(
-                      'START LESSON',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.3,
-                        height: 1.1,
-                      ),
-                    ),
+                    child: const Text('Start lesson'),
                   ),
                 ),
               ],
