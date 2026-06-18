@@ -21,7 +21,7 @@ String get geminiApiKey =>
 String get geminiModel =>
     const String.fromEnvironment(
       'GEMINI_MODEL',
-      defaultValue: 'gemini-2.5-flash',
+      defaultValue: 'gemini-2.5-flash-lite',
     );
 
 final List<String> apiEndpoints = [

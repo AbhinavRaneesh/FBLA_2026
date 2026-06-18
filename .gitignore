@@ -48,5 +48,7 @@ app.*.map.json
 
 # Scratch / local-only files
 .tmp/
+gemini.txt
+assets/gemini.txt
 .claude/settings.local.json
 home_redesign.png

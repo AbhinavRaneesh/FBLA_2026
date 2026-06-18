@@ -5,18 +5,23 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../main.dart'
     show
         AppState,
+        appBackgroundColor,
         appBackgroundGradient,
+        fblaGold,
         fblaLightBackground,
-        fblaLightPrimaryText;
+        fblaLightBorder,
+        fblaLightPrimaryText,
+        fblaLightSecondaryText,
+        fblaLightSurface,
+        fblaNavy;
 import '../../models/video_model.dart';
 import '../../screens/find_members_screen.dart';
-import '../../widgets/friend_picker_sheet.dart';
 import '../../screens/instagram_feed_screen.dart';
 import '../../screens/video_player_screen.dart';
-import '../../services/firebase_service.dart';
 import '../models/social_models.dart';
 import '../providers/social_provider.dart';
 import '../theme/bluewave_theme.dart';
+import '../widgets/post_share_sheet.dart';
 import '../widgets/social_feed_widgets.dart';
 import 'bluewave_compose_screen.dart';
 import 'discord_hub_screen.dart';
@@ -25,7 +30,7 @@ import 'local_video_player_screen.dart';
 import 'social_messages_screen.dart';
 import 'video_studio_screen.dart';
 
-/// Flagship Social tab — unified BlueWave + external platforms feed with ML ranking.
+/// Flagship Social tab — two-pane: Feed | Discover.
 class SocialScreen extends StatefulWidget {
   const SocialScreen({super.key});
 
@@ -33,14 +38,20 @@ class SocialScreen extends StatefulWidget {
   State<SocialScreen> createState() => _SocialScreenState();
 }
 
-class _SocialScreenState extends State<SocialScreen> {
+class _SocialScreenState extends State<SocialScreen>
+    with SingleTickerProviderStateMixin {
   late final SocialProvider _socialProvider;
+  late final TabController _tabController;
+
+  // Search overlay state
+  bool _searchOpen = false;
   final _searchController = TextEditingController();
   bool _showSearchResults = false;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _socialProvider = SocialProvider();
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
@@ -57,6 +68,7 @@ class _SocialScreenState extends State<SocialScreen> {
 
   @override
   void dispose() {
+    _tabController.dispose();
     _searchController.dispose();
     _socialProvider.dispose();
     super.dispose();
@@ -87,24 +99,35 @@ class _SocialScreenState extends State<SocialScreen> {
     );
   }
 
+  void _toggleSearch() {
+    setState(() {
+      _searchOpen = !_searchOpen;
+      if (!_searchOpen) {
+        _searchController.clear();
+        _socialProvider.clearSearch();
+        _showSearchResults = false;
+      }
+    });
+  }
+
   void _showCreateOptions(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: isDark ? const Color(0xFF0F1C31) : Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Center(
                 child: Container(
-                  width: 40,
+                  width: 36,
                   height: 4,
                   decoration: BoxDecoration(
                     color: isDark ? Colors.white24 : Colors.black12,
@@ -112,66 +135,48 @@ class _SocialScreenState extends State<SocialScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
               Text(
                 'Create',
                 style: TextStyle(
                   color: isDark ? Colors.white : fblaLightPrimaryText,
                   fontWeight: FontWeight.w900,
-                  fontSize: 18,
+                  fontSize: 20,
                 ),
               ),
-              const SizedBox(height: 14),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: BlueWaveTheme.primary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.upload_file_rounded,
-                      color: BlueWaveTheme.primary),
-                ),
-                title: const Text('Upload from Phone',
-                    style: TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: const Text(
-                    'Pick a video from your gallery and post to BlueWave'),
+              const SizedBox(height: 6),
+              _sheetTile(
+                ctx: ctx,
+                isDark: isDark,
+                icon: Icons.upload_file_rounded,
+                color: BlueWaveTheme.primary,
+                title: 'Upload from Phone',
+                subtitle: 'Pick a video from your gallery',
                 onTap: () {
                   Navigator.pop(ctx);
-                  _openVideoStudio(context, launchMode: VideoStudioLaunchMode.gallery);
+                  _openVideoStudio(context,
+                      launchMode: VideoStudioLaunchMode.gallery);
                 },
               ),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: BlueWaveTheme.primary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.videocam_rounded,
-                      color: BlueWaveTheme.primary),
-                ),
-                title: const Text('Video Studio',
-                    style: TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: const Text('Record, post, and upload to YouTube'),
+              _sheetTile(
+                ctx: ctx,
+                isDark: isDark,
+                icon: Icons.videocam_rounded,
+                color: BlueWaveTheme.primary,
+                title: 'Video Studio',
+                subtitle: 'Record, edit, and post to BlueWave or YouTube',
                 onTap: () {
                   Navigator.pop(ctx);
                   _openVideoStudio(context);
                 },
               ),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: BlueWaveTheme.primary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.waves_rounded,
-                      color: BlueWaveTheme.primary),
-                ),
-                title: const Text('Text Post',
-                    style: TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: const Text('Share an update on BlueWave'),
+              _sheetTile(
+                ctx: ctx,
+                isDark: isDark,
+                icon: Icons.waves_rounded,
+                color: BlueWaveTheme.primary,
+                title: 'Text Post',
+                subtitle: 'Share a text update on BlueWave',
                 onTap: () {
                   Navigator.pop(ctx);
                   Navigator.push(
@@ -185,10 +190,58 @@ class _SocialScreenState extends State<SocialScreen> {
                   );
                 },
               ),
+              _sheetTile(
+                ctx: ctx,
+                isDark: isDark,
+                icon: Icons.forum_outlined,
+                color: fblaGold,
+                title: 'Start Forum Thread',
+                subtitle: 'Open a discussion with your chapter',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const StartForumScreen()),
+                  );
+                },
+              ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _sheetTile({
+    required BuildContext ctx,
+    required bool isDark,
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      leading: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: color, size: 22),
+      ),
+      title: Text(title,
+          style: TextStyle(
+            color: isDark ? Colors.white : fblaLightPrimaryText,
+            fontWeight: FontWeight.w800,
+          )),
+      subtitle: Text(subtitle,
+          style: TextStyle(
+              color: isDark ? Colors.white54 : fblaLightSecondaryText,
+              fontSize: 12)),
+      onTap: onTap,
     );
   }
 
@@ -199,16 +252,12 @@ class _SocialScreenState extends State<SocialScreen> {
     return ChangeNotifierProvider.value(
       value: _socialProvider,
       child: Scaffold(
-        backgroundColor: isDark ? Colors.transparent : fblaLightBackground,
-        floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: isDark ? appBackgroundColor : fblaLightBackground,
+        floatingActionButton: FloatingActionButton(
           onPressed: () => _showCreateOptions(context),
           backgroundColor: BlueWaveTheme.primary,
           foregroundColor: Colors.white,
-          icon: const Icon(Icons.add_rounded),
-          label: const Text(
-            'Create',
-            style: TextStyle(fontWeight: FontWeight.w900),
-          ),
+          child: const Icon(Icons.add_rounded),
         ),
         body: Container(
           decoration: BoxDecoration(
@@ -218,28 +267,60 @@ class _SocialScreenState extends State<SocialScreen> {
             bottom: false,
             child: Column(
               children: [
-                _buildAppBar(isDark),
-                Consumer<SocialProvider>(
-                  builder: (context, social, _) {
-                    return SocialSearchBar(
-                      controller: _searchController,
-                      onChanged: (q) {
-                        social.search(q);
-                        setState(
-                            () => _showSearchResults = q.trim().isNotEmpty);
-                      },
-                      onClear: () {
-                        _searchController.clear();
-                        social.clearSearch();
-                        setState(() => _showSearchResults = false);
-                      },
-                    );
-                  },
-                ),
+                _buildHeader(isDark),
+                if (_searchOpen) _buildSearchBar(isDark),
+                _buildTabBar(isDark),
                 Expanded(
                   child: _showSearchResults
                       ? _buildSearchResults(isDark)
-                      : _buildFeed(isDark),
+                      : TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _FeedTab(
+                              onRefresh: _refresh,
+                              onOpenFeedItem: (item) =>
+                                  _openFeedItem(context, item, isDark),
+                              onWave: (id) =>
+                                  _socialProvider.toggleWave(id),
+                              onShare: (item) => _shareFeedItem(context, item),
+                            ),
+                            _DiscoverTab(
+                              isDark: isDark,
+                              onUploadFromPhone: () => _openVideoStudio(
+                                context,
+                                launchMode: VideoStudioLaunchMode.gallery,
+                              ),
+                              onOpenVideoStudio: () =>
+                                  _openVideoStudio(context),
+                              onTextPost: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ChangeNotifierProvider.value(
+                                    value: _socialProvider,
+                                    child: const BlueWaveComposeScreen(),
+                                  ),
+                                ),
+                              ),
+                              onStartForum: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const StartForumScreen()),
+                              ),
+                              onOpenDiscord: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ChangeNotifierProvider.value(
+                                    value: _socialProvider,
+                                    child: const DiscordHubScreen(),
+                                  ),
+                                ),
+                              ),
+                              onOpenPlatform: _openPlatform,
+                              onTapRecommended: (item) =>
+                                  _openFeedItem(context, item, isDark),
+                            ),
+                          ],
+                        ),
                 ),
               ],
             ),
@@ -249,62 +330,63 @@ class _SocialScreenState extends State<SocialScreen> {
     );
   }
 
-  Widget _buildAppBar(bool isDark) {
+  // ── Header ─────────────────────────────────────────────────────────────────
+
+  Widget _buildHeader(bool isDark) {
     final primary = isDark ? Colors.white : fblaLightPrimaryText;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 8, 4),
+      padding: const EdgeInsets.fromLTRB(20, 14, 8, 4),
       child: Row(
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'BlueWave & Social',
-                  style: TextStyle(
-                    color: primary,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.4,
-                  ),
-                ),
-                Text(
-                  'Unified chapter feed',
-                  style: TextStyle(
-                    color: isDark ? Colors.white60 : Colors.black54,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+          // Logo mark + title
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              gradient: BlueWaveTheme.waveAccent,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.waves_rounded,
+                color: Colors.white, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            'Social',
+            style: TextStyle(
+              color: primary,
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.5,
             ),
           ),
-          IconButton(
+          const Spacer(),
+          // Search
+          _HeaderIconButton(
+            icon: Icons.search_rounded,
+            tooltip: 'Search',
+            active: _searchOpen,
+            isDark: isDark,
+            onTap: _toggleSearch,
+          ),
+          // Messages
+          _HeaderIconButton(
+            icon: Icons.chat_bubble_outline_rounded,
             tooltip: 'Messages',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SocialMessagesScreen()),
-              );
-            },
-            icon: Icon(
-              Icons.chat_bubble_outline_rounded,
-              color: isDark ? BlueWaveTheme.waveGlow : BlueWaveTheme.primary,
+            isDark: isDark,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const SocialMessagesScreen()),
             ),
           ),
-          IconButton(
-            tooltip: 'Find Members',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const FindMembersScreen(),
-                ),
-              );
-            },
-            icon: Icon(
-              Icons.people_outline_rounded,
-              color: isDark ? BlueWaveTheme.waveGlow : BlueWaveTheme.primary,
+          // Members
+          _HeaderIconButton(
+            icon: Icons.people_outline_rounded,
+            tooltip: 'Members',
+            isDark: isDark,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const FindMembersScreen()),
             ),
           ),
         ],
@@ -312,37 +394,174 @@ class _SocialScreenState extends State<SocialScreen> {
     );
   }
 
+  // ── Search bar (appears below header when active) ──────────────────────────
+
+  Widget _buildSearchBar(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.07)
+              : fblaLightSurface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isDark
+                ? BlueWaveTheme.primary.withValues(alpha: 0.3)
+                : fblaLightBorder,
+          ),
+        ),
+        child: TextField(
+          controller: _searchController,
+          autofocus: true,
+          style: TextStyle(
+            color: isDark ? Colors.white : fblaLightPrimaryText,
+            fontWeight: FontWeight.w600,
+            fontSize: 15,
+          ),
+          onChanged: (q) {
+            _socialProvider.search(q);
+            setState(() => _showSearchResults = q.trim().isNotEmpty);
+          },
+          decoration: InputDecoration(
+            hintText: 'Search posts, forums, news…',
+            hintStyle: TextStyle(
+              color: isDark ? Colors.white38 : fblaLightSecondaryText,
+              fontSize: 14,
+            ),
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              color: isDark ? BlueWaveTheme.waveGlow : BlueWaveTheme.primary,
+              size: 20,
+            ),
+            suffixIcon: _searchController.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                    onPressed: () {
+                      _searchController.clear();
+                      _socialProvider.clearSearch();
+                      setState(() => _showSearchResults = false);
+                    },
+                  )
+                : null,
+            border: InputBorder.none,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 4, vertical: 13),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Tab bar ────────────────────────────────────────────────────────────────
+
+  Widget _buildTabBar(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+      child: Container(
+        height: 42,
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.06)
+              : Colors.black.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: TabBar(
+          controller: _tabController,
+          onTap: (_) {
+            // Close search if tab changes
+            if (_searchOpen) _toggleSearch();
+          },
+          indicator: BoxDecoration(
+            color: BlueWaveTheme.primary,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          indicatorSize: TabBarIndicatorSize.tab,
+          dividerColor: Colors.transparent,
+          labelColor: Colors.white,
+          unselectedLabelColor:
+              isDark ? Colors.white60 : fblaLightPrimaryText.withValues(alpha: 0.6),
+          labelStyle: const TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 14,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+          tabs: const [
+            Tab(text: 'Feed'),
+            Tab(text: 'Discover'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Search results ─────────────────────────────────────────────────────────
+
   Widget _buildSearchResults(bool isDark) {
     return Consumer<SocialProvider>(
       builder: (context, social, _) {
         if (social.searchResults.isEmpty) {
           return Center(
-            child: Text(
-              'No results for "${social.searchQuery}"',
-              style: TextStyle(
-                color: isDark ? Colors.white60 : Colors.black54,
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.search_off_rounded,
+                    size: 48,
+                    color: isDark ? Colors.white24 : Colors.black26),
+                const SizedBox(height: 12),
+                Text(
+                  'No results for "${social.searchQuery}"',
+                  style: TextStyle(
+                    color: isDark ? Colors.white60 : fblaLightSecondaryText,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           );
         }
-        return ListView.builder(
-          padding: const EdgeInsets.only(bottom: 100),
+        return ListView.separated(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
           itemCount: social.searchResults.length,
+          separatorBuilder: (_, __) => Divider(
+            color: isDark ? Colors.white10 : fblaLightBorder,
+            height: 1,
+          ),
           itemBuilder: (context, index) {
             final result = social.searchResults[index];
             return ListTile(
-              leading: Icon(_iconForPlatform(result.platform)),
+              contentPadding: const EdgeInsets.symmetric(vertical: 4),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: BlueWaveTheme.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  _iconForPlatform(result.platform),
+                  color: BlueWaveTheme.primary,
+                  size: 18,
+                ),
+              ),
               title: Text(
                 result.title,
                 style: TextStyle(
                   color: isDark ? Colors.white : fblaLightPrimaryText,
                   fontWeight: FontWeight.w700,
+                  fontSize: 14,
                 ),
               ),
               subtitle: Text(
                 result.subtitle,
-                maxLines: 2,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: isDark ? Colors.white54 : fblaLightSecondaryText,
+                  fontSize: 12,
+                ),
               ),
               onTap: () {
                 final item = result.feedItem;
@@ -355,152 +574,7 @@ class _SocialScreenState extends State<SocialScreen> {
     );
   }
 
-  Widget _buildFeed(bool isDark) {
-    return Consumer<SocialProvider>(
-      builder: (context, social, _) {
-        if (social.loading) {
-          return const SocialTabLoading();
-        }
-        if (social.error != null) {
-          return Center(
-            child: Text(
-              social.error!,
-              style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
-            ),
-          );
-        }
-
-        return RefreshIndicator(
-          onRefresh: _refresh,
-          color: BlueWaveTheme.primary,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              const SliverToBoxAdapter(child: BlueWaveHeader()),
-              if (social.recommended.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: _RecommendedStrip(
-                    items: social.recommended,
-                    isDark: isDark,
-                    onTap: (item) => _openFeedItem(context, item, isDark),
-                  ),
-                ),
-              SliverToBoxAdapter(
-                child: _PhoneVideoUploadBanner(
-                  isDark: isDark,
-                  onUpload: () => _openVideoStudio(
-                    context,
-                    launchMode: VideoStudioLaunchMode.gallery,
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: _QuickActionsRow(
-                  onStartForum: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const StartForumScreen(),
-                      ),
-                    );
-                  },
-                  onOpenVideoStudio: () => _openVideoStudio(context),
-                  onUploadFromPhone: () => _openVideoStudio(
-                    context,
-                    launchMode: VideoStudioLaunchMode.gallery,
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: _DiscordBridgeCard(
-                  isDark: isDark,
-                  onOpenHub: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ChangeNotifierProvider.value(
-                          value: _socialProvider,
-                          child: const DiscordHubScreen(),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 0, 10),
-                  child: Text(
-                    'Social Platforms',
-                    style: TextStyle(
-                      color: isDark ? Colors.white : fblaLightPrimaryText,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 130,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: social.platformLinks.length,
-                    itemBuilder: (context, index) {
-                      final platform = social.platformLinks[index];
-                      return SocialPlatformCard(
-                        platform: platform,
-                        isDark: isDark,
-                        onTap: () => _openPlatform(platform),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Text(
-                    'Your Feed',
-                    style: TextStyle(
-                      color: isDark ? Colors.white : fblaLightPrimaryText,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ),
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final item = social.feedItems[index];
-                    return _FeedItemBuilder(
-                      item: item,
-                      isDark: isDark,
-                      hasWaved: item.blueWave != null
-                          ? social.hasWaved(item.blueWave!.id)
-                          : false,
-                      onWave: item.blueWave != null
-                          ? () => social.toggleWave(item.blueWave!.id)
-                          : null,
-                      onShare: item.blueWave != null
-                          ? () => _shareBlueWavePost(context, item.blueWave!)
-                          : null,
-                      onOpen: () => _openFeedItem(context, item, isDark),
-                      onTrackView: () => social.trackView(item),
-                    );
-                  },
-                  childCount: social.feedItems.length,
-                ),
-              ),
-              const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
-            ],
-          ),
-        );
-      },
-    );
-  }
+  // ── Helpers ────────────────────────────────────────────────────────────────
 
   void _openFeedItem(BuildContext context, FeedItem item, bool isDark) {
     context.read<SocialProvider>().trackView(item);
@@ -532,7 +606,8 @@ class _SocialScreenState extends State<SocialScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => ForumThreadDetailScreen(thread: item.forum!),
+              builder: (_) =>
+                  ForumThreadDetailScreen(thread: item.forum!),
             ),
           );
         }
@@ -576,61 +651,8 @@ class _SocialScreenState extends State<SocialScreen> {
     }
   }
 
-  Future<void> _shareBlueWavePost(
-    BuildContext context,
-    BlueWavePostData post,
-  ) async {
-    final app = context.read<AppState>();
-    final userId = app.firebaseUser?.uid;
-    if (userId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sign in to share posts with friends.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    final friends = await FirebaseService.getFriendsForUser(userId);
-    if (!context.mounted) return;
-
-    final picked = await FriendPickerSheet.show(
-      context,
-      friends: friends,
-      title: 'Share with Friends',
-      confirmLabel: 'Send',
-    );
-    if (picked == null || picked.isEmpty || !context.mounted) return;
-
-    final payload = {
-      'postId': post.id,
-      'postKind': post.kind.name,
-      'postText': post.text,
-      if (post.videoUrl != null && post.videoUrl!.isNotEmpty)
-        'postVideoUrl': post.videoUrl,
-    };
-
-    for (final friend in picked) {
-      final friendId = (friend['id'] ?? '').toString();
-      if (friendId.isEmpty) continue;
-      await FirebaseService.sendPostShareMessage(
-        fromUserId: userId,
-        toUserId: friendId,
-        fromUserName: app.resolvedDisplayName,
-        postPayload: payload,
-      );
-    }
-
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Shared with ${picked.length} friend${picked.length == 1 ? '' : 's'} in chat.',
-        ),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  Future<void> _shareFeedItem(BuildContext context, FeedItem item) async {
+    await SocialPostShare.showOptions(context, item);
   }
 
   Future<void> _openPlatform(SocialPlatformLink platform) async {
@@ -658,345 +680,448 @@ class _SocialScreenState extends State<SocialScreen> {
   }
 }
 
-class _RecommendedStrip extends StatelessWidget {
-  final List<FeedItem> items;
-  final bool isDark;
-  final ValueChanged<FeedItem> onTap;
+// ════════════════════════════════════════════════════════════════════════════
+// Feed Tab — clean scrollable list of all feed items
+// ════════════════════════════════════════════════════════════════════════════
 
-  const _RecommendedStrip({
-    required this.items,
+class _FeedTab extends StatefulWidget {
+  final Future<void> Function() onRefresh;
+  final void Function(FeedItem) onOpenFeedItem;
+  final void Function(String postId) onWave;
+  final void Function(FeedItem item) onShare;
+
+  const _FeedTab({
+    required this.onRefresh,
+    required this.onOpenFeedItem,
+    required this.onWave,
+    required this.onShare,
+  });
+
+  @override
+  State<_FeedTab> createState() => _FeedTabState();
+}
+
+class _FeedTabState extends State<_FeedTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Consumer<SocialProvider>(
+      builder: (context, social, _) {
+        if (social.loading) return const SocialTabLoading();
+
+        if (social.error != null) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.wifi_off_rounded,
+                      size: 48,
+                      color: isDark ? Colors.white24 : Colors.black26),
+                  const SizedBox(height: 12),
+                  Text(
+                    social.error!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: isDark ? Colors.white60 : fblaLightSecondaryText,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: widget.onRefresh,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Retry'),
+                    style: FilledButton.styleFrom(
+                        backgroundColor: BlueWaveTheme.primary),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        if (social.feedItems.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.inbox_rounded,
+                    size: 52,
+                    color: isDark ? Colors.white24 : Colors.black26),
+                const SizedBox(height: 12),
+                Text(
+                  'Nothing in your feed yet.',
+                  style: TextStyle(
+                    color: isDark ? Colors.white60 : fblaLightSecondaryText,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: widget.onRefresh,
+          color: BlueWaveTheme.primary,
+          child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 100),
+            itemCount: social.feedItems.length,
+            itemBuilder: (context, index) {
+              final item = social.feedItems[index];
+              return _FeedItemBuilder(
+                item: item,
+                isDark: isDark,
+                hasWaved: item.blueWave != null
+                    ? social.hasWaved(item.blueWave!.id)
+                    : false,
+                onWave: item.blueWave != null
+                    ? () => widget.onWave(item.blueWave!.id)
+                    : null,
+                onShare: () => widget.onShare(item),
+                onOpen: () => widget.onOpenFeedItem(item),
+                onTrackView: () => social.trackView(item),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Discover Tab — create, upload, discord, social platforms, recommended
+// ════════════════════════════════════════════════════════════════════════════
+
+class _DiscoverTab extends StatefulWidget {
+  final bool isDark;
+  final VoidCallback onUploadFromPhone;
+  final VoidCallback onOpenVideoStudio;
+  final VoidCallback onTextPost;
+  final VoidCallback onStartForum;
+  final VoidCallback onOpenDiscord;
+  final Future<void> Function(SocialPlatformLink) onOpenPlatform;
+  final void Function(FeedItem) onTapRecommended;
+
+  const _DiscoverTab({
     required this.isDark,
+    required this.onUploadFromPhone,
+    required this.onOpenVideoStudio,
+    required this.onTextPost,
+    required this.onStartForum,
+    required this.onOpenDiscord,
+    required this.onOpenPlatform,
+    required this.onTapRecommended,
+  });
+
+  @override
+  State<_DiscoverTab> createState() => _DiscoverTabState();
+}
+
+class _DiscoverTabState extends State<_DiscoverTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final isDark = widget.isDark;
+    final primary = isDark ? Colors.white : fblaLightPrimaryText;
+    final secondary = isDark ? Colors.white60 : fblaLightSecondaryText;
+
+    return Consumer<SocialProvider>(
+      builder: (context, social, _) {
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+          children: [
+            if (social.recommended.isNotEmpty) ...[
+              RecommendedDiscoverStrip(
+                items: social.recommended,
+                isDark: isDark,
+                onTap: widget.onTapRecommended,
+              ),
+              const SizedBox(height: 22),
+            ],
+
+            // ── Create section ──────────────────────────────────────────────
+            _sectionLabel('Create', primary),
+            const SizedBox(height: 10),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 2.6,
+              children: [
+                _ActionCard(
+                  isDark: isDark,
+                  icon: Icons.upload_file_rounded,
+                  color: BlueWaveTheme.primary,
+                  label: 'Upload Video',
+                  onTap: widget.onUploadFromPhone,
+                ),
+                _ActionCard(
+                  isDark: isDark,
+                  icon: Icons.videocam_rounded,
+                  color: BlueWaveTheme.primary,
+                  label: 'Video Studio',
+                  onTap: widget.onOpenVideoStudio,
+                ),
+                _ActionCard(
+                  isDark: isDark,
+                  icon: Icons.waves_rounded,
+                  color: BlueWaveTheme.waveGlow,
+                  label: 'Text Post',
+                  onTap: widget.onTextPost,
+                ),
+                _ActionCard(
+                  isDark: isDark,
+                  icon: Icons.forum_outlined,
+                  color: fblaGold,
+                  label: 'Forum Thread',
+                  onTap: widget.onStartForum,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 22),
+
+            // ── Discord ─────────────────────────────────────────────────────
+            _sectionLabel('Discord', primary),
+            const SizedBox(height: 10),
+            _DiscordCard(isDark: isDark, onOpenHub: widget.onOpenDiscord),
+
+            const SizedBox(height: 22),
+
+            // ── Social platforms ────────────────────────────────────────────
+            if (social.platformLinks.isNotEmpty) ...[
+              _sectionLabel('Platforms', primary),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 110,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: social.platformLinks.length,
+                  itemBuilder: (context, index) {
+                    final platform = social.platformLinks[index];
+                    return SocialPlatformCard(
+                      platform: platform,
+                      isDark: isDark,
+                      onTap: () => widget.onOpenPlatform(platform),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 22),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _sectionLabel(String text, Color color) {
+    return Text(
+      text,
+      style: TextStyle(
+        color: color,
+        fontWeight: FontWeight.w900,
+        fontSize: 15,
+        letterSpacing: 0.1,
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Reusable widgets
+// ════════════════════════════════════════════════════════════════════════════
+
+class _HeaderIconButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final bool isDark;
+  final bool active;
+
+  const _HeaderIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    required this.isDark,
+    this.active = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? BlueWaveTheme.primaryDark : BlueWaveTheme.primary;
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onTap,
+      icon: Icon(icon, color: color, size: 22),
+    );
+  }
+}
+
+class _ActionCard extends StatelessWidget {
+  final bool isDark;
+  final IconData icon;
+  final Color color;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ActionCard({
+    required this.isDark,
+    required this.icon,
+    required this.color,
+    required this.label,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-          child: Text(
-            'Recommended for you',
-            style: TextStyle(
-              color: isDark ? Colors.white : fblaLightPrimaryText,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isDark
+                  ? color.withValues(alpha: 0.2)
+                  : color.withValues(alpha: 0.18),
             ),
-          ),
-        ),
-        SizedBox(
-          height: 118,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final item = items[index];
-              final title = _titleFor(item);
-              return GestureDetector(
-                onTap: () => onTap(item),
-                child: Container(
-                  width: 200,
-                  margin: const EdgeInsets.only(right: 10),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BlueWaveTheme.cardDecoration(isDark: isDark),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'New for you',
-                        style: TextStyle(
-                          color: BlueWaveTheme.waveGlow,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        title,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: isDark ? Colors.white : fblaLightPrimaryText,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                          height: 1.25,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _titleFor(FeedItem item) {
-    return item.blueWave?.text ??
-        item.youtube?.title ??
-        item.forum?.title ??
-        item.news?.title ??
-        item.instagram?.caption ??
-        'Recommended';
-  }
-}
-
-class _PhoneVideoUploadBanner extends StatelessWidget {
-  final bool isDark;
-  final VoidCallback onUpload;
-
-  const _PhoneVideoUploadBanner({
-    required this.isDark,
-    required this.onUpload,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final primary = isDark ? Colors.white : fblaLightPrimaryText;
-    final secondary = isDark ? Colors.white70 : Colors.black54;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onUpload,
-          borderRadius: BorderRadius.circular(20),
-          child: Ink(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              gradient: LinearGradient(
-                colors: isDark
-                    ? [
-                        BlueWaveTheme.primary.withValues(alpha: 0.35),
-                        const Color(0xFF0A1628),
-                      ]
-                    : [
-                        const Color(0xFFD6F0FF),
-                        const Color(0xFFF0F8FF),
-                      ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
               ),
-              border: Border.all(
-                color: BlueWaveTheme.primary.withValues(alpha: 0.4),
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: BlueWaveTheme.primary.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(
-                    Icons.upload_file_rounded,
-                    color: BlueWaveTheme.primary,
-                    size: 26,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Upload a video from your phone',
-                        style: TextStyle(
-                          color: primary,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 15,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Share on BlueWave now — upload to YouTube anytime',
-                        style: TextStyle(color: secondary, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: isDark ? Colors.white54 : Colors.black38,
-                ),
-              ],
-            ),
+            ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickActionsRow extends StatelessWidget {
-  final VoidCallback onStartForum;
-  final VoidCallback onOpenVideoStudio;
-  final VoidCallback onUploadFromPhone;
-
-  const _QuickActionsRow({
-    required this.onStartForum,
-    required this.onOpenVideoStudio,
-    required this.onUploadFromPhone,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: onUploadFromPhone,
-              icon: const Icon(Icons.upload_file_rounded, size: 18),
-              label: const Text('Upload'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: BlueWaveTheme.waveGlow,
-                side: BorderSide(
-                  color: BlueWaveTheme.primary.withValues(alpha: 0.45),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: onOpenVideoStudio,
-              icon: const Icon(Icons.videocam_rounded, size: 18),
-              label: const Text('Studio'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: BlueWaveTheme.waveGlow,
-                side: BorderSide(
-                  color: BlueWaveTheme.primary.withValues(alpha: 0.45),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: onStartForum,
-              icon: const Icon(Icons.forum_outlined, size: 18),
-              label: const Text('Forum'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: BlueWaveTheme.waveGlow,
-                side: BorderSide(
-                  color: BlueWaveTheme.primary.withValues(alpha: 0.45),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DiscordBridgeCard extends StatelessWidget {
-  final bool isDark;
-  final VoidCallback onOpenHub;
-
-  const _DiscordBridgeCard({
-    required this.isDark,
-    required this.onOpenHub,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    const discordBlurple = Color(0xFF5865F2);
-    final primaryText = isDark ? Colors.white : fblaLightPrimaryText;
-    final secondaryText = isDark ? Colors.white70 : Colors.black54;
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 14),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark
-              ? [
-                  discordBlurple.withValues(alpha: 0.28),
-                  Colors.white.withValues(alpha: 0.06),
-                ]
-              : [
-                  const Color(0xFFE8EAFF),
-                  Colors.white,
-                ],
-        ),
-        border: Border.all(color: discordBlurple.withValues(alpha: 0.35)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+          child: Row(
             children: [
               Container(
-                width: 42,
-                height: 42,
+                padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
-                  color: discordBlurple.withValues(alpha: 0.18),
-                  shape: BoxShape.circle,
+                  color: color.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(9),
                 ),
-                child: const Icon(Icons.hub_rounded, color: discordBlurple),
+                child: Icon(icon, color: color, size: 16),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Discord Bot Sync',
-                      style: TextStyle(
-                        color: primaryText,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    Text(
-                      'Post announcements, events, and BlueWave updates to your server.',
-                      style: TextStyle(
-                        color: secondaryText,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : fblaLightPrimaryText,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: onOpenHub,
-              icon: const Icon(Icons.open_in_new_rounded, size: 18),
-              label: const Text('Open Discord Hub'),
-              style: FilledButton.styleFrom(
-                backgroundColor: discordBlurple,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DiscordCard extends StatelessWidget {
+  final bool isDark;
+  final VoidCallback onOpenHub;
+
+  const _DiscordCard({required this.isDark, required this.onOpenHub});
+
+  @override
+  Widget build(BuildContext context) {
+    const blurple = Color(0xFF5865F2);
+    final primary = isDark ? Colors.white : fblaLightPrimaryText;
+    final secondary = isDark ? Colors.white60 : fblaLightSecondaryText;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          colors: isDark
+              ? [
+                  blurple.withValues(alpha: 0.25),
+                  Colors.white.withValues(alpha: 0.04),
+                ]
+              : [const Color(0xFFEBEDFF), Colors.white],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: blurple.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: blurple.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
             ),
+            child: const Icon(Icons.hub_rounded, color: blurple, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Discord Bot Sync',
+                    style: TextStyle(
+                        color: primary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          FilledButton(
+            onPressed: onOpenHub,
+            style: FilledButton.styleFrom(
+              backgroundColor: blurple,
+              foregroundColor: Colors.white,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Open',
+                style: TextStyle(fontWeight: FontWeight.w800)),
           ),
         ],
       ),
     );
   }
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// Feed item builder (unchanged logic, kept here)
+// ════════════════════════════════════════════════════════════════════════════
 
 class _FeedItemBuilder extends StatefulWidget {
   final FeedItem item;
@@ -1025,7 +1150,8 @@ class _FeedItemBuilderState extends State<_FeedItemBuilder> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => widget.onTrackView());
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => widget.onTrackView());
   }
 
   @override
@@ -1062,24 +1188,28 @@ class _FeedItemBuilderState extends State<_FeedItemBuilder> {
           post: item.instagram!,
           isDark: widget.isDark,
           onOpen: widget.onOpen,
+          onShare: widget.onShare,
         );
       case FeedItemKind.youtubeVideo:
         return YouTubeVideoCard(
           video: item.youtube!,
           isDark: widget.isDark,
           onPlay: widget.onOpen,
+          onShare: widget.onShare,
         );
       case FeedItemKind.forumThread:
         return ForumThreadCard(
           thread: item.forum!,
           isDark: widget.isDark,
           onTap: widget.onOpen,
+          onShare: widget.onShare,
         );
       case FeedItemKind.newsItem:
         return NewsCard(
           news: item.news!,
           isDark: widget.isDark,
           onTap: widget.onOpen,
+          onShare: widget.onShare,
         );
       default:
         return const SizedBox.shrink();

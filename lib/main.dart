@@ -32,6 +32,7 @@ import 'screens/faq_screen.dart';
 import 'screens/fbucks_leaderboard_screen.dart';
 import 'widgets/friend_picker_sheet.dart';
 import 'widgets/home_slideshow.dart';
+import 'widgets/ai_assistant_host.dart';
 import 'social/screens/social_screen.dart';
 import 'screens/instagram_feed_screen.dart';
 import 'screens/rank_screen.dart';
@@ -43,6 +44,7 @@ import 'services/firebase_service.dart';
 import 'services/mongodb_service.dart';
 import 'models/fbla_models.dart';
 import 'models/video_model.dart';
+import 'firebase_options.dart';
 import 'screens/video_player_screen.dart';
 import 'services/youtube_service.dart';
 
@@ -150,7 +152,9 @@ class AppState extends ChangeNotifier {
     if (_firebaseInitialized) return;
 
     try {
-      await Firebase.initializeApp();
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
       print('🔥 Firebase initialized successfully');
       _firebaseInitialized = true;
 
@@ -1414,6 +1418,8 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
 
   int _index = 0;
   DateTime? _lastBackPressedAt;
+  final GlobalKey<AiAssistantHostState> _aiAssistantKey =
+      GlobalKey<AiAssistantHostState>();
   AppState? _appState;
   bool _notificationsInitialized = false;
   bool _tourChecked = false;
@@ -1427,7 +1433,10 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _pages = [
-      HomeScreen(onSelectRootTab: _selectTab),
+      HomeScreen(
+        onSelectRootTab: _selectTab,
+        onOpenAiAssistant: () => _aiAssistantKey.currentState?.open(),
+      ),
       EventsScreen(),
       const ResourcesScreen(),
       const SocialScreen(),
@@ -1572,6 +1581,10 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
     final isDark = app.isDarkMode;
     return WillPopScope(
       onWillPop: () async {
+        if (_aiAssistantKey.currentState?.closeIfOpen() ?? false) {
+          return false;
+        }
+
         if (_index != 0) {
           _selectTab(0);
           return false;
@@ -1587,15 +1600,17 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
         unawaited(_clearLastTab());
         return true;
       },
-      child: Scaffold(
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: isDark ? appBackgroundGradient : null,
-            color: isDark ? null : fblaLightBackground,
+      child: AiAssistantScope(
+        hostKey: _aiAssistantKey,
+        child: Scaffold(
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: isDark ? appBackgroundGradient : null,
+              color: isDark ? null : fblaLightBackground,
+            ),
+            child: _pages[_index],
           ),
-          child: _pages[_index],
-        ),
-        bottomNavigationBar: Container(
+          bottomNavigationBar: Container(
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF0A1626) : fblaLightSurface,
             border: Border(
@@ -1658,6 +1673,7 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
             ],
           ),
         ),
+        ),
       ),
     );
   }
@@ -1702,8 +1718,13 @@ class SectionHeader extends StatelessWidget {
 
 class HomeScreen extends StatefulWidget {
   final ValueChanged<int>? onSelectRootTab;
+  final VoidCallback? onOpenAiAssistant;
 
-  const HomeScreen({super.key, this.onSelectRootTab});
+  const HomeScreen({
+    super.key,
+    this.onSelectRootTab,
+    this.onOpenAiAssistant,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -2501,6 +2522,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openChatbot() {
+    if (widget.onOpenAiAssistant != null) {
+      widget.onOpenAiAssistant!();
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(

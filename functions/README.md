@@ -1,4 +1,29 @@
-# Discord Bot Sync
+# FBLA Cloud Functions
+
+## AI Chat Assistant (`chatWithGemini`)
+
+The app calls a **callable Cloud Function** so the Gemini API key never ships in the client.
+
+```bash
+# 1. Set your Gemini API key (Secret Manager)
+firebase functions:secrets:set GEMINI_API_KEY
+
+# 2. Optional model — add to functions/.env
+#    GEMINI_MODEL=gemini-2.0-flash
+
+cd functions
+npm install
+cd ..
+firebase deploy --only functions
+```
+
+**App flow:** signed-in users → `FirebaseAiRepo` → `chatWithGemini` → Gemini API.
+
+Local dev fallback: `flutter run --dart-define=GEMINI_API_KEY=your_key` (optional).
+
+---
+
+## Discord Bot Sync
 
 The Flutter app queues posts in Firestore; Cloud Functions deliver them to your
 Discord server using the bot token (never stored in the app).

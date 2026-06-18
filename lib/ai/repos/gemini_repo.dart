@@ -5,9 +5,12 @@ import 'package:http/http.dart' as http;
 
 import '../models/chat_message_model.dart';
 import '../utils/constants.dart';
+import 'firebase_ai_repo.dart';
 
 class GeminiRepo {
-  static const String _apiBase = 'https://generativelanguage.googleapis.com/v1beta';
+  static const String _apiBase =
+      'https://generativelanguage.googleapis.com/v1beta';
+  static const int _maxHistoryMessages = 20;
 
   static List<String> _candidateModels() {
     final candidates = <String>[];
@@ -20,68 +23,100 @@ class GeminiRepo {
     }
 
     addModel(geminiModel);
-    addModel('gemini-1.5-flash-latest');
-    addModel('gemini-1.5-pro-latest');
+    addModel('gemini-2.5-flash-lite');
+    addModel('gemini-2.5-flash');
     addModel('gemini-2.0-flash');
 
     return candidates;
   }
 
+  /// Production path: Firebase Cloud Function (secret API key).
+  /// Dev fallback: direct Gemini API when `GEMINI_API_KEY` is passed via --dart-define.
   static Future<String> chatTextGenerationRepo(
     List<ChatMessageModel> previousMessages,
   ) async {
+    try {
+      final viaFirebase = await FirebaseAiRepo.tryChat(previousMessages);
+      if (viaFirebase != null) {
+        return viaFirebase;
+      }
+    } catch (e) {
+      if (geminiApiKey.trim().isEmpty) {
+        return 'AI assistant error: $e';
+      }
+      if (kDebugMode) {
+        print('Firebase AI failed, falling back to local Gemini key: $e');
+      }
+    }
+
     if (geminiApiKey.trim().isEmpty) {
-      return 'Gemini is selected, but no API key is set yet. Add --dart-define=GEMINI_API_KEY=your_key when you are ready.';
+      return 'Sign in to use the AI assistant. Your chapter stores the Gemini key securely in Firebase.';
     }
 
     if (kIsWeb) {
-      return 'Gemini chat is not configured for web in this build yet.';
+      return 'Sign in to use the AI assistant on web, or configure the Firebase chat function.';
     }
 
-    final messages = previousMessages.map((message) {
-      final role = message.role == 'assistant' ? 'model' : 'user';
-      return {
-        'role': role,
-        'parts': [
-          {'text': message.content}
-        ],
-      };
-    }).toList();
+    return _chatDirectGemini(previousMessages);
+  }
 
-    if (messages.isEmpty || messages.first['role'] != 'user') {
-      messages.insert(0, {
+  static Future<String> _chatDirectGemini(
+    List<ChatMessageModel> previousMessages,
+  ) async {
+    final trimmed = previousMessages.length > _maxHistoryMessages
+        ? previousMessages.sublist(
+            previousMessages.length - _maxHistoryMessages,
+          )
+        : previousMessages;
+
+    final turns = <Map<String, String>>[];
+    for (final message in trimmed) {
+      final role = message.role == 'assistant' ? 'model' : 'user';
+      turns.add({'role': role, 'text': message.content});
+    }
+
+    final contents = _normalizeGeminiTurns(turns);
+    if (contents.isEmpty) {
+      contents.add({
         'role': 'user',
         'parts': [
-          {
-            'text':
-                'You are a helpful AI assistant for FBLA (Future Business Leaders of America) students. Keep answers practical and concise, but complete.'
-          }
+          {'text': 'Hello'}
         ],
       });
     }
 
     final requestBody = {
-      'contents': messages,
+      'systemInstruction': {
+        'parts': [
+          {
+            'text':
+                'You are a helpful AI assistant for the FBLA Member App and FBLA students. Help users navigate the app and answer FBLA questions. Keep answers practical and concise.',
+          }
+        ],
+      },
+      'contents': contents,
       'generationConfig': {
-        'temperature': 0.4,
-        // Increase output budget so replies are less likely to truncate.
-        'maxOutputTokens': 1024,
+        'temperature': 0.6,
+        'maxOutputTokens': 768,
       },
     };
     String? lastError;
 
     for (final model in _candidateModels()) {
-      final endpoint = '$_apiBase/models/$model:generateContent?key=$geminiApiKey';
+      final endpoint = '$_apiBase/models/$model:generateContent';
       final response = await http
           .post(
             Uri.parse(endpoint),
-            headers: const {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': geminiApiKey,
+            },
             body: jsonEncode(requestBody),
           )
           .timeout(const Duration(seconds: 45));
 
       if (response.statusCode != 200) {
-        lastError = 'Gemini model "$model" failed: HTTP ${response.statusCode}';
+        lastError = _parseGeminiFailure(model, response);
         continue;
       }
 
@@ -124,5 +159,56 @@ class GeminiRepo {
     }
 
     return lastError ?? 'Gemini request failed.';
+  }
+
+  static List<Map<String, dynamic>> _normalizeGeminiTurns(
+    List<Map<String, String>> turns,
+  ) {
+    final merged = <Map<String, dynamic>>[];
+
+    for (final turn in turns) {
+      final role = turn['role']!;
+      final text = turn['text']!.trim();
+      if (text.isEmpty) continue;
+
+      if (merged.isNotEmpty && merged.last['role'] == role) {
+        final parts = merged.last['parts'] as List<dynamic>;
+        final current = parts.first as Map<String, dynamic>;
+        current['text'] = '${current['text']}\n\n$text';
+      } else {
+        merged.add({
+          'role': role,
+          'parts': [
+            {'text': text}
+          ],
+        });
+      }
+    }
+
+    while (merged.isNotEmpty && merged.first['role'] != 'user') {
+      merged.removeAt(0);
+    }
+    while (merged.isNotEmpty && merged.last['role'] != 'user') {
+      merged.removeLast();
+    }
+
+    return merged;
+  }
+
+  static String _parseGeminiFailure(String model, http.Response response) {
+    try {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final message = data['error']?['message']?.toString() ?? '';
+      if (message.toLowerCase().contains('quota') ||
+          response.statusCode == 429) {
+        return 'The AI is temporarily busy (quota limit). Wait a minute and try again.';
+      }
+      if (message.isNotEmpty) {
+        return 'Gemini model "$model" failed: $message';
+      }
+    } catch (_) {
+      // ignore
+    }
+    return 'Gemini model "$model" failed: HTTP ${response.statusCode}';
   }
 }

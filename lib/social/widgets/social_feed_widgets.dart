@@ -67,6 +67,45 @@ class SocialSearchBar extends StatelessWidget {
   }
 }
 
+class FeedShareButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const FeedShareButton({super.key, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: BlueWaveTheme.primary.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: BlueWaveTheme.primary.withValues(alpha: 0.28),
+          ),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.share_rounded, size: 16, color: BlueWaveTheme.waveGlow),
+            SizedBox(width: 6),
+            Text(
+              'Share',
+              style: TextStyle(
+                color: BlueWaveTheme.waveGlow,
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class BlueWaveHeader extends StatelessWidget {
   const BlueWaveHeader({super.key});
 
@@ -404,44 +443,7 @@ class BlueWavePostCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              if (onShare != null)
-                InkWell(
-                  onTap: onShare,
-                  borderRadius: BorderRadius.circular(999),
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: BlueWaveTheme.primary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color:
-                            BlueWaveTheme.primary.withValues(alpha: 0.28),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isReel
-                              ? Icons.ios_share_rounded
-                              : Icons.share_rounded,
-                          size: 16,
-                          color: BlueWaveTheme.waveGlow,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Share',
-                          style: TextStyle(
-                            color: BlueWaveTheme.waveGlow,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              if (onShare != null) FeedShareButton(onTap: onShare!),
             ],
           ),
         ],
@@ -515,12 +517,14 @@ class InstagramPostCard extends StatelessWidget {
   final InstagramPostData post;
   final bool isDark;
   final VoidCallback onOpen;
+  final VoidCallback? onShare;
 
   const InstagramPostCard({
     super.key,
     required this.post,
     required this.isDark,
     required this.onOpen,
+    this.onShare,
   });
 
   @override
@@ -565,13 +569,19 @@ class InstagramPostCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                TextButton.icon(
-                  onPressed: onOpen,
-                  icon: const Icon(Icons.open_in_new_rounded, size: 18),
-                  label: const Text('View on Instagram'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFFE1306C),
-                  ),
+                Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: onOpen,
+                      icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                      label: const Text('View on Instagram'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFFE1306C),
+                      ),
+                    ),
+                    const Spacer(),
+                    if (onShare != null) FeedShareButton(onTap: onShare!),
+                  ],
                 ),
               ],
             ),
@@ -586,12 +596,14 @@ class YouTubeVideoCard extends StatelessWidget {
   final YouTubeFeedData video;
   final bool isDark;
   final VoidCallback onPlay;
+  final VoidCallback? onShare;
 
   const YouTubeVideoCard({
     super.key,
     required this.video,
     required this.isDark,
     required this.onPlay,
+    this.onShare,
   });
 
   @override
@@ -659,6 +671,13 @@ class YouTubeVideoCard extends StatelessWidget {
                   '${video.channelName}${video.duration.isNotEmpty ? ' · ${video.duration}' : ''}',
                   style: TextStyle(color: secondary, fontSize: 12),
                 ),
+                if (onShare != null) ...[
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FeedShareButton(onTap: onShare!),
+                  ),
+                ],
               ],
             ),
           ),
@@ -672,12 +691,14 @@ class ForumThreadCard extends StatelessWidget {
   final ForumThreadData thread;
   final bool isDark;
   final VoidCallback onTap;
+  final VoidCallback? onShare;
 
   const ForumThreadCard({
     super.key,
     required this.thread,
     required this.isDark,
     required this.onTap,
+    this.onShare,
   });
 
   @override
@@ -734,6 +755,10 @@ class ForumThreadCard extends StatelessWidget {
                   '${thread.replyCount} replies',
                   style: TextStyle(color: secondary, fontSize: 12),
                 ),
+                if (onShare != null) ...[
+                  const SizedBox(width: 12),
+                  FeedShareButton(onTap: onShare!),
+                ],
               ],
             ),
           ],
@@ -760,12 +785,14 @@ class NewsCard extends StatelessWidget {
   final NewsFeedData news;
   final bool isDark;
   final VoidCallback? onTap;
+  final VoidCallback? onShare;
 
   const NewsCard({
     super.key,
     required this.news,
     required this.isDark,
     this.onTap,
+    this.onShare,
   });
 
   @override
@@ -801,13 +828,19 @@ class NewsCard extends StatelessWidget {
               style: TextStyle(color: secondary, height: 1.45, fontSize: 14),
             ),
             const SizedBox(height: 10),
-            Text(
-              DateFormat.yMMMd().format(news.date),
-              style: TextStyle(
-                color: secondary.withValues(alpha: 0.8),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
+            Row(
+              children: [
+                Text(
+                  DateFormat.yMMMd().format(news.date),
+                  style: TextStyle(
+                    color: secondary.withValues(alpha: 0.8),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                if (onShare != null) FeedShareButton(onTap: onShare!),
+              ],
             ),
           ],
         ),
@@ -936,6 +969,361 @@ class _FeedImage extends StatelessWidget {
         color: isDark ? Colors.white38 : Colors.black26,
       ),
     );
+  }
+}
+
+/// Horizontal strip for Discover tab — media cards with thumbnails when available.
+class RecommendedDiscoverStrip extends StatelessWidget {
+  final List<FeedItem> items;
+  final bool isDark;
+  final ValueChanged<FeedItem> onTap;
+
+  const RecommendedDiscoverStrip({
+    super.key,
+    required this.items,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = isDark ? Colors.white : fblaLightPrimaryText;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Recommended for you',
+          style: TextStyle(
+            color: primary,
+            fontWeight: FontWeight.w900,
+            fontSize: 15,
+            letterSpacing: 0.1,
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 208,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return _RecommendedDiscoverCard(
+                item: item,
+                isDark: isDark,
+                onTap: () => onTap(item),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RecommendedDiscoverCard extends StatelessWidget {
+  final FeedItem item;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _RecommendedDiscoverCard({
+    required this.item,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final view = _RecommendedCardView.from(item);
+    final primary = isDark ? Colors.white : fblaLightPrimaryText;
+    final secondary = isDark ? Colors.white60 : fblaLightSecondaryText;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 156,
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark
+                ? BlueWaveTheme.primary.withValues(alpha: 0.2)
+                : BlueWaveTheme.primary.withValues(alpha: 0.12),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (view.showMedia)
+              SizedBox(
+                height: 118,
+                width: double.infinity,
+                child: _RecommendedMedia(
+                  mediaUrl: view.mediaUrl,
+                  isVideo: view.isVideo,
+                  isDark: isDark,
+                  platformIcon: view.platformIcon,
+                  platformColor: view.platformColor,
+                ),
+              )
+            else
+              Container(
+                height: 72,
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      view.platformColor.withValues(alpha: isDark ? 0.28 : 0.14),
+                      isDark
+                          ? const Color(0xFF0A1628)
+                          : const Color(0xFFF4F8FC),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(view.platformIcon,
+                        color: view.platformColor, size: 22),
+                    const Spacer(),
+                    Text(
+                      view.platformLabel,
+                      style: TextStyle(
+                        color: view.platformColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (view.showMedia)
+                      Text(
+                        view.platformLabel,
+                        style: TextStyle(
+                          color: view.platformColor,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    if (view.showMedia) const SizedBox(height: 4),
+                    Expanded(
+                      child: Text(
+                        view.title,
+                        maxLines: view.showMedia ? 2 : 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: primary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                          height: 1.25,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'New for you',
+                      style: TextStyle(
+                        color: secondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RecommendedMedia extends StatelessWidget {
+  final String? mediaUrl;
+  final bool isVideo;
+  final bool isDark;
+  final IconData platformIcon;
+  final Color platformColor;
+
+  const _RecommendedMedia({
+    required this.mediaUrl,
+    required this.isVideo,
+    required this.isDark,
+    required this.platformIcon,
+    required this.platformColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (mediaUrl != null && mediaUrl!.isNotEmpty)
+          _FeedImage(imageUrl: mediaUrl!, height: 118, isDark: isDark)
+        else
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  platformColor.withValues(alpha: 0.35),
+                  isDark ? const Color(0xFF0A1628) : const Color(0xFFDCEEFF),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Icon(platformIcon, color: platformColor, size: 36),
+          ),
+        if (isVideo)
+          Center(
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.55),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.play_arrow_rounded,
+                  color: Colors.white, size: 26),
+            ),
+          ),
+        Positioned(
+          top: 8,
+          left: 8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              isVideo ? 'Video' : 'Photo',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RecommendedCardView {
+  final String title;
+  final String? mediaUrl;
+  final bool isVideo;
+  final bool showMedia;
+  final String platformLabel;
+  final IconData platformIcon;
+  final Color platformColor;
+
+  const _RecommendedCardView({
+    required this.title,
+    this.mediaUrl,
+    this.isVideo = false,
+    this.showMedia = true,
+    required this.platformLabel,
+    required this.platformIcon,
+    required this.platformColor,
+  });
+
+  static _RecommendedCardView from(FeedItem item) {
+    switch (item.kind) {
+      case FeedItemKind.blueWavePost:
+      case FeedItemKind.blueWaveReel:
+        final post = item.blueWave!;
+        final hasImages = post.imageUrls.isNotEmpty;
+        final hasVideo = post.hasVideo;
+        final textOnly = !hasImages && !hasVideo;
+        String? mediaUrl;
+        if (hasImages) {
+          mediaUrl = post.imageUrls.first;
+        } else if (hasVideo &&
+            post.videoUrl != null &&
+            !post.videoUrl!.contains('.mp4') &&
+            post.videoUrl!.startsWith('http')) {
+          // Non-direct video URLs may still work as preview in some cases.
+          mediaUrl = post.videoUrl;
+        }
+        return _RecommendedCardView(
+          title: post.text.isNotEmpty ? post.text : 'BlueWave post',
+          mediaUrl: mediaUrl,
+          isVideo: hasVideo,
+          showMedia: !textOnly,
+          platformLabel: 'BlueWave',
+          platformIcon: Icons.waves_rounded,
+          platformColor: BlueWaveTheme.primary,
+        );
+      case FeedItemKind.instagramPost:
+        final ig = item.instagram!;
+        return _RecommendedCardView(
+          title: ig.caption.isNotEmpty ? ig.caption : 'Instagram post',
+          mediaUrl: ig.imageUrl,
+          isVideo: false,
+          platformLabel: 'Instagram',
+          platformIcon: Icons.camera_alt_rounded,
+          platformColor: const Color(0xFFE1306C),
+        );
+      case FeedItemKind.youtubeVideo:
+        final video = item.youtube!;
+        return _RecommendedCardView(
+          title: video.title,
+          mediaUrl: video.thumbnailUrl,
+          isVideo: true,
+          platformLabel: 'YouTube',
+          platformIcon: Icons.smart_display_rounded,
+          platformColor: const Color(0xFFFF0000),
+        );
+      case FeedItemKind.forumThread:
+        final thread = item.forum!;
+        return _RecommendedCardView(
+          title: thread.title,
+          showMedia: false,
+          platformLabel: 'Forum',
+          platformIcon: Icons.forum_outlined,
+          platformColor: const Color(0xFF8B5CF6),
+        );
+      case FeedItemKind.newsItem:
+        final news = item.news!;
+        return _RecommendedCardView(
+          title: news.title,
+          showMedia: false,
+          platformLabel: 'News',
+          platformIcon: Icons.newspaper_rounded,
+          platformColor: fblaGold,
+        );
+      default:
+        return const _RecommendedCardView(
+          title: 'Recommended',
+          showMedia: false,
+          platformLabel: 'Social',
+          platformIcon: Icons.star_rounded,
+          platformColor: BlueWaveTheme.primary,
+        );
+    }
   }
 }
 
