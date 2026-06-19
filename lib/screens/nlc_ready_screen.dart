@@ -7,6 +7,7 @@ import '../models/fbla_events.dart';
 import '../models/nlc_practice_scenarios.dart';
 import '../services/nlc_prep_service.dart';
 import '../services/practice_history_store.dart';
+import '../widgets/app_snackbar.dart';
 import 'event_practice_screen.dart';
 
 class _DailyTask {
@@ -97,10 +98,11 @@ class _NlcReadyScreenState extends State<NlcReadyScreen> {
       final awarded = await NlcPrepService.claimDailyRewardIfEligible(_userId!);
       if (awarded && mounted) {
         await context.read<AppState>().refreshUserProfile();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Daily prep complete! +25 Credits'),
-          behavior: SnackBarBehavior.floating,
-        ));
+        AppSnackBar.success(
+          context,
+          'Daily prep complete! +25 Credits',
+          icon: Icons.emoji_events_rounded,
+        );
       }
     }
   }
@@ -122,10 +124,10 @@ class _NlcReadyScreenState extends State<NlcReadyScreen> {
     await NlcPrepService.pinCourseForResources(eventName);
     if (!mounted) return;
     widget.onOpenResourcesTab?.call();
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Added $eventName to Resources — open the Resources tab to study.'),
-      behavior: SnackBarBehavior.floating,
-    ));
+    AppSnackBar.success(
+      context,
+      'Added $eventName to Resources — open the Resources tab to study.',
+    );
   }
 
   @override

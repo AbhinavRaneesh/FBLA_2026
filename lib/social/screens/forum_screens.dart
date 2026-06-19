@@ -16,6 +16,7 @@ import '../../main.dart'
         fblaLightSecondaryText,
         fblaLightSurface,
         fblaNavy;
+import '../../widgets/app_snackbar.dart';
 import '../models/social_models.dart';
 import '../theme/bluewave_theme.dart';
 
@@ -173,11 +174,9 @@ class _StartForumScreenState extends State<StartForumScreen> {
     final title = _titleController.text.trim();
     final body = _bodyController.text.trim();
     if (title.isEmpty || body.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill in the title and first message.'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      AppSnackBar.warning(
+        context,
+        'Please fill in the title and first message.',
       );
       return;
     }
@@ -196,12 +195,7 @@ class _StartForumScreenState extends State<StartForumScreen> {
     );
     app.addThread(thread);
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Forum thread created!'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    AppSnackBar.success(context, 'Forum thread created!');
   }
 
   @override

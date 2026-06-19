@@ -21,8 +21,12 @@ service cloud.firestore {
         );
       allow create: if signedIn()
         && request.resource.data.fromUserId == request.auth.uid
+        && request.resource.data.toUserId is string
+        && request.resource.data.fromUserId != request.resource.data.toUserId
         && request.resource.data.status == 'pending';
       allow update: if signedIn()
+        && request.resource.data.fromUserId == request.auth.uid
+        && request.resource.data.status == 'pending'
         && (
           resource.data.fromUserId == request.auth.uid
           || resource.data.toUserId == request.auth.uid
@@ -98,6 +102,11 @@ service cloud.firestore {
     match /discord_config/{configId} {
       allow read: if signedIn();
       allow write: if false;
+    }
+
+    match /auth_logs/{logId} {
+      allow create: if signedIn();
+      allow read, update, delete: if false;
     }
   }
 }

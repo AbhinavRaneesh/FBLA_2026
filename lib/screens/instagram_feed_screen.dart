@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../widgets/app_snackbar.dart';
+
 /// In-app Instagram experience for the official FBLA National profile.
 class InstagramFeedScreen extends StatelessWidget {
   static const String profileUrl = 'https://www.instagram.com/fbla_national/';
@@ -113,11 +115,9 @@ class _InstagramWebViewState extends State<InstagramWebView> {
       mode: LaunchMode.externalApplication,
     );
     if (!launched && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to open Instagram in browser right now.'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      AppSnackBar.error(
+        context,
+        'Unable to open Instagram in browser right now.',
       );
     }
   }

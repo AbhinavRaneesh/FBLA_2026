@@ -16,6 +16,7 @@ import '../../main.dart'
         fblaLightSurface,
         fblaNavy;
 import '../../services/firebase_service.dart';
+import '../../widgets/app_snackbar.dart';
 import '../models/discord_models.dart';
 import '../models/social_models.dart';
 import '../providers/social_provider.dart';
@@ -99,9 +100,7 @@ class _DiscordHubScreenState extends State<DiscordHubScreen> {
   }
 
   void _snack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-    );
+    AppSnackBar.show(context, message: message);
   }
 
   Future<void> _clearAllFailed(List<DiscordOutboxItem> items) async {
@@ -701,12 +700,7 @@ class _OutboxTileState extends State<_OutboxTile> {
       widget.onRemoved?.call(label);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not remove: $e'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppSnackBar.error(context, 'Could not remove: $e');
     } finally {
       if (mounted) setState(() => _deleting = false);
     }

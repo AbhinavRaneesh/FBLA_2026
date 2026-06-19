@@ -36,6 +36,7 @@ import 'screens/fbucks_leaderboard_screen.dart';
 import 'widgets/friend_picker_sheet.dart';
 import 'widgets/home_slideshow.dart';
 import 'widgets/ai_assistant_host.dart';
+import 'widgets/app_snackbar.dart';
 import 'social/screens/social_screen.dart';
 import 'screens/instagram_feed_screen.dart';
 import 'screens/rank_screen.dart';
@@ -1795,21 +1796,15 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          isSaved
-              ? 'Removed ${event.title} from saved'
-              : 'Saved ${event.title} — reminder set',
-        ),
-        behavior: SnackBarBehavior.floating,
-        action: isSaved
-            ? null
-            : SnackBarAction(
-                label: 'View',
-                onPressed: () => _openEventsTab(filter: 'saved'),
-              ),
-      ),
+    AppSnackBar.show(
+      context,
+      message: isSaved
+          ? 'Removed ${event.title} from saved'
+          : 'Saved ${event.title} — reminder set',
+      type: isSaved ? AppSnackType.info : AppSnackType.success,
+      actionLabel: isSaved ? null : 'View',
+      onAction: isSaved ? null : () => _openEventsTab(filter: 'saved'),
+      icon: isSaved ? Icons.bookmark_remove_rounded : Icons.notifications_active_rounded,
     );
   }
 
@@ -2023,7 +2018,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             key: _updatesSectionKey,
                             child: _buildSectionTitle(
                               title: 'Latest Updates',
-                              subtitle: 'Tap Updates above for the full feed',
                               actionLabel: 'See all',
                               onAction: () => _showUpdatesSheet(app),
                             ),
@@ -2102,11 +2096,9 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icons.notifications_none_rounded,
             tooltip: 'Notifications',
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Notifications are coming soon.'),
-                  behavior: SnackBarBehavior.floating,
-                ),
+              AppSnackBar.warning(
+                context,
+                'Notifications are coming soon.',
               );
             },
           ),
@@ -2909,8 +2901,10 @@ class _HomeScreenState extends State<HomeScreen> {
         color: isDark ? const Color(0xFF0F1B2D) : fblaLightSurface,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color:
-              isDark ? Colors.white.withValues(alpha: 0.07) : fblaLightBorder,
+          color: isDark
+              ? const Color(0xFF6FA8FF).withValues(alpha: 0.55)
+              : const Color(0xFF1D4E89).withValues(alpha: 0.55),
+          width: 2,
         ),
         boxShadow: isDark
             ? null
@@ -3039,8 +3033,9 @@ class _HomeScreenState extends State<HomeScreen> {
               borderRadius: BorderRadius.circular(22),
               border: Border.all(
                 color: isDark
-                    ? Colors.white.withValues(alpha: 0.07)
-                    : fblaLightBorder,
+                    ? const Color(0xFFCB9FFF).withValues(alpha: 0.55)
+                    : const Color(0xFF7B4AA8).withValues(alpha: 0.55),
+                width: 2,
               ),
               boxShadow: isDark
                   ? null
@@ -4304,15 +4299,17 @@ class _EventsScreenState extends State<EventsScreen> {
                                   .cancel(e.id.hashCode);
                             }
                             if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  saved
-                                      ? 'Removed from saved'
-                                      : 'Saved — reminder set',
-                                ),
-                                behavior: SnackBarBehavior.floating,
-                              ),
+                            AppSnackBar.show(
+                              context,
+                              message: saved
+                                  ? 'Removed from saved'
+                                  : 'Saved — reminder set',
+                              type: saved
+                                  ? AppSnackType.info
+                                  : AppSnackType.success,
+                              icon: saved
+                                  ? Icons.bookmark_remove_rounded
+                                  : Icons.notifications_active_rounded,
                             );
                           },
                         ),
@@ -4354,15 +4351,12 @@ class _EventsScreenState extends State<EventsScreen> {
                               }
                               await scheduleEventReminder(e);
                               if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    saved
-                                        ? 'Reminder updated for ${e.title}'
-                                        : 'Saved & reminder set for ${e.title}',
-                                  ),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
+                              AppSnackBar.success(
+                                context,
+                                saved
+                                    ? 'Reminder updated for ${e.title}'
+                                    : 'Saved & reminder set for ${e.title}',
+                                icon: Icons.notifications_active_rounded,
                               );
                             },
                             icon: Icon(
@@ -4539,12 +4533,7 @@ class _EventsScreenState extends State<EventsScreen> {
     await flutterLocalNotificationsPlugin.cancel(e.id.hashCode);
     app.removeUserEvent(e.id);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Event deleted'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    AppSnackBar.info(context, 'Event deleted', icon: Icons.delete_outline_rounded);
   }
 }
 
@@ -5929,12 +5918,7 @@ class _FeedsScreenState extends State<FeedsScreen>
     final launched =
         await launchUrl(Uri.parse(p.url), mode: LaunchMode.externalApplication);
     if (!launched && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not open ${p.name} right now.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppSnackBar.error(context, 'Could not open ${p.name} right now.');
     }
   }
 
@@ -7974,9 +7958,7 @@ class ProfileScreen extends StatelessWidget {
     );
 
     if (!launched && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to open social link right now.')),
-      );
+      AppSnackBar.error(context, 'Unable to open social link right now.');
     }
   }
 
@@ -8129,10 +8111,9 @@ class ProfileScreen extends StatelessWidget {
               color: const Color(0xFFF59E0B),
               isDark: isDark,
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Coin redemption rewards are coming soon.'),
-                  ),
+                AppSnackBar.warning(
+                  context,
+                  'Coin redemption rewards are coming soon.',
                 );
               },
             ),
@@ -8922,9 +8903,7 @@ class FBLAOfficialHubScreen extends StatelessWidget {
     final uri = Uri.parse(url);
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!launched && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to open link right now.')),
-      );
+      AppSnackBar.error(context, 'Unable to open link right now.');
     }
   }
 
@@ -9912,8 +9891,10 @@ class ExtraDeveloperOptionsScreen extends StatelessWidget {
               onPressed: () async {
                 await sendDeveloperTestNotification();
                 if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Test notification sent.')),
+                AppSnackBar.success(
+                  context,
+                  'Test notification sent.',
+                  icon: Icons.notifications_active_rounded,
                 );
               },
               icon: const Icon(Icons.notifications_active_outlined),

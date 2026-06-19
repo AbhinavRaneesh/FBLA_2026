@@ -77,8 +77,8 @@ class FirebaseService {
       print('FirebaseService: Auth error message: ${e.message}');
       if (e.code == 'user-not-found') {
         throw Exception('No account found with this email address.');
-      } else if (e.code == 'wrong-password') {
-        throw Exception('Incorrect password. Please try again.');
+      } else if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        throw Exception('Incorrect password.');
       } else if (e.code == 'invalid-email') {
         throw Exception('The email address is invalid.');
       } else if (e.code == 'user-disabled') {
@@ -425,7 +425,7 @@ class FirebaseService {
 
     final snapshot = await query.get();
     return snapshot.docs
-        .map((doc) => {'id': doc.id, ...doc.data()})
+        .map((doc) => {...doc.data(), 'id': doc.id})
         .toList(growable: false);
   }
 
@@ -460,11 +460,16 @@ class FirebaseService {
   }
 
   static Future<bool> areFriends(String userId1, String userId2) async {
-    final doc = await _firestore
-        .collection('friendships')
-        .doc(_friendshipId(userId1, userId2))
-        .get();
-    return doc.exists;
+    try {
+      final doc = await _firestore
+          .collection('friendships')
+          .doc(_friendshipId(userId1, userId2))
+          .get();
+      return doc.exists;
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') return false;
+      rethrow;
+    }
   }
 
   static Future<String?> getFriendRelationStatus({
@@ -550,6 +555,10 @@ class FirebaseService {
     required String fromUserName,
     required String toUserName,
   }) async {
+    final authUid = _auth.currentUser?.uid;
+    if (authUid == null || authUid != fromUserId) {
+      throw Exception('You must be signed in to send friend requests.');
+    }
     if (fromUserId == toUserId) {
       throw Exception('You cannot send a friend request to yourself.');
     }
@@ -557,35 +566,43 @@ class FirebaseService {
       throw Exception('You are already friends with this member.');
     }
 
-    final outgoingDoc = await _firestore
+    final requestRef = _firestore
         .collection('friend_requests')
-        .doc(_friendRequestId(fromUserId, toUserId))
-        .get();
+        .doc(_friendRequestId(fromUserId, toUserId));
+    final reverseRef = _firestore
+        .collection('friend_requests')
+        .doc(_friendRequestId(toUserId, fromUserId));
+
+    final outgoingDoc = await requestRef.get();
     if (outgoingDoc.exists && outgoingDoc.data()?['status'] == 'pending') {
       throw Exception('Friend request already sent.');
     }
 
-    final incomingDoc = await _firestore
-        .collection('friend_requests')
-        .doc(_friendRequestId(toUserId, fromUserId))
-        .get();
+    final incomingDoc = await reverseRef.get();
     if (incomingDoc.exists && incomingDoc.data()?['status'] == 'pending') {
       throw Exception(
           'This member already sent you a request. Check the Requests tab.');
     }
 
-    await _firestore
-        .collection('friend_requests')
-        .doc(_friendRequestId(fromUserId, toUserId))
-        .set({
-      'fromUserId': fromUserId,
-      'toUserId': toUserId,
-      'fromUserName': fromUserName,
-      'toUserName': toUserName,
-      'status': 'pending',
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    try {
+      await requestRef.set({
+        'fromUserId': fromUserId,
+        'toUserId': toUserId,
+        'fromUserName': fromUserName,
+        'toUserName': toUserName,
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        throw Exception(
+          'Friend requests are blocked by Firestore rules. '
+          'Deploy rules with: firebase deploy --only firestore:rules',
+        );
+      }
+      rethrow;
+    }
   }
 
   static Future<List<Map<String, dynamic>>> getOutgoingFriendRequests(
@@ -596,7 +613,7 @@ class FirebaseService {
         .where('status', isEqualTo: 'pending')
         .get();
     return snapshot.docs
-        .map((doc) => {'id': doc.id, ...doc.data()})
+        .map((doc) => {...doc.data(), 'id': doc.id})
         .toList(growable: false);
   }
 
@@ -608,7 +625,7 @@ class FirebaseService {
         .where('status', isEqualTo: 'pending')
         .get();
     return snapshot.docs
-        .map((doc) => {'id': doc.id, ...doc.data()})
+        .map((doc) => {...doc.data(), 'id': doc.id})
         .toList(growable: false);
   }
 

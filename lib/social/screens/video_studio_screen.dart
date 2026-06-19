@@ -21,6 +21,7 @@ import '../../main.dart'
         fblaNavy;
 import '../../services/firebase_service.dart';
 import '../../services/youtube_upload_service.dart';
+import '../../widgets/app_snackbar.dart';
 import '../models/social_models.dart';
 import '../providers/social_provider.dart';
 import '../theme/bluewave_theme.dart';
@@ -614,9 +615,7 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
   }
 
   void _snack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-    );
+    AppSnackBar.show(context, message: message);
   }
 
   @override

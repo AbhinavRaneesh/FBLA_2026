@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../main.dart';
 import '../services/firebase_service.dart';
 import '../services/nlc_prep_service.dart';
+import '../widgets/app_snackbar.dart';
 import 'direct_chat_screen.dart';
 
 enum _MembersTab { directory, friends, requests }
@@ -272,18 +273,6 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.only(left: 12, right: 4),
-            child: Text(
-              'Find chapter members, send friend requests, and connect.',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.72),
-                fontSize: 13,
-                height: 1.35,
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -309,10 +298,16 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
         fromUserName: _currentUserName(context),
         toUserName: _displayName(member),
       );
-      _showSnack('Friend request sent to ${_displayName(member)}.');
+      _showSnack('Friend request sent to ${_displayName(member)}.',
+          type: AppSnackType.success);
       await _loadData();
     } catch (error) {
-      _showSnack(error.toString().replaceFirst('Exception: ', ''));
+      final raw = error.toString().replaceFirst('Exception: ', '');
+      final message = raw.contains('permission-denied') ||
+              raw.contains('Firestore rules')
+          ? 'Could not send friend request. Firestore rules may need to be deployed.'
+          : raw;
+      _showSnack(message, type: AppSnackType.error);
     }
   }
 
@@ -321,10 +316,11 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
       await FirebaseService.acceptFriendRequest(
         (request['id'] ?? '').toString(),
       );
-      _showSnack('Friend request accepted.');
+      _showSnack('Friend request accepted.', type: AppSnackType.success);
       await _loadData();
     } catch (error) {
-      _showSnack(error.toString().replaceFirst('Exception: ', ''));
+      _showSnack(error.toString().replaceFirst('Exception: ', ''),
+          type: AppSnackType.error);
     }
   }
 
@@ -333,21 +329,17 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
       await FirebaseService.declineFriendRequest(
         (request['id'] ?? '').toString(),
       );
-      _showSnack('Friend request declined.');
+      _showSnack('Friend request declined.', type: AppSnackType.info);
       await _loadData();
     } catch (error) {
-      _showSnack(error.toString().replaceFirst('Exception: ', ''));
+      _showSnack(error.toString().replaceFirst('Exception: ', ''),
+          type: AppSnackType.error);
     }
   }
 
-  void _showSnack(String message) {
+  void _showSnack(String message, {AppSnackType? type}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    AppSnackBar.show(context, message: message, type: type);
   }
 
   Future<void> _emailMember(String email) async {
@@ -1133,7 +1125,7 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.check_circle, color: const Color(0xFF66BB6A)),
+        Icon(Icons.check_circle, color: fblaGold),
         const SizedBox(width: 8),
         IconButton(
           tooltip: 'Chat',
@@ -1189,10 +1181,11 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
         width: 34,
         height: 34,
         decoration: BoxDecoration(
-          color: const Color(0xFF66BB6A).withValues(alpha: 0.14),
+          color: fblaGold.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: fblaGold.withValues(alpha: 0.35)),
         ),
-        child: const Icon(Icons.add_rounded, color: Color(0xFF66BB6A)),
+        child: const Icon(Icons.person_add_rounded, color: fblaGold),
       ),
     );
   }

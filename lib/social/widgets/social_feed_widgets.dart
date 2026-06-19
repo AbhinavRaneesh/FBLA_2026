@@ -631,11 +631,10 @@ class YouTubeVideoCard extends StatelessWidget {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(0),
-                  child: CachedNetworkImage(
+                  child: _FeedImage(
                     imageUrl: video.thumbnailUrl,
                     height: 190,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
+                    isDark: isDark,
                   ),
                 ),
                 Container(
@@ -915,6 +914,18 @@ class SocialPlatformCard extends StatelessWidget {
 }
 
 /// Network or bundled asset image for social feed cards.
+bool _isBundledAsset(String url) {
+  final path = Uri.tryParse(url)?.path ?? url;
+  final decoded = Uri.decodeComponent(path);
+  return url.startsWith('assets/') || decoded.startsWith('assets/');
+}
+
+String _bundledAssetPath(String url) {
+  if (url.startsWith('assets/')) return url;
+  final path = Uri.tryParse(url)?.path ?? url;
+  return Uri.decodeComponent(path);
+}
+
 class _FeedImage extends StatelessWidget {
   final String imageUrl;
   final double height;
@@ -928,9 +939,9 @@ class _FeedImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (imageUrl.startsWith('assets/')) {
+    if (_isBundledAsset(imageUrl)) {
       return Image.asset(
-        imageUrl,
+        _bundledAssetPath(imageUrl),
         height: height,
         width: double.infinity,
         fit: BoxFit.cover,

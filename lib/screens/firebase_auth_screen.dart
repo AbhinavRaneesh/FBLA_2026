@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../services/firebase_service.dart';
 import '../main.dart';
 import '../utils/validators.dart';
+import '../widgets/app_snackbar.dart';
 
 class FirebaseAuthScreen extends StatefulWidget {
   const FirebaseAuthScreen({super.key});
@@ -211,21 +212,14 @@ class _FirebaseAuthScreenState extends State<FirebaseAuthScreen>
       } else {
         print('Google Sign-In returned null (cancelled or failed)');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Google sign-in was cancelled.'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          AppSnackBar.info(context, 'Google sign-in was cancelled.');
         }
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-          behavior: SnackBarBehavior.floating,
-        ),
+      AppSnackBar.error(
+        context,
+        e.toString().replaceFirst('Exception: ', ''),
       );
     } finally {
       // Only update state if widget is still mounted

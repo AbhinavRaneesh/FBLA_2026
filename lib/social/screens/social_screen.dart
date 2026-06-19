@@ -351,7 +351,7 @@ class _SocialScreenState extends State<SocialScreen>
           ),
           const SizedBox(width: 10),
           Text(
-            'Social',
+            'Social Platform',
             style: TextStyle(
               color: primary,
               fontSize: 24,

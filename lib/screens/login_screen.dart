@@ -8,6 +8,7 @@ import '../constants/app_assets.dart';
 import '../main.dart';
 import '../services/firebase_service.dart';
 import '../utils/validators.dart';
+import '../widgets/app_snackbar.dart';
 
 // Login-only richer blue backdrop. Do NOT replace with the shared
 // appBackgroundGradient (main.dart) — that is used by every other screen.
@@ -188,38 +189,25 @@ class _LoginScreenState extends State<LoginScreen>
           await app.login(email, offlineName, role: 'Student', grade: '');
         }
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Row(
-                children: [
-                  Icon(Icons.cloud_off_rounded, color: fblaGold, size: 18),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text('Signed in offline — some features may be limited'),
-                  ),
-                ],
-              ),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: const Color(0xFF1A3A5C),
-              duration: const Duration(seconds: 4),
-            ),
+          AppSnackBar.warning(
+            context,
+            'Signed in offline — some features may be limited',
+            icon: Icons.cloud_off_rounded,
+            duration: const Duration(seconds: 4),
           );
         }
         return;
       }
 
       _shakeController.forward(from: 0);
-      final message = rawMessage.contains('No account found') ||
-              rawMessage.contains('Incorrect password')
-          ? 'Incorrect username or password.'
+      final lower = rawMessage.toLowerCase();
+      final message = lower.contains('invalid-credential') ||
+              lower.contains('wrong-password') ||
+              lower.contains('incorrect password') ||
+              lower.contains('no account found')
+          ? 'Incorrect password.'
           : rawMessage;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.red.shade700,
-        ),
-      );
+      AppSnackBar.error(context, message);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -273,20 +261,13 @@ class _LoginScreenState extends State<LoginScreen>
         await app.setFirebaseUser(user);
       } else {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Google sign-in was cancelled.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        AppSnackBar.info(context, 'Google sign-in was cancelled.');
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-          behavior: SnackBarBehavior.floating,
-        ),
+      AppSnackBar.error(
+        context,
+        e.toString().replaceFirst('Exception: ', ''),
       );
     } finally {
       if (mounted) {
@@ -978,12 +959,7 @@ class _LoginScreenState extends State<LoginScreen>
         const Spacer(),
         TextButton(
           onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Password reset is coming soon.'),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+            AppSnackBar.warning(context, 'Password reset is coming soon.');
           },
           style: TextButton.styleFrom(
             padding: EdgeInsets.zero,
@@ -1164,12 +1140,7 @@ class _LoginScreenState extends State<LoginScreen>
     return _PressableScale(
       enabled: !_isLoading,
       onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Apple Sign-In is coming soon.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        AppSnackBar.warning(context, 'Apple Sign-In is coming soon.');
       },
       child: Container(
         height: 50,

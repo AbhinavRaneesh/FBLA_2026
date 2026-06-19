@@ -12,6 +12,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants/app_assets.dart';
 import '../ai/bloc/chat_bloc.dart';
 import '../widgets/ai_chat_panel.dart';
+import '../widgets/app_snackbar.dart';
 import 'rank_screen.dart';
 import 'event_practice_screen.dart';
 import '../main.dart'
@@ -30,6 +31,88 @@ import '../services/firebase_service.dart';
 const Color fblaGold = Color(0xFFFDB913);
 const Color fblaNavy = Color(0xFF1D4E89);
 const Color fblaAccent = Color(0xFF64B5F6);
+
+Widget _cyberLessonPrimaryButton({
+  required String label,
+  required VoidCallback? onTap,
+  Color color = fblaNavy,
+  double height = 54,
+  bool enabled = true,
+  double fontSize = 16,
+  double letterSpacing = 0.3,
+}) {
+  return AnimatedOpacity(
+    duration: const Duration(milliseconds: 180),
+    opacity: enabled ? 1 : 0.45,
+    child: GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: double.infinity,
+        height: height,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [color, color.withValues(alpha: 0.78)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(height >= 54 ? 18 : 16),
+          boxShadow: enabled
+              ? [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.32),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ]
+              : null,
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w900,
+              letterSpacing: letterSpacing,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _cyberLessonOutlineButton({
+  required String label,
+  required VoidCallback? onTap,
+  double height = 48,
+}) {
+  return SizedBox(
+    width: double.infinity,
+    height: height,
+    child: OutlinedButton(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: Colors.white.withValues(alpha: 0.82),
+        side: BorderSide(
+          color: Colors.white.withValues(alpha: 0.28),
+          width: 1.4,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.4,
+        ),
+      ),
+    ),
+  );
+}
 
 IconData courseIconForName(String name) {
   final n = name.toLowerCase();
@@ -197,14 +280,12 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
       await prefs.setInt('cyber_xp', _points);
     } catch (_) {}
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(firstTime
-            ? 'Level $level complete!  +$gained XP'
-            : 'Nice practice!  +$gained XP'),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: const Color(0xFF2E7D32),
-      ),
+    AppSnackBar.success(
+      context,
+      firstTime
+          ? 'Level $level complete!  +$gained XP'
+          : 'Nice practice!  +$gained XP',
+      icon: Icons.emoji_events_rounded,
     );
   }
 
@@ -465,12 +546,9 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
         break;
       case 'Study Notes':
         if (!_isCybersecurityCourse(course)) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Study notes are available for the Cybersecurity course right now.',
-              ),
-            ),
+          AppSnackBar.info(
+            context,
+            'Study notes are available for the Cybersecurity course right now.',
           );
           return;
         }
@@ -481,12 +559,9 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
         break;
       case 'Official Documents':
         if (!_isCybersecurityCourse(course)) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Official Documents are only available for the Cybersecurity course right now.',
-              ),
-            ),
+          AppSnackBar.info(
+            context,
+            'Official Documents are only available for the Cybersecurity course right now.',
           );
           return;
         }
@@ -497,12 +572,9 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
         break;
       case 'Vocabulary':
         if (!_isCybersecurityCourse(course)) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Vocabulary is only available for the Cybersecurity course right now.',
-              ),
-            ),
+          AppSnackBar.info(
+            context,
+            'Vocabulary is only available for the Cybersecurity course right now.',
           );
           return;
         }
@@ -1520,20 +1592,13 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
 
   Future<void> _handleLevelTap(int levelNum, _LevelStatus status) async {
     if (levelNum == 2) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Level 2 is locked for now.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppSnackBar.warning(context, 'Level 2 is locked for now.');
       return;
     }
     if (status == _LevelStatus.locked) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Complete Level ${levelNum - 1} to unlock this level.'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      AppSnackBar.warning(
+        context,
+        'Complete Level ${levelNum - 1} to unlock this level.',
       );
       return;
     }
@@ -1561,13 +1626,9 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
         return;
       }
       if (introVideoController == null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Intro video could not be loaded. You can still continue the lesson.',
-            ),
-            behavior: SnackBarBehavior.floating,
-          ),
+        AppSnackBar.warning(
+          context,
+          'Intro video could not be loaded. You can still continue the lesson.',
         );
       }
     }
@@ -1581,9 +1642,7 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
     if (questions.isEmpty) {
       await introVideoController?.dispose();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No questions available yet.')),
-      );
+      AppSnackBar.info(context, 'No questions available yet.');
       return;
     }
     if (levelNum == 1) {
@@ -6489,7 +6548,7 @@ class _LevelNodeState extends State<_LevelNode>
     final bezelColor = isActive
         ? const Color(0xFF1A3358)
         : isCompleted
-            ? const Color(0xFF1B3D2A)
+            ? const Color(0xFF1A3358)
             : const Color(0xFF141E2E);
 
     final screenGradient = isActive
@@ -6500,7 +6559,7 @@ class _LevelNodeState extends State<_LevelNode>
           )
         : isCompleted
             ? const LinearGradient(
-                colors: [Color(0xFF1B5E20), Color(0xFF43A047)],
+                colors: [Color(0xFF1A3358), Color(0xFF1D4E89)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               )
@@ -6516,7 +6575,7 @@ class _LevelNodeState extends State<_LevelNode>
     final borderColor = isActive
         ? fblaGold
         : isCompleted
-            ? const Color(0xFF81C784)
+            ? fblaGold
             : Colors.white.withValues(alpha: 0.14);
 
     return AnimatedBuilder(
@@ -7523,30 +7582,11 @@ class _CybersecurityFundamentalsLessonScreenState
     required bool enabled,
     required VoidCallback onTap,
   }) {
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
-      child: ElevatedButton(
-        onPressed: enabled ? onTap : null,
-        style: ElevatedButton.styleFrom(
-          elevation: 0,
-          backgroundColor: _duoGreen,
-          disabledBackgroundColor: Colors.grey.shade600.withValues(alpha: 0.45),
-          foregroundColor: Colors.white,
-          disabledForegroundColor: Colors.white54,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.2,
-          ),
-        ),
-      ),
+    return _cyberLessonPrimaryButton(
+      label: label,
+      onTap: onTap,
+      color: widget.color,
+      enabled: enabled,
     );
   }
 }
@@ -9426,8 +9466,9 @@ class _LessonResult {
   });
 }
 
-const Color _duoGreen = Color(0xFF58CC02);
-const Color _duoGreenDark = Color(0xFF4CAF00);
+const Color _lessonGold = fblaGold;
+const Color _lessonGoldDark = Color(0xFFD9A800);
+const Color _lessonSuccess = fblaAccent;
 const Color _wrongRed = Color(0xFFE53935);
 
 class LessonSessionScreen extends StatefulWidget {
@@ -9534,13 +9575,14 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
                 width: 58,
                 height: 58,
                 decoration: BoxDecoration(
-                  color: _wrongRed.withValues(alpha: 0.14),
+                  color: widget.color.withValues(alpha: 0.14),
                   shape: BoxShape.circle,
-                  border: Border.all(color: _wrongRed.withValues(alpha: 0.32)),
+                  border:
+                      Border.all(color: widget.color.withValues(alpha: 0.38)),
                 ),
-                child: const Icon(
-                  Icons.logout_rounded,
-                  color: _wrongRed,
+                child: Icon(
+                  Icons.flag_rounded,
+                  color: widget.color,
                   size: 30,
                 ),
               ),
@@ -9566,54 +9608,18 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
                 ),
               ),
               const SizedBox(height: 22),
-              SizedBox(
-                width: double.infinity,
+              _cyberLessonPrimaryButton(
+                label: 'KEEP GOING',
+                onTap: () => Navigator.pop(dialogContext, false),
+                color: widget.color,
                 height: 50,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(dialogContext, false),
-                  style: ElevatedButton.styleFrom(
-                    elevation: 0,
-                    backgroundColor: _duoGreen,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: const Text(
-                    'KEEP GOING',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                ),
+                fontSize: 14,
+                letterSpacing: 0.4,
               ),
               const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.pop(dialogContext, true),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _wrongRed,
-                    side: BorderSide(
-                      color: _wrongRed.withValues(alpha: 0.55),
-                      width: 1.4,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: const Text(
-                    'QUIT LESSON',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                ),
+              _cyberLessonOutlineButton(
+                label: 'QUIT LESSON',
+                onTap: () => Navigator.pop(dialogContext, true),
               ),
             ],
           ),
@@ -9676,14 +9682,14 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
                   value: value,
                   minHeight: 12,
                   backgroundColor: Colors.white.withValues(alpha: 0.10),
-                  valueColor: const AlwaysStoppedAnimation(_duoGreen),
+                  valueColor: AlwaysStoppedAnimation(widget.color),
                 ),
               ),
             ),
           ),
           if (!_showIntro && !_finished) ...[
             const SizedBox(width: 14),
-            const Icon(Icons.check_circle, color: _duoGreen, size: 18),
+            Icon(Icons.check_circle, color: widget.color, size: 18),
             const SizedBox(width: 4),
             Text('$_correct',
                 style: const TextStyle(
@@ -9752,7 +9758,7 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(Icons.check_circle_rounded,
-                        color: _duoGreen, size: 20),
+                        color: widget.color, size: 20),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(p,
@@ -9791,6 +9797,7 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
           _bigButton(
             label: 'Start lesson',
             enabled: _quiz.isNotEmpty,
+            color: widget.color,
             onTap: () => setState(() => _showIntro = false),
           ),
         ],
@@ -9873,8 +9880,8 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
     Color fg = Colors.white;
     if (_checked) {
       if (isAnswer) {
-        border = _duoGreen;
-        bg = _duoGreen.withValues(alpha: 0.16);
+        border = _lessonSuccess;
+        bg = _lessonSuccess.withValues(alpha: 0.16);
         fg = Colors.white;
       } else if (isSelected) {
         border = _wrongRed;
@@ -9918,7 +9925,7 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
                         color: fg, fontSize: 15, fontWeight: FontWeight.w600)),
               ),
               if (_checked && isAnswer)
-                const Icon(Icons.check_circle, color: _duoGreen, size: 22)
+                const Icon(Icons.check_circle, color: _lessonSuccess, size: 22)
               else if (_checked && isSelected)
                 const Icon(Icons.cancel, color: _wrongRed, size: 22),
             ],
@@ -9937,7 +9944,7 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
       decoration: BoxDecoration(
         color: showFeedback
             ? (correct
-                ? _duoGreen.withValues(alpha: 0.14)
+                ? _lessonSuccess.withValues(alpha: 0.14)
                 : _wrongRed.withValues(alpha: 0.14))
             : Colors.transparent,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
@@ -9950,11 +9957,11 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
             Row(
               children: [
                 Icon(correct ? Icons.check_circle : Icons.cancel,
-                    color: correct ? _duoGreen : _wrongRed, size: 22),
+                    color: correct ? _lessonSuccess : _wrongRed, size: 22),
                 const SizedBox(width: 8),
                 Text(correct ? 'Correct!' : 'Not quite',
                     style: TextStyle(
-                      color: correct ? _duoGreen : _wrongRed,
+                      color: correct ? _lessonSuccess : _wrongRed,
                       fontSize: 16,
                       fontWeight: FontWeight.w900,
                     )),
@@ -9972,7 +9979,7 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
                 ? (_index + 1 >= _quiz.length ? 'Finish' : 'Continue')
                 : 'Check',
             enabled: _selected != null,
-            color: showFeedback && !correct ? _wrongRed : _duoGreen,
+            color: showFeedback && !correct ? _wrongRed : widget.color,
             onTap: _checked ? _next : _check,
           ),
         ],
@@ -9998,7 +10005,7 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
               gradient: LinearGradient(
                 colors: perfect
                     ? [fblaGold, const Color(0xFFFFD54F)]
-                    : [_duoGreen, _duoGreenDark],
+                    : [fblaNavy, const Color(0xFF1D4E89)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -10006,7 +10013,7 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
               boxShadow: [
                 BoxShadow(
                   color:
-                      (perfect ? fblaGold : _duoGreen).withValues(alpha: 0.45),
+                      (perfect ? fblaGold : fblaNavy).withValues(alpha: 0.45),
                   blurRadius: 28,
                   offset: const Offset(0, 12),
                 ),
@@ -10034,7 +10041,7 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
               Expanded(
                 child: _resultStat(
                     '$_correct / $total', 'Correct', Icons.task_alt_rounded,
-                    color: _duoGreen),
+                    color: _lessonSuccess),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -10047,6 +10054,7 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
           _bigButton(
             label: 'Claim XP & Continue',
             enabled: true,
+            color: widget.color,
             onTap: () => Navigator.of(context).pop(
               _LessonResult(completed: true, correct: _correct, total: total),
             ),
@@ -10086,26 +10094,13 @@ class _LessonSessionScreenState extends State<LessonSessionScreen> {
     required String label,
     required bool enabled,
     required VoidCallback onTap,
-    Color color = _duoGreen,
+    Color color = fblaNavy,
   }) {
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
-      child: ElevatedButton(
-        onPressed: enabled ? onTap : null,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          disabledBackgroundColor: Colors.white.withValues(alpha: 0.08),
-          foregroundColor: Colors.white,
-          disabledForegroundColor: Colors.white38,
-          elevation: 0,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ),
-        child: Text(label,
-            style: const TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 0.3)),
-      ),
+    return _cyberLessonPrimaryButton(
+      label: label,
+      onTap: onTap,
+      color: color,
+      enabled: enabled,
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../main.dart';
 import '../services/firebase_service.dart';
+import '../widgets/app_snackbar.dart';
 import 'direct_chat_screen.dart';
 
 class GroupChatScreen extends StatefulWidget {
@@ -49,9 +50,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to send: $e')),
-        );
+        AppSnackBar.error(context, 'Failed to send: $e');
       }
     }
   }

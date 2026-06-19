@@ -10,6 +10,7 @@ import '../services/firebase_service.dart';
 import '../services/ml_kit_service.dart';
 import '../services/school_search_service.dart';
 import '../widgets/school_autocomplete_field.dart';
+import '../widgets/app_snackbar.dart';
 import 'nlc_ready_screen.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -138,24 +139,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Future<void> _analyzeSelectedImage() async {
     if (_selectedImagePath == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Pick an image first.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppSnackBar.warning(context, 'Pick an image first.');
       return;
     }
 
     if (kIsWeb) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'ML Kit image labeling runs on Android and iOS devices only.',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
+      AppSnackBar.info(
+        context,
+        'ML Kit image labeling runs on Android and iOS devices only.',
       );
       return;
     }
@@ -199,12 +191,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           grade: app.gradeLevel,
         );
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile saved.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        AppSnackBar.success(context, 'Profile saved.');
         Navigator.pop(context);
         return;
       }
@@ -239,23 +226,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       await app.setFirebaseUser(app.firebaseUser!);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile saved.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppSnackBar.success(context, 'Profile saved.');
       Navigator.pop(context);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Could not save profile. Check your connection and try again.',
-          ),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.red.shade700,
-        ),
+      AppSnackBar.error(
+        context,
+        'Could not save profile. Check your connection and try again.',
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);

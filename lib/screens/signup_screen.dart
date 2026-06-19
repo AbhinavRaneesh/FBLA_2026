@@ -11,6 +11,7 @@ import '../services/firebase_service.dart';
 import '../services/school_search_service.dart';
 import '../utils/validators.dart';
 import '../widgets/school_autocomplete_field.dart';
+import '../widgets/app_snackbar.dart';
 import 'terms_conditions_screen.dart';
 
 // Shared design tokens with the login screen so the two pages read as siblings.
@@ -173,13 +174,7 @@ class _SignupScreenState extends State<SignupScreen>
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.red.shade700,
-      ),
-    );
+    AppSnackBar.error(context, message);
   }
 
   /// Called when signup fails because there is no network connection.
@@ -199,21 +194,11 @@ class _SignupScreenState extends State<SignupScreen>
     );
     await app.login(email, name, role: _selectedRole ?? 'Student', grade: '');
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.cloud_off_rounded, color: fblaGold, size: 18),
-            SizedBox(width: 10),
-            Expanded(
-              child: Text('Account saved — will sync when you\'re online'),
-            ),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: const Color(0xFF1A3A5C),
-        duration: const Duration(seconds: 5),
-      ),
+    AppSnackBar.warning(
+      context,
+      'Account saved — will sync when you\'re online',
+      icon: Icons.cloud_off_rounded,
+      duration: const Duration(seconds: 5),
     );
     Navigator.pop(context, {
       'email': email,

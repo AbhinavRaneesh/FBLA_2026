@@ -12,6 +12,7 @@ import 'package:video_player/video_player.dart';
 import '../main.dart' show AppState, appBackgroundGradient, fblaGold;
 import '../ai/models/chat_message_model.dart';
 import '../ai/repos/gemini_repo.dart';
+import '../widgets/app_snackbar.dart';
 import '../models/nlc_practice_scenarios.dart';
 import '../models/nlc_rubric_result.dart';
 import '../models/practice_record.dart';
@@ -224,10 +225,10 @@ class _CoachTabState extends State<_CoachTab> {
   Future<void> _getFeedback() async {
     final answer = _response.text.trim();
     if (answer.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Write your response first, then get feedback.'),
-        behavior: SnackBarBehavior.floating,
-      ));
+      AppSnackBar.warning(
+        context,
+        'Write your response first, then get feedback.',
+      );
       return;
     }
     setState(() {
@@ -526,10 +527,7 @@ class _RecordTabState extends State<_RecordTab> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Could not record video: $e'),
-        behavior: SnackBarBehavior.floating,
-      ));
+      AppSnackBar.error(context, 'Could not record video: $e');
     }
   }
 
@@ -550,10 +548,7 @@ class _RecordTabState extends State<_RecordTab> {
     ));
     widget.onSaved();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('Saved to your practice history.'),
-      behavior: SnackBarBehavior.floating,
-    ));
+    AppSnackBar.success(context, 'Saved to your practice history.');
   }
 
   @override
@@ -993,10 +988,10 @@ class _LiveSimTabState extends State<_LiveSimTab> {
   Future<void> _submitForJudging() async {
     final answer = _response.text.trim();
     if (answer.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Enter your response before submitting to the judge.'),
-        behavior: SnackBarBehavior.floating,
-      ));
+      AppSnackBar.warning(
+        context,
+        'Enter your response before submitting to the judge.',
+      );
       return;
     }
 
@@ -1042,10 +1037,10 @@ $answer
         _judging = false;
         _phase = _LiveSimPhase.perform;
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Could not get rubric scores. Try Demo Mode or check your connection.'),
-        behavior: SnackBarBehavior.floating,
-      ));
+      AppSnackBar.error(
+        context,
+        'Could not get rubric scores. Try Demo Mode or check your connection.',
+      );
       return;
     }
 

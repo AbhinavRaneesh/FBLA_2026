@@ -9,6 +9,7 @@ import '../../main.dart'
         fblaLightPrimaryText,
         fblaLightSecondaryText;
 import '../../services/firebase_service.dart';
+import '../../widgets/app_snackbar.dart';
 import '../../widgets/friend_picker_sheet.dart';
 import '../models/discord_models.dart';
 import '../models/social_models.dart';
@@ -232,9 +233,7 @@ class SocialPostShare {
   }
 
   static void _snack(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-    );
+    AppSnackBar.show(context, message: message);
   }
 
   static Map<String, dynamic> _chatPayload(FeedItem item) {

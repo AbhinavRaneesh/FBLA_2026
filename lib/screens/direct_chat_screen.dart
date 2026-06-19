@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../main.dart';
 import '../services/firebase_service.dart';
+import '../widgets/app_snackbar.dart';
 import 'instagram_feed_screen.dart';
 
 class DirectChatScreen extends StatefulWidget {
@@ -52,9 +53,7 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to send message: $e')),
-        );
+        AppSnackBar.error(context, 'Failed to send message: $e');
       }
     }
   }
@@ -425,12 +424,7 @@ class _EventInviteContent extends StatelessWidget {
     app.toggleParticipatingEvent(eventId);
     app.rsvpEvent(eventId, 'going');
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Joined "$title"'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    AppSnackBar.success(context, 'Joined "$title"', icon: Icons.event_rounded);
   }
 
   @override
