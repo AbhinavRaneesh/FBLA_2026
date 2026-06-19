@@ -58,6 +58,7 @@ class YouTubeUploadService {
     required String title,
     String description = '',
     String privacyStatus = 'public',
+    bool uploadAsShort = false,
     void Function(double progress)? onProgress,
   }) async {
     final token = await _accessToken();
@@ -76,6 +77,26 @@ class YouTubeUploadService {
 
     onProgress?.call(0.05);
 
+    final visibility = privacyStatus == 'unlisted' ? 'unlisted' : 'public';
+    var finalTitle = title.trim();
+    var finalDescription = description.trim();
+
+    if (uploadAsShort) {
+      if (!finalTitle.toLowerCase().contains('#shorts')) {
+        finalTitle = '$finalTitle #Shorts';
+      }
+      if (finalTitle.length > 100) {
+        finalTitle = finalTitle.substring(0, 100);
+      }
+      if (!finalDescription.toLowerCase().contains('#shorts')) {
+        finalDescription = finalDescription.isEmpty
+            ? '#Shorts'
+            : '$finalDescription\n\n#Shorts';
+      }
+    } else if (finalTitle.length > 100) {
+      finalTitle = finalTitle.substring(0, 100);
+    }
+
     final initUri = Uri.parse(
       'https://www.googleapis.com/upload/youtube/v3/videos'
       '?uploadType=resumable&part=snippet,status',
@@ -83,12 +104,12 @@ class YouTubeUploadService {
 
     final initBody = jsonEncode({
       'snippet': {
-        'title': title.length > 100 ? title.substring(0, 100) : title,
-        'description': description,
+        'title': finalTitle,
+        'description': finalDescription,
         'categoryId': '22',
       },
       'status': {
-        'privacyStatus': privacyStatus,
+        'privacyStatus': visibility,
         'selfDeclaredMadeForKids': false,
       },
     });
@@ -182,4 +203,18 @@ class YouTubeUploadResult {
     required this.videoId,
     required this.watchUrl,
   });
+}
+
+/// User-selected YouTube upload settings from the pre-upload prompt.
+class YouTubeUploadOptions {
+  final bool asShort;
+  final String privacyStatus;
+
+  const YouTubeUploadOptions({
+    required this.asShort,
+    required this.privacyStatus,
+  });
+
+  bool get isPublic => privacyStatus == 'public';
+  bool get isUnlisted => privacyStatus == 'unlisted';
 }

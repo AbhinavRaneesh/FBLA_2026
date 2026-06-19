@@ -12,8 +12,7 @@ class PracticeRecord {
   /// The event's category/type, e.g. "Roleplay" or "Presentation".
   final String category;
 
-  /// Which mode produced this record: 'coach' (AI feedback) or 'record'
-  /// (self-recorded video + rubric self-assessment).
+  /// Which mode produced this record: 'coach', 'record', or 'live_sim'.
   final String type;
 
   /// When the session happened.
@@ -28,6 +27,12 @@ class PracticeRecord {
   /// Total rubric indicators available, for 'record' sessions.
   final int? rubricTotal;
 
+  /// Overall AI rubric score (1–5) for live_sim sessions.
+  final double? rubricOverall;
+
+  /// Serialized [NlcRubricResult] JSON for live_sim sessions.
+  final String? rubricJson;
+
   const PracticeRecord({
     required this.eventName,
     required this.category,
@@ -36,10 +41,13 @@ class PracticeRecord {
     this.aiFeedback,
     this.rubricChecked,
     this.rubricTotal,
+    this.rubricOverall,
+    this.rubricJson,
   });
 
   bool get isCoach => type == 'coach';
   bool get isRecord => type == 'record';
+  bool get isLiveSim => type == 'live_sim';
 
   Map<String, dynamic> toJson() => {
         'eventName': eventName,
@@ -49,6 +57,8 @@ class PracticeRecord {
         'aiFeedback': aiFeedback,
         'rubricChecked': rubricChecked,
         'rubricTotal': rubricTotal,
+        'rubricOverall': rubricOverall,
+        'rubricJson': rubricJson,
       };
 
   factory PracticeRecord.fromJson(Map<String, dynamic> json) {
@@ -65,6 +75,10 @@ class PracticeRecord {
       rubricTotal: json['rubricTotal'] is int
           ? json['rubricTotal'] as int
           : int.tryParse('${json['rubricTotal']}'),
+      rubricOverall: json['rubricOverall'] is num
+          ? (json['rubricOverall'] as num).toDouble()
+          : double.tryParse('${json['rubricOverall']}'),
+      rubricJson: json['rubricJson']?.toString(),
     );
   }
 }

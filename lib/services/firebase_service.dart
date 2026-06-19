@@ -333,6 +333,76 @@ class FirebaseService {
     }
   }
 
+  static List<String> _parseStringList(dynamic raw) {
+    if (raw is List) {
+      return raw.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+    }
+    return const [];
+  }
+
+  static Future<List<String>> getNlcEvents(String userId) async {
+    final profile = await getUserProfile(userId);
+    return _parseStringList(profile?['nlcEvents']);
+  }
+
+  static Future<void> saveNlcEvents(
+      String userId, List<String> events) async {
+    await updateUserProfile(userId, {'nlcEvents': events});
+  }
+
+  static Future<int> getNlcPrepStreak(String userId) async {
+    final profile = await getUserProfile(userId);
+    return int.tryParse('${profile?['nlcPrepStreak'] ?? 0}') ?? 0;
+  }
+
+  static Future<DateTime?> getLastNlcPracticeDate(String userId) async {
+    final profile = await getUserProfile(userId);
+    final raw = profile?['lastNlcPracticeDate']?.toString();
+    if (raw == null || raw.isEmpty) return null;
+    return DateTime.tryParse(raw);
+  }
+
+  static String _dateOnly(DateTime dt) =>
+      '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+
+  static Future<void> recordNlcPracticeSession(String userId) async {
+    final profile = await getUserProfile(userId);
+    final today = _dateOnly(DateTime.now());
+    final lastRaw = profile?['lastNlcPracticeDate']?.toString();
+    var streak = int.tryParse('${profile?['nlcPrepStreak'] ?? 0}') ?? 0;
+
+    if (lastRaw != null && lastRaw.isNotEmpty) {
+      final last = DateTime.tryParse(lastRaw);
+      if (last != null) {
+        final lastDay = _dateOnly(last);
+        if (lastDay == today) {
+          // Same day — keep streak, just update timestamp.
+        } else {
+          final yesterday = _dateOnly(
+              DateTime.now().subtract(const Duration(days: 1)));
+          streak = lastDay == yesterday ? streak + 1 : 1;
+        }
+      } else {
+        streak = 1;
+      }
+    } else {
+      streak = 1;
+    }
+
+    await updateUserProfile(userId, {
+      'lastNlcPracticeDate': today,
+      'nlcPrepStreak': streak,
+    });
+  }
+
+  static Future<void> awardPoints(String userId, int amount) async {
+    if (amount <= 0) return;
+    final profile = await getUserProfile(userId);
+    final current =
+        int.tryParse('${profile?['points'] ?? 0}') ?? 0;
+    await updateUserProfile(userId, {'points': current + amount});
+  }
+
   static Future<Map<String, dynamic>?> getChapter(String chapterId) async {
     try {
       final doc = await _firestore.collection('chapters').doc(chapterId).get();

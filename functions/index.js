@@ -35,6 +35,13 @@ const FBLA_SYSTEM_PROMPT =
   "leadership, chapter activities, business topics, and FBLA event prep. Keep answers practical and concise. " +
   "For emphasis, wrap important words in **double asterisks** — the app renders them as bold text.";
 
+const RUBRIC_JUDGE_SYSTEM_PROMPT =
+  "You are an experienced FBLA competitive-events judge. " +
+  "Score the student's performance against each rubric indicator from 1 (weak) to 5 (excellent). " +
+  "Respond with ONLY valid JSON (no markdown fences) in this exact shape: " +
+  '{"overallScore":3.8,"dimensions":[{"indicator":"...","score":4,"evidence":"..."}],"topFix":"one actionable fix","judgeQuestion":"one follow-up question"}' +
+  ". Include one dimension object per indicator provided. overallScore is the average of dimension scores.";
+
 const CHANNEL_ENV_BY_NAME = {
   announcements: "DISCORD_ANNOUNCEMENTS_CHANNEL_ID",
   general: "DISCORD_GENERAL_CHANNEL_ID",
@@ -183,9 +190,18 @@ exports.chatWithGemini = onCall(
     const model =
       cleanText(process.env.OPENROUTER_MODEL) || DEFAULT_OPENROUTER_MODEL;
     const modelsToTry = uniqueStrings([model, ...OPENROUTER_FALLBACK_MODELS]);
+    const mode = cleanText(request.data?.mode);
+    const systemPrompt =
+      mode === "rubric_judge" ? RUBRIC_JUDGE_SYSTEM_PROMPT : FBLA_SYSTEM_PROMPT;
 
     try {
-      const text = await generateOpenRouterReply(apiKey, modelsToTry, rawMessages);
+      const text = await generateOpenRouterReply(
+        apiKey,
+        modelsToTry,
+        rawMessages,
+        systemPrompt,
+        mode,
+      );
       logger.info("chatWithGemini success", {
         uid: request.auth.uid,
         model: text.model,
@@ -368,8 +384,8 @@ function resolveOpenRouterApiKey() {
   );
 }
 
-function toOpenRouterMessages(rawMessages) {
-  const messages = [{ role: "system", content: FBLA_SYSTEM_PROMPT }];
+function toOpenRouterMessages(rawMessages, systemPrompt) {
+  const messages = [{ role: "system", content: systemPrompt || FBLA_SYSTEM_PROMPT }];
 
   for (const item of rawMessages) {
     if (!item || typeof item !== "object") continue;
@@ -425,8 +441,15 @@ function friendlyOpenRouterError(status, message) {
   return message;
 }
 
-async function generateOpenRouterReply(apiKey, modelsToTry, rawMessages) {
-  const messages = toOpenRouterMessages(rawMessages);
+async function generateOpenRouterReply(
+  apiKey,
+  modelsToTry,
+  rawMessages,
+  systemPrompt,
+  mode,
+) {
+  const messages = toOpenRouterMessages(rawMessages, systemPrompt);
+  const isRubric = mode === "rubric_judge";
   const errors = [];
 
   for (const model of modelsToTry) {
@@ -441,8 +464,8 @@ async function generateOpenRouterReply(apiKey, modelsToTry, rawMessages) {
       body: JSON.stringify({
         model,
         messages,
-        temperature: 0.6,
-        max_tokens: 768,
+        temperature: isRubric ? 0.3 : 0.6,
+        max_tokens: isRubric ? 1200 : 768,
       }),
     });
 

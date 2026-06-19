@@ -285,6 +285,9 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
     BlueWavePostData post, {
     String description = '',
   }) async {
+    final options = await _promptYouTubeUploadOptions();
+    if (options == null || !mounted) return;
+
     final social = context.read<SocialProvider>();
 
     setState(() {
@@ -307,6 +310,8 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
       final result = await social.uploadPostToYouTube(
         post: postWithDesc,
         uploadService: _youtubeUpload,
+        privacyStatus: options.privacyStatus,
+        uploadAsShort: options.asShort,
         onProgress: (p) {
           if (mounted) {
             setState(() {
@@ -324,7 +329,11 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
         _uploadProgress = 0;
       });
 
-      _snack('Uploaded to your YouTube channel!');
+      _snack(
+        options.asShort
+            ? 'Short uploaded to YouTube (${options.isPublic ? 'Public' : 'Unlisted'})!'
+            : 'Video uploaded to YouTube (${options.isPublic ? 'Public' : 'Unlisted'})!',
+      );
       if (await canLaunchUrl(Uri.parse(result.watchUrl))) {
         await launchUrl(
           Uri.parse(result.watchUrl),
@@ -340,6 +349,268 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
       });
       _snack('YouTube upload failed: $e');
     }
+  }
+
+  Future<YouTubeUploadOptions?> _promptYouTubeUploadOptions() async {
+    var asShort = false;
+    var privacy = 'public';
+
+    return showModalBottomSheet<YouTubeUploadOptions>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final surface = isDark ? const Color(0xFF0F1C31) : fblaLightSurface;
+        final primary = isDark ? Colors.white : fblaLightPrimaryText;
+        final secondary = isDark ? Colors.white70 : fblaLightSecondaryText;
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                decoration: BoxDecoration(
+                  color: surface,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: isDark ? Colors.white12 : fblaLightBorder,
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: secondary.withValues(alpha: 0.35),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF0000)
+                                .withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.smart_display_rounded,
+                            color: Color(0xFFFF0000),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'YouTube upload settings',
+                            style: TextStyle(
+                              color: primary,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Choose how this upload should appear on your channel.',
+                      style: TextStyle(color: secondary, height: 1.35),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Upload as',
+                      style: TextStyle(
+                        color: primary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ytChoiceTile(
+                            selected: !asShort,
+                            icon: Icons.movie_creation_outlined,
+                            label: 'Video',
+                            subtitle: 'Standard YouTube video',
+                            onTap: () => setModalState(() => asShort = false),
+                            isDark: isDark,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _ytChoiceTile(
+                            selected: asShort,
+                            icon: Icons.short_text_rounded,
+                            label: 'Short',
+                            subtitle: 'Vertical short (adds #Shorts)',
+                            onTap: () => setModalState(() => asShort = true),
+                            isDark: isDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Who can view it?',
+                      style: TextStyle(
+                        color: primary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ytChoiceTile(
+                            selected: privacy == 'public',
+                            icon: Icons.public_rounded,
+                            label: 'Public',
+                            subtitle: 'Anyone can find and watch',
+                            onTap: () =>
+                                setModalState(() => privacy = 'public'),
+                            isDark: isDark,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _ytChoiceTile(
+                            selected: privacy == 'unlisted',
+                            icon: Icons.link_rounded,
+                            label: 'Unlisted',
+                            subtitle: 'Only people with the link',
+                            onTap: () =>
+                                setModalState(() => privacy = 'unlisted'),
+                            isDark: isDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 22),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: primary,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton.icon(
+                            onPressed: () => Navigator.pop(
+                              ctx,
+                              YouTubeUploadOptions(
+                                asShort: asShort,
+                                privacyStatus: privacy,
+                              ),
+                            ),
+                            icon: const Icon(Icons.upload_rounded, size: 20),
+                            label: const Text(
+                              'Upload to YouTube',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFF0000),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _ytChoiceTile({
+    required bool selected,
+    required IconData icon,
+    required String label,
+    required String subtitle,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    final accent = selected
+        ? (isDark ? fblaGold : fblaBlue)
+        : (isDark ? Colors.white38 : Colors.black38);
+    final border = selected
+        ? (isDark ? fblaGold : fblaBlue)
+        : (isDark ? Colors.white12 : fblaLightBorder);
+    final fill = selected
+        ? (isDark ? fblaGold.withValues(alpha: 0.12) : fblaBlue.withValues(alpha: 0.08))
+        : (isDark ? Colors.white.withValues(alpha: 0.04) : fblaLightBackground);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: fill,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: border, width: selected ? 1.6 : 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: accent, size: 22),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isDark ? Colors.white : fblaLightPrimaryText,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: isDark ? Colors.white54 : fblaLightSecondaryText,
+                  fontSize: 11,
+                  height: 1.25,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _snack(String message) {

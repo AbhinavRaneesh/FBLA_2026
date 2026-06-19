@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart';
 import '../services/firebase_service.dart';
+import '../services/nlc_prep_service.dart';
 import 'direct_chat_screen.dart';
 
 enum _MembersTab { directory, friends, requests }
@@ -30,6 +31,8 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
   Map<String, String> _relationStatuses = const {};
   bool _isLoading = true;
   String? _loadError;
+  bool _sameNlcEventOnly = false;
+  List<String> _myNlcEvents = const [];
 
   @override
   void initState() {
@@ -57,30 +60,40 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
     });
 
     try {
-      final currentUserId = _currentUserId ?? '';
+      final currentUserId = _currentUserId;
+      if (currentUserId == null || currentUserId.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _allMembers = const [];
+          _friends = const [];
+          _incomingRequests = const [];
+          _outgoingRequests = const [];
+          _relationStatuses = const {};
+          _loadError = null;
+          _isLoading = false;
+        });
+        return;
+      }
+
       final members = await FirebaseService.getUsers();
       members.sort(_sortMembers);
 
-      final friends = currentUserId.isEmpty
-          ? const <Map<String, dynamic>>[]
-          : await FirebaseService.getFriendsForUser(currentUserId);
-      final incoming = currentUserId.isEmpty
-          ? const <Map<String, dynamic>>[]
-          : await FirebaseService.getIncomingFriendRequests(currentUserId);
-      final outgoing = currentUserId.isEmpty
-          ? const <Map<String, dynamic>>[]
-          : await FirebaseService.getOutgoingFriendRequests(currentUserId);
+      final myEvents = await NlcPrepService.loadNlcEvents(currentUserId);
+
+      final friends = await FirebaseService.getFriendsForUser(currentUserId);
+      final incoming =
+          await FirebaseService.getIncomingFriendRequests(currentUserId);
+      final outgoing =
+          await FirebaseService.getOutgoingFriendRequests(currentUserId);
 
       final memberIds = members
           .map((member) => (member['id'] ?? '').toString())
           .where((id) => id.isNotEmpty)
           .toList(growable: false);
-      final statuses = currentUserId.isEmpty
-          ? const <String, String>{}
-          : await FirebaseService.getFriendRelationStatuses(
-              currentUserId,
-              memberIds,
-            );
+      final statuses = await FirebaseService.getFriendRelationStatuses(
+        currentUserId,
+        memberIds,
+      );
 
       if (!mounted) return;
       setState(() {
@@ -89,12 +102,19 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
         _incomingRequests = incoming;
         _outgoingRequests = outgoing;
         _relationStatuses = statuses;
+        _myNlcEvents = myEvents;
         _isLoading = false;
       });
     } catch (error) {
       if (!mounted) return;
+      final message = error.toString();
       setState(() {
-        _loadError = error.toString();
+        if (message.contains('permission-denied')) {
+          _loadError =
+              'Could not load members. Deploy Firestore rules: firebase deploy --only firestore:rules';
+        } else {
+          _loadError = message.replaceFirst('Exception: ', '');
+        }
         _isLoading = false;
       });
     }
@@ -123,8 +143,26 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
     return leftEmail.compareTo(rightEmail);
   }
 
+  List<String> _memberNlcEvents(Map<String, dynamic> member) {
+    final raw = member['nlcEvents'];
+    if (raw is List) {
+      return raw.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+    }
+    return const [];
+  }
+
+  bool _sharesNlcEvent(Map<String, dynamic> member) {
+    if (_myNlcEvents.isEmpty) return false;
+    final theirs = _memberNlcEvents(member);
+    return theirs.any(_myNlcEvents.contains);
+  }
+
   List<Map<String, dynamic>> _applyFilters(List<Map<String, dynamic>> members) {
     return members.where((member) {
+      if (_sameNlcEventOnly && !_sharesNlcEvent(member)) {
+        return false;
+      }
+
       final name = _displayName(member).toLowerCase();
       final email = (member['email'] ?? '').toString().toLowerCase();
       final chapter = (member['chapter'] ?? '').toString().toLowerCase();
@@ -143,9 +181,112 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
   }
 
   String _displayName(Map<String, dynamic> member) {
-    final name =
-        (member['name'] ?? member['displayName'] ?? '').toString().trim();
+    final name = (member['name'] ??
+            member['displayName'] ??
+            member['fullName'] ??
+            '')
+        .toString()
+        .trim();
     return name.isEmpty ? 'Unnamed Member' : name;
+  }
+
+  Widget _buildDirectoryHeader({
+    required bool isDark,
+    required int memberCount,
+    required int friendCount,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(8, 8, 16, 18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF0B1624), const Color(0xFF1D4E89)]
+              : [fblaBlue, const Color(0xFF2563A8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: fblaBlue.withValues(alpha: 0.28),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white, size: 20),
+              ),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: fblaGold.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: fblaGold.withValues(alpha: 0.45)),
+                ),
+                child: const Icon(Icons.people_alt_rounded,
+                    color: fblaGold, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Member Directory',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$memberCount members · $friendCount friends',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.78),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Refresh',
+                onPressed: _isLoading ? null : _loadData,
+                icon: const Icon(Icons.refresh_rounded, color: fblaGold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.only(left: 12, right: 4),
+            child: Text(
+              'Find chapter members, send friend requests, and connect.',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.72),
+                fontSize: 13,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _sendFriendRequest(Map<String, dynamic> member) async {
@@ -538,108 +679,139 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      appBar: AppBar(
-        title: const Text('Member Directory'),
-        backgroundColor: _fblaBlue,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
       body: Container(
         decoration: BoxDecoration(
           gradient: isDark ? appBackgroundGradient : null,
           color: isDark ? null : fblaLightBackground,
         ),
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _loadError != null
-                ? _buildErrorState(primaryText)
-                : RefreshIndicator(
-                    onRefresh: _loadData,
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(0xFF0F1C31)
-                                : fblaLightSurface,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: borderColor),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 46,
-                                height: 46,
-                                decoration: BoxDecoration(
-                                  color: fblaBlue.withValues(alpha: 0.14),
-                                  borderRadius: BorderRadius.circular(14),
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildDirectoryHeader(
+                isDark: isDark,
+                memberCount: _allMembers.length,
+                friendCount: _friends.length,
+              ),
+              Expanded(
+                child: _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(color: fblaGold),
+                      )
+                    : _currentUserId == null
+                        ? _buildSignInPrompt(primaryText, secondaryText)
+                        : _loadError != null
+                            ? _buildErrorState(primaryText)
+                            : RefreshIndicator(
+                                onRefresh: _loadData,
+                                color: fblaGold,
+                                child: ListView(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                                  children: [
+                                    _buildTabSelector(isDark, primaryText),
+                                    const SizedBox(height: 16),
+                                    if (_selectedTab != _MembersTab.requests)
+                                      TextField(
+                                        controller: _searchController,
+                                        onChanged: (value) => setState(
+                                            () => _searchQuery = value),
+                                        style: TextStyle(color: primaryText),
+                                        decoration: InputDecoration(
+                                          hintText: _selectedTab ==
+                                                  _MembersTab.friends
+                                              ? 'Search your friends...'
+                                              : 'Search by name, email, chapter, or school...',
+                                          prefixIcon: const Icon(
+                                              Icons.search_rounded),
+                                          filled: true,
+                                          fillColor: surfaceColor,
+                                          border: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(14),
+                                            borderSide:
+                                                BorderSide(color: borderColor),
+                                          ),
+                                          enabledBorder: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(14),
+                                            borderSide:
+                                                BorderSide(color: borderColor),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(14),
+                                            borderSide: const BorderSide(
+                                              color: _fblaBlue,
+                                              width: 1.4,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    if (_selectedTab != _MembersTab.requests)
+                                      const SizedBox(height: 14),
+                                    if (_selectedTab == _MembersTab.directory &&
+                                        _myNlcEvents.isNotEmpty)
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 12),
+                                        child: FilterChip(
+                                          label: const Text(
+                                              'Same NLC event (Study Squad)'),
+                                          selected: _sameNlcEventOnly,
+                                          onSelected: (v) => setState(
+                                              () => _sameNlcEventOnly = v),
+                                          selectedColor:
+                                              fblaGold.withValues(alpha: 0.25),
+                                          checkmarkColor: fblaGold,
+                                        ),
+                                      ),
+                                    ..._buildTabContent(
+                                      isDark: isDark,
+                                      primaryText: primaryText,
+                                      secondaryText: secondaryText,
+                                      surfaceColor: surfaceColor,
+                                      borderColor: borderColor,
+                                    ),
+                                  ],
                                 ),
-                                child: const Icon(
-                                  Icons.people_alt_rounded,
-                                  color: fblaBlue,
-                                ),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'Connect with FBLA members',
-                                  style: TextStyle(
-                                    color: primaryText,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        _buildTabSelector(isDark, primaryText),
-                        const SizedBox(height: 16),
-                        if (_selectedTab != _MembersTab.requests)
-                          TextField(
-                            controller: _searchController,
-                            onChanged: (value) =>
-                                setState(() => _searchQuery = value),
-                            style: TextStyle(color: primaryText),
-                            decoration: InputDecoration(
-                              hintText: _selectedTab == _MembersTab.friends
-                                  ? 'Search your friends...'
-                                  : 'Search members by name, email, chapter, or school...',
-                              prefixIcon: const Icon(Icons.search_rounded),
-                              filled: true,
-                              fillColor: surfaceColor,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                borderSide: BorderSide(color: borderColor),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                borderSide: BorderSide(color: borderColor),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                borderSide: const BorderSide(
-                                  color: _fblaBlue,
-                                  width: 1.4,
-                                ),
-                              ),
-                            ),
-                          ),
-                        if (_selectedTab != _MembersTab.requests)
-                          const SizedBox(height: 14),
-                        ..._buildTabContent(
-                          isDark: isDark,
-                          primaryText: primaryText,
-                          secondaryText: secondaryText,
-                          surfaceColor: surfaceColor,
-                          borderColor: borderColor,
-                        ),
-                      ],
-                    ),
-                  ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSignInPrompt(Color primaryText, Color secondaryText) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.login_rounded,
+                size: 48, color: secondaryText.withValues(alpha: 0.8)),
+            const SizedBox(height: 12),
+            Text(
+              'Sign in to browse the member directory',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: primaryText,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your FBLA account is required to view members and send friend requests.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: secondaryText, height: 1.4),
+            ),
+          ],
+        ),
       ),
     );
   }

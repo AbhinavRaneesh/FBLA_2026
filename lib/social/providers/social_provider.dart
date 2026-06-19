@@ -222,6 +222,7 @@ class SocialProvider extends ChangeNotifier {
     required BlueWavePostData post,
     required YouTubeUploadService uploadService,
     String privacyStatus = 'public',
+    bool uploadAsShort = false,
     void Function(double progress)? onProgress,
   }) async {
     if (post.isOnYouTube) {
@@ -258,6 +259,7 @@ class SocialProvider extends ChangeNotifier {
           '#FBLA #BlueWave',
         ].where((s) => s.isNotEmpty).join('\n\n'),
         privacyStatus: privacyStatus,
+        uploadAsShort: uploadAsShort,
         onProgress: (p) => onProgress?.call(0.05 + p * 0.95),
       );
 

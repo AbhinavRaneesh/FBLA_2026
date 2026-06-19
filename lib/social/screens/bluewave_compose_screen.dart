@@ -18,7 +18,14 @@ import '../models/social_models.dart';
 import '../providers/social_provider.dart';
 
 class BlueWaveComposeScreen extends StatefulWidget {
-  const BlueWaveComposeScreen({super.key});
+  final String? initialText;
+  final List<String>? initialTags;
+
+  const BlueWaveComposeScreen({
+    super.key,
+    this.initialText,
+    this.initialTags,
+  });
 
   @override
   State<BlueWaveComposeScreen> createState() => _BlueWaveComposeScreenState();
@@ -28,6 +35,19 @@ class _BlueWaveComposeScreenState extends State<BlueWaveComposeScreen> {
   final _textController = TextEditingController();
   final _tagsController = TextEditingController();
   BlueWavePostKind _kind = BlueWavePostKind.standard;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initialText;
+    if (initial != null && initial.isNotEmpty) {
+      _textController.text = initial;
+    }
+    final tags = widget.initialTags;
+    if (tags != null && tags.isNotEmpty) {
+      _tagsController.text = tags.join(', ');
+    }
+  }
 
   @override
   void dispose() {

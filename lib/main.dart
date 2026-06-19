@@ -23,6 +23,7 @@ import 'screens/signup_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/resources_screen.dart';
 import 'screens/nlc_detail_screen.dart';
+import 'screens/nlc_ready_screen.dart';
 import 'screens/firebase_auth_screen.dart';
 import 'screens/edit_profile_screen.dart';
 import 'screens/chatbot_screen.dart';
@@ -2248,10 +2249,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: _openNlcDetails,
-                          icon:
-                              const Icon(Icons.info_outline_rounded, size: 19),
-                          label: const Text('Learn More'),
+                          onPressed: _openNlcReady,
+                          icon: const Icon(Icons.emoji_events_rounded, size: 19),
+                          label: const Text('NLC Ready'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: isDark ? fblaGold : fblaBlue,
                             foregroundColor: isDark ? fblaNavy : Colors.white,
@@ -2270,10 +2270,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: _openCompetitions,
+                          onPressed: _openNlcDetails,
                           icon:
-                              const Icon(Icons.emoji_events_outlined, size: 19),
-                          label: const Text('Competitions'),
+                              const Icon(Icons.info_outline_rounded, size: 19),
+                          label: const Text('Learn More'),
                           style: OutlinedButton.styleFrom(
                             backgroundColor: Colors.transparent,
                             foregroundColor: isDark ? fblaGold : fblaBlue,
@@ -2409,6 +2409,20 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => EventsScreen()),
+    );
+  }
+
+  void _openNlcReady() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NlcReadyScreen(
+          onOpenResourcesTab: () {
+            Navigator.pop(context);
+            widget.onSelectRootTab?.call(2);
+          },
+        ),
+      ),
     );
   }
 

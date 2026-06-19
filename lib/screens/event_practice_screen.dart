@@ -1,15 +1,25 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
-import '../main.dart' show appBackgroundGradient, fblaGold;
+import '../main.dart' show AppState, appBackgroundGradient, fblaGold;
 import '../ai/models/chat_message_model.dart';
 import '../ai/repos/gemini_repo.dart';
+import '../models/nlc_practice_scenarios.dart';
+import '../models/nlc_rubric_result.dart';
 import '../models/practice_record.dart';
+import '../services/firebase_service.dart';
+import '../services/nlc_demo_mode.dart';
+import '../services/nlc_prep_service.dart';
 import '../services/practice_history_store.dart';
+import '../social/screens/bluewave_compose_screen.dart';
 
 /// Practice experience for performance-based events (roleplay & presentation).
 /// Two modes: an AI Coach (scenario + rubric feedback) and self-record
@@ -18,21 +28,27 @@ class EventPracticeScreen extends StatefulWidget {
   final String eventName;
   final String category;
   final Color color;
+  final int initialTab;
 
   const EventPracticeScreen({
     super.key,
     required this.eventName,
     required this.category,
     this.color = const Color(0xFF64B5F6),
+    this.initialTab = 0,
   });
 
-  static void open(BuildContext context,
-      {required String eventName, required String category, Color? color}) {
-    Navigator.of(context).push(MaterialPageRoute(
+  static Future<void> open(BuildContext context,
+      {required String eventName,
+      required String category,
+      Color? color,
+      int initialTab = 0}) {
+    return Navigator.of(context).push<void>(MaterialPageRoute(
       builder: (_) => EventPracticeScreen(
         eventName: eventName,
         category: category,
         color: color ?? const Color(0xFF64B5F6),
+        initialTab: initialTab,
       ),
     ));
   }
@@ -53,7 +69,11 @@ class _EventPracticeScreenState extends State<EventPracticeScreen>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    _tab = TabController(
+      length: 4,
+      vsync: this,
+      initialIndex: widget.initialTab.clamp(0, 3),
+    );
   }
 
   @override
@@ -65,9 +85,8 @@ class _EventPracticeScreenState extends State<EventPracticeScreen>
 
   void _onSessionSaved() => _historyVersion.value++;
 
-  _CuratedPractice get _practice =>
-      _curatedPractice[widget.eventName] ??
-      (widget._isRoleplay ? _genericRoleplay : _genericPresentation);
+  NlcCuratedPractice get _practice =>
+      nlcPracticeForEvent(widget.eventName, category: widget.category);
 
   @override
   Widget build(BuildContext context) {
@@ -121,6 +140,13 @@ class _EventPracticeScreenState extends State<EventPracticeScreen>
                         eventName: widget.eventName,
                         color: widget.color,
                         refresh: _historyVersion),
+                    _LiveSimTab(
+                        practice: _practice,
+                        eventName: widget.eventName,
+                        category: widget.category,
+                        color: widget.color,
+                        isRoleplay: widget._isRoleplay,
+                        onSaved: _onSessionSaved),
                   ],
                 ),
               ),
@@ -153,6 +179,7 @@ class _EventPracticeScreenState extends State<EventPracticeScreen>
           Tab(height: 42, child: Text('AI Coach')),
           Tab(height: 42, child: Text('Record')),
           Tab(height: 42, child: Text('History')),
+          Tab(height: 42, child: Text('Live Sim')),
         ],
       ),
     );
@@ -162,7 +189,7 @@ class _EventPracticeScreenState extends State<EventPracticeScreen>
 /* ----------------------------- Coach tab ----------------------------- */
 
 class _CoachTab extends StatefulWidget {
-  final _CuratedPractice practice;
+  final NlcCuratedPractice practice;
   final String eventName;
   final String category;
   final Color color;
@@ -431,7 +458,7 @@ Keep it under 180 words, encouraging but honest.''';
 /* ----------------------------- Record tab ----------------------------- */
 
 class _RecordTab extends StatefulWidget {
-  final _CuratedPractice practice;
+  final NlcCuratedPractice practice;
   final String eventName;
   final String category;
   final Color color;
@@ -824,10 +851,20 @@ class _HistoryTabState extends State<_HistoryTab> {
         children: [
           Row(
             children: [
-              Icon(r.isCoach ? Icons.auto_awesome_rounded : Icons.videocam_rounded,
-                  color: r.isCoach ? fblaGold : widget.color, size: 18),
+              Icon(r.isCoach
+                      ? Icons.auto_awesome_rounded
+                      : r.isLiveSim
+                          ? Icons.gavel_rounded
+                          : Icons.videocam_rounded,
+                  color: r.isCoach || r.isLiveSim ? fblaGold : widget.color,
+                  size: 18),
               const SizedBox(width: 8),
-              Text(r.isCoach ? 'AI Coach feedback' : 'Self-assessment',
+              Text(
+                  r.isCoach
+                      ? 'AI Coach feedback'
+                      : r.isLiveSim
+                          ? 'Live Sim rubric'
+                          : 'Self-assessment',
                   style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,
@@ -844,6 +881,12 @@ class _HistoryTabState extends State<_HistoryTab> {
               style: const TextStyle(
                   color: Colors.white70, fontSize: 13.5, height: 1.4),
             )
+          else if (r.isLiveSim)
+            Text(
+              'Live Sim score: ${r.rubricOverall?.toStringAsFixed(1) ?? '—'}/5',
+              style: const TextStyle(
+                  color: Colors.white70, fontSize: 13.5, height: 1.4),
+            )
           else
             Text(
               r.aiFeedback ?? '',
@@ -856,76 +899,495 @@ class _HistoryTabState extends State<_HistoryTab> {
   }
 }
 
-/* ----------------------------- Content ----------------------------- */
+/* ----------------------------- Live Sim tab ----------------------------- */
 
-class _CuratedPractice {
-  final String scenario;
-  final List<String> indicators;
-  const _CuratedPractice({required this.scenario, required this.indicators});
+enum _LiveSimPhase { intro, prep, perform, judging, results }
+
+class _LiveSimTab extends StatefulWidget {
+  final NlcCuratedPractice practice;
+  final String eventName;
+  final String category;
+  final Color color;
+  final bool isRoleplay;
+  final VoidCallback onSaved;
+
+  const _LiveSimTab({
+    required this.practice,
+    required this.eventName,
+    required this.category,
+    required this.color,
+    required this.isRoleplay,
+    required this.onSaved,
+  });
+
+  @override
+  State<_LiveSimTab> createState() => _LiveSimTabState();
 }
 
-const _genericRoleplay = _CuratedPractice(
-  scenario:
-      'You are a business professional meeting with a client (the judge). You have 10 minutes to prepare, then present your recommendation and answer their questions. Greet them, identify the core problem, propose a clear solution, and justify it with business reasoning.',
-  indicators: [
-    'Greets the judge professionally and establishes rapport',
-    'Clearly identifies the problem or objective',
-    'Proposes a specific, realistic solution',
-    'Justifies the solution with sound business concepts',
-    'Communicates with confidence and clear organization',
-    'Answers follow-up questions thoughtfully',
-  ],
-);
+class _LiveSimTabState extends State<_LiveSimTab> {
+  _LiveSimPhase _phase = _LiveSimPhase.intro;
+  int _prepSeconds = 600;
+  Timer? _timer;
+  final TextEditingController _response = TextEditingController();
+  bool _demoMode = false;
+  bool _judging = false;
+  NlcRubricResult? _result;
+  double? _previousScore;
 
-const _genericPresentation = _CuratedPractice(
-  scenario:
-      'Prepare a presentation on the current event topic. Deliver it to a panel of judges with visual aids, then answer their questions. Focus on a clear structure, strong evidence, and confident delivery.',
-  indicators: [
-    'Opens with a clear hook and purpose',
-    'Content is well-organized and addresses the prompt',
-    'Uses credible evidence and examples',
-    'Visual aids are clean and support the message',
-    'Delivery is confident with good eye contact and pacing',
-    'Handles Q&A accurately and calmly',
-  ],
-);
+  @override
+  void initState() {
+    super.initState();
+    _loadPreviousScore();
+  }
 
-// Curated showcase events (hybrid: these work fully offline).
-const Map<String, _CuratedPractice> _curatedPractice = {
-  'Marketing': _CuratedPractice(
-    scenario:
-        'A local coffee shop has seen sales drop 20% after a national chain opened nearby. The owner (judge) wants a marketing strategy to win customers back within three months on a small budget. Present your plan and justify your choices.',
-    indicators: [
-      'Identifies the target customer and the shop’s competitive edge',
-      'Proposes a clear marketing mix (product, price, place, promotion)',
-      'Recommends realistic, low-cost promotion tactics',
-      'Explains how success will be measured',
-      'Communicates persuasively and professionally',
-      'Defends the plan under judge questions',
-    ],
-  ),
-  'Public Speaking': _CuratedPractice(
-    scenario:
-        'Prepare and deliver a 4-minute speech on: "How can young people use business skills to strengthen their local community?" You will be judged on content, organization, and delivery.',
-    indicators: [
-      'Strong opening that grabs attention',
-      'Clear thesis and logical structure',
-      'Specific examples and evidence',
-      'Confident delivery: eye contact, pace, and projection',
-      'Memorable, purposeful conclusion',
-      'Stays within the time limit',
-    ],
-  ),
-  'Entrepreneurship': _CuratedPractice(
-    scenario:
-        'Your team is pitching a new small-business idea to investors (the judges). Present the concept, target market, revenue model, and why your team can execute it.',
-    indicators: [
-      'Clear, compelling business concept',
-      'Well-defined target market and need',
-      'Realistic revenue and cost model',
-      'Evidence the team can execute',
-      'Confident, organized team delivery',
-      'Strong answers to investor questions',
-    ],
-  ),
-};
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _response.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadPreviousScore() async {
+    final records = await PracticeHistoryStore.allForEvent(widget.eventName);
+    for (final r in records) {
+      if (r.isLiveSim && r.rubricOverall != null) {
+        if (mounted) setState(() => _previousScore = r.rubricOverall);
+        break;
+      }
+    }
+  }
+
+  void _startPrep() {
+    setState(() {
+      _phase = _LiveSimPhase.prep;
+      _prepSeconds = 600;
+    });
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return;
+      if (_prepSeconds <= 1) {
+        t.cancel();
+        HapticFeedback.mediumImpact();
+        setState(() => _phase = _LiveSimPhase.perform);
+      } else {
+        setState(() => _prepSeconds--);
+        if (_prepSeconds == 60) HapticFeedback.lightImpact();
+      }
+    });
+  }
+
+  Future<void> _submitForJudging() async {
+    final answer = _response.text.trim();
+    if (answer.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Enter your response before submitting to the judge.'),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+
+    setState(() {
+      _phase = _LiveSimPhase.judging;
+      _judging = true;
+      _result = null;
+    });
+
+    NlcRubricResult? parsed;
+
+    if (_demoMode) {
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+      parsed = NlcDemoMode.bundledRubric(widget.eventName);
+    } else {
+      final prompt = '''
+Event: ${widget.eventName} (${widget.category})
+Scenario: ${widget.practice.scenario}
+Indicators:
+${widget.practice.indicators.map((i) => '- $i').join('\n')}
+
+Student response:
+"""
+$answer
+"""''';
+
+      try {
+        final raw = await GeminiRepo.rubricJudge(prompt);
+        parsed = NlcRubricResult.tryParse(raw);
+      } catch (_) {
+        parsed = null;
+      }
+
+      if (parsed == null && NlcDemoMode.supportsOffline(widget.eventName)) {
+        parsed = NlcDemoMode.bundledRubric(widget.eventName);
+      }
+    }
+
+    if (!mounted) return;
+
+    if (parsed == null) {
+      setState(() {
+        _judging = false;
+        _phase = _LiveSimPhase.perform;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Could not get rubric scores. Try Demo Mode or check your connection.'),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+
+    final result = parsed;
+    await PracticeHistoryStore.add(PracticeRecord(
+      eventName: widget.eventName,
+      category: widget.category,
+      type: 'live_sim',
+      timestamp: DateTime.now(),
+      rubricOverall: result.overallScore,
+      rubricJson: result.toJsonString(),
+    ));
+
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId != null) {
+      await NlcPrepService.recordPracticeSession(userId);
+      await FirebaseService.awardPoints(userId, 15);
+      if (!mounted) return;
+      await context.read<AppState>().refreshUserProfile();
+    }
+
+    widget.onSaved();
+    if (!mounted) return;
+    setState(() {
+      _result = result;
+      _judging = false;
+      _phase = _LiveSimPhase.results;
+    });
+  }
+
+  void _reset() {
+    _timer?.cancel();
+    _response.clear();
+    setState(() {
+      _phase = _LiveSimPhase.intro;
+      _result = null;
+      _prepSeconds = 600;
+    });
+  }
+
+  Future<void> _shareToBlueWave() async {
+    final score = _result?.overallScore;
+    if (score == null) return;
+    final app = context.read<AppState>();
+    final name = app.resolvedDisplayName;
+    if (!mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => BlueWaveComposeScreen(
+          initialText:
+              '$name completed ${widget.eventName} Live Sim — scored ${score.toStringAsFixed(1)}/5. #NLCReady #FBLA',
+          initialTags: const ['NLCReady', 'FBLA'],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+      children: [
+        if (_demoMode)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: fblaGold.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: fblaGold.withValues(alpha: 0.4)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.offline_bolt_rounded, color: fblaGold, size: 18),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Offline demo — bundled rubric for judges. Live AI when connected.',
+                    style: TextStyle(color: Colors.white70, fontSize: 12.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        SwitchListTile(
+          value: _demoMode,
+          onChanged: (v) => setState(() => _demoMode = v),
+          title: const Text('Demo for judges (offline)',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14)),
+          subtitle: const Text('Uses bundled rubric — works in airplane mode.',
+              style: TextStyle(color: Colors.white54, fontSize: 12)),
+          activeThumbColor: fblaGold,
+          contentPadding: EdgeInsets.zero,
+        ),
+        const SizedBox(height: 8),
+        if (_phase == _LiveSimPhase.intro) ...[
+          _liveCard(
+            icon: Icons.gavel_rounded,
+            title: 'Live Simulation',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.practice.scenario,
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 14.5, height: 1.5)),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: _startPrep,
+                    icon: const Icon(Icons.timer_rounded),
+                    label: const Text('Reveal & Start 10:00 Prep'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: widget.color,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (_phase == _LiveSimPhase.prep) ...[
+          _liveCard(
+            icon: Icons.timer_rounded,
+            title: 'Prep time',
+            child: Column(
+              children: [
+                Text(
+                  '${(_prepSeconds ~/ 60).toString().padLeft(2, '0')}:${(_prepSeconds % 60).toString().padLeft(2, '0')}',
+                  style: TextStyle(
+                    color: widget.color,
+                    fontSize: 48,
+                    fontWeight: FontWeight.w900,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Plan your response. Timer auto-advances when prep ends.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white60, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () {
+                    _timer?.cancel();
+                    setState(() => _phase = _LiveSimPhase.perform);
+                  },
+                  child: const Text('Skip to perform early'),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (_phase == _LiveSimPhase.perform) ...[
+          _liveCard(
+            icon: Icons.mic_rounded,
+            title: widget.isRoleplay ? 'Perform your roleplay' : 'Deliver your presentation',
+            child: TextField(
+              controller: _response,
+              maxLines: 8,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Type your response as you would deliver it to the judge…',
+                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35)),
+                filled: true,
+                fillColor: Colors.black.withValues(alpha: 0.25),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.white12),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton.icon(
+              onPressed: _submitForJudging,
+              icon: const Icon(Icons.gavel_rounded),
+              label: const Text('Submit to AI Judge'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: fblaGold,
+                foregroundColor: const Color(0xFF07111F),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+                textStyle: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
+          ),
+        ],
+        if (_phase == _LiveSimPhase.judging && _judging)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 32),
+            child: Center(
+              child: Column(
+                children: [
+                  CircularProgressIndicator(color: fblaGold),
+                  SizedBox(height: 12),
+                  Text('AI judge scoring your performance…',
+                      style: TextStyle(color: Colors.white70)),
+                ],
+              ),
+            ),
+          ),
+        if (_phase == _LiveSimPhase.results && _result != null) ...[
+          _buildScoreRing(_result!.overallScore),
+          if (_previousScore != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Previous best: ${_previousScore!.toStringAsFixed(1)}/5',
+              style: const TextStyle(color: Colors.white54, fontSize: 13),
+            ),
+          ],
+          const SizedBox(height: 16),
+          ..._result!.dimensions.map(
+            (d) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _liveCard(
+                icon: Icons.star_rounded,
+                title: '${d.indicator} — ${d.score}/5',
+                child: Text(d.evidence,
+                    style: const TextStyle(
+                        color: Colors.white70, fontSize: 13.5, height: 1.4)),
+              ),
+            ),
+          ),
+          _liveCard(
+            icon: Icons.build_rounded,
+            title: 'Top fix before NLC',
+            accent: fblaGold,
+            child: Text(_result!.topFix,
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 14, height: 1.45)),
+          ),
+          const SizedBox(height: 10),
+          _liveCard(
+            icon: Icons.question_answer_rounded,
+            title: 'Judge follow-up',
+            child: Text(_result!.judgeQuestion,
+                style: const TextStyle(
+                    color: Colors.white70, fontSize: 14, height: 1.45)),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _shareToBlueWave,
+                  icon: const Icon(Icons.waves_rounded, size: 18),
+                  label: const Text('Share to BlueWave'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: fblaGold,
+                    side: BorderSide(color: fblaGold.withValues(alpha: 0.5)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _reset,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: widget.color,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text('Run again'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildScoreRing(double score) {
+    final pct = (score / 5).clamp(0.0, 1.0);
+    return Center(
+      child: SizedBox(
+        width: 120,
+        height: 120,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            CircularProgressIndicator(
+              value: pct,
+              strokeWidth: 10,
+              backgroundColor: Colors.white12,
+              color: fblaGold,
+            ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  score.toStringAsFixed(1),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const Text('/ 5',
+                    style: TextStyle(color: Colors.white54, fontSize: 14)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _liveCard({
+    required IconData icon,
+    required String title,
+    required Widget child,
+    Color? accent,
+  }) {
+    final c = accent ?? widget.color;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: c, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(title,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    );
+  }
+}

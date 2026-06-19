@@ -24,7 +24,10 @@ class FirebaseAiRepo {
 
   /// Returns a reply when the user is signed in and the function succeeds.
   /// Returns `null` when the user is not signed in (caller may use a local fallback).
-  static Future<String?> tryChat(List<ChatMessageModel> messages) async {
+  static Future<String?> tryChat(
+    List<ChatMessageModel> messages, {
+    String? mode,
+  }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       return null;
@@ -46,6 +49,7 @@ class FirebaseAiRepo {
             body: jsonEncode({
               'data': {
                 'messages': trimmed.map((m) => m.toJson()).toList(),
+                if (mode != null) 'mode': mode,
               },
             }),
           )

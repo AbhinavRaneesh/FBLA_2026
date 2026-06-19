@@ -8,8 +8,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../constants/app_assets.dart';
-import 'chatbot_screen.dart';
+import '../ai/bloc/chat_bloc.dart';
+import '../widgets/ai_chat_panel.dart';
 import 'rank_screen.dart';
 import 'event_practice_screen.dart';
 import '../main.dart'
@@ -82,6 +84,15 @@ bool _isCybersecurityCourse(String name) {
   return name.toLowerCase().contains('cybersecurity');
 }
 
+enum _CourseMoreMode {
+  levels,
+  studyNotes,
+  questionBank,
+  officialDocuments,
+  vocabulary,
+  learnWithAi,
+}
+
 class ResourcesScreen extends StatefulWidget {
   const ResourcesScreen({Key? key}) : super(key: key);
 
@@ -97,6 +108,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
   Set<int> _completedLevels = {};
   bool _coursesLoaded = false;
   bool _coursePanelOpen = false;
+  _CourseMoreMode _activeMoreMode = _CourseMoreMode.levels;
   final GlobalKey _courseMenuButtonKey = GlobalKey();
   final GlobalKey _courseBarKey = GlobalKey();
 
@@ -197,8 +209,19 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
   }
 
   void _selectCourse(String course) {
-    setState(() => _selectedCourse = course);
+    setState(() {
+      _selectedCourse = course;
+      _activeMoreMode = _CourseMoreMode.levels;
+    });
     unawaited(_saveCourses());
+  }
+
+  void _backToCourseLevels() {
+    setState(() => _activeMoreMode = _CourseMoreMode.levels);
+  }
+
+  void _setMoreMode(_CourseMoreMode mode) {
+    setState(() => _activeMoreMode = mode);
   }
 
   void _openCoursePicker() => _showCoursePanel();
@@ -223,6 +246,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
         _userCourses.add(selected);
       }
       _selectedCourse = selected;
+      _activeMoreMode = _CourseMoreMode.levels;
     });
     await _saveCourses();
     onCoursesChanged?.call();
@@ -364,122 +388,21 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
         coursePanelOpen: _coursePanelOpen,
         completedLevels: _completedLevels,
         onLevelCompleted: _onLevelCompleted,
+        activeMoreMode: _activeMoreMode,
+        onBackToLevels: _backToCourseLevels,
       ),
     );
   }
 
   Future<void> _showCourseMenu(String course) async {
     final menuItems = [
+      _CourseMenuItem(label: 'Course', icon: Icons.school),
+      _CourseMenuItem(label: 'Study Notes', icon: Icons.menu_book_rounded),
+      _CourseMenuItem(label: 'Question Bank', icon: Icons.quiz_outlined),
       _CourseMenuItem(
-        label: 'Course',
-        icon: Icons.school,
-        onTap: _showCoursePanel,
-      ),
-      _CourseMenuItem(
-        label: 'Study Notes',
-        icon: Icons.menu_book_rounded,
-        onTap: () {
-          if (_isCybersecurityCourse(course)) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => CybersecurityModulesScreen(
-                  course: course,
-                  color: _courseColor(course),
-                ),
-              ),
-            );
-            return;
-          }
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text(
-                    'Study notes are available for the Cybersecurity course right now.')),
-          );
-        },
-      ),
-      _CourseMenuItem(
-        label: 'Question Bank',
-        icon: Icons.quiz_outlined,
-        onTap: () {
-          if (_isCybersecurityCourse(course)) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => CybersecurityQuestionBankScreen(
-                  course: course,
-                  color: _courseColor(course),
-                ),
-              ),
-            );
-            return;
-          }
-
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const CompetitiveEventStudyPacksScreen(),
-            ),
-          );
-        },
-      ),
-      _CourseMenuItem(
-        label: 'Official Documents',
-        icon: Icons.description_outlined,
-        onTap: () {
-          if (_isCybersecurityCourse(course)) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const CybersecurityOfficialDocumentsScreen(),
-              ),
-            );
-            return;
-          }
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text(
-                    'Official Documents are only available for the Cybersecurity course right now.')),
-          );
-        },
-      ),
-      _CourseMenuItem(
-        label: 'Learn with AI',
-        icon: Icons.smart_toy_outlined,
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => ChatbotScreen()),
-          );
-        },
-      ),
-      _CourseMenuItem(
-        label: 'Vocabulary',
-        icon: Icons.menu_book_outlined,
-        onTap: () {
-          if (_isCybersecurityCourse(course)) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => CybersecurityVocabularyScreen(
-                  course: course,
-                  color: _courseColor(course),
-                ),
-              ),
-            );
-            return;
-          }
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Vocabulary is only available for the Cybersecurity course right now.',
-              ),
-            ),
-          );
-        },
-      ),
+          label: 'Official Documents', icon: Icons.description_outlined),
+      _CourseMenuItem(label: 'Learn with AI', icon: Icons.smart_toy_outlined),
+      _CourseMenuItem(label: 'Vocabulary', icon: Icons.menu_book_outlined),
     ];
 
     final buttonContext = _courseMenuButtonKey.currentContext;
@@ -531,8 +454,61 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
     );
 
     if (selected == null) return;
-    final item = menuItems.firstWhere((entry) => entry.label == selected);
-    item.onTap();
+    _handleMoreMenuSelection(selected, course);
+  }
+
+  void _handleMoreMenuSelection(String selected, String course) {
+    switch (selected) {
+      case 'Course':
+        _backToCourseLevels();
+        unawaited(_showCoursePanel());
+        break;
+      case 'Study Notes':
+        if (!_isCybersecurityCourse(course)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Study notes are available for the Cybersecurity course right now.',
+              ),
+            ),
+          );
+          return;
+        }
+        _setMoreMode(_CourseMoreMode.studyNotes);
+        break;
+      case 'Question Bank':
+        _setMoreMode(_CourseMoreMode.questionBank);
+        break;
+      case 'Official Documents':
+        if (!_isCybersecurityCourse(course)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Official Documents are only available for the Cybersecurity course right now.',
+              ),
+            ),
+          );
+          return;
+        }
+        _setMoreMode(_CourseMoreMode.officialDocuments);
+        break;
+      case 'Learn with AI':
+        _setMoreMode(_CourseMoreMode.learnWithAi);
+        break;
+      case 'Vocabulary':
+        if (!_isCybersecurityCourse(course)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Vocabulary is only available for the Cybersecurity course right now.',
+              ),
+            ),
+          );
+          return;
+        }
+        _setMoreMode(_CourseMoreMode.vocabulary);
+        break;
+    }
   }
 
   Widget _buildTopStatsBar(AppState app, bool isDark) {
@@ -875,6 +851,8 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                                                     _userCourses.isNotEmpty
                                                         ? _userCourses.first
                                                         : null;
+                                                _activeMoreMode =
+                                                    _CourseMoreMode.levels;
                                               }
                                             });
                                             await _saveCourses();
@@ -961,6 +939,8 @@ class _CourseJourneyPanel extends StatefulWidget {
   final bool coursePanelOpen;
   final Set<int> completedLevels;
   final void Function(int level, int correct, int total) onLevelCompleted;
+  final _CourseMoreMode activeMoreMode;
+  final VoidCallback onBackToLevels;
 
   const _CourseJourneyPanel({
     super.key,
@@ -974,6 +954,8 @@ class _CourseJourneyPanel extends StatefulWidget {
     required this.coursePanelOpen,
     required this.completedLevels,
     required this.onLevelCompleted,
+    required this.activeMoreMode,
+    required this.onBackToLevels,
   });
 
   @override
@@ -999,6 +981,93 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
     if (oldWidget.course != widget.course) {
       _promptLevel = null;
       _disposePreloadedIntroVideo();
+    }
+  }
+
+  String _moreModeTitle(_CourseMoreMode mode) {
+    switch (mode) {
+      case _CourseMoreMode.levels:
+        return 'Levels';
+      case _CourseMoreMode.studyNotes:
+        return 'Study Notes';
+      case _CourseMoreMode.questionBank:
+        return 'Question Bank';
+      case _CourseMoreMode.officialDocuments:
+        return 'Official Documents';
+      case _CourseMoreMode.vocabulary:
+        return 'Vocabulary';
+      case _CourseMoreMode.learnWithAi:
+        return 'Learn with AI';
+    }
+  }
+
+  Widget _buildMoreModeHeader(bool isDark) {
+    final labelColor = isDark ? Colors.white : fblaLightPrimaryText;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 0, 2, 8),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: widget.onBackToLevels,
+            icon: Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: labelColor,
+              size: 18,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              _moreModeTitle(widget.activeMoreMode),
+              style: TextStyle(
+                color: labelColor,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInlineMoreContent(BuildContext context) {
+    switch (widget.activeMoreMode) {
+      case _CourseMoreMode.studyNotes:
+        return CybersecurityModulesScreen(
+          course: widget.course,
+          color: widget.color,
+          embedded: true,
+        );
+      case _CourseMoreMode.questionBank:
+        if (_isCybersecurityCourse(widget.course)) {
+          return CybersecurityQuestionBankScreen(
+            course: widget.course,
+            color: widget.color,
+            embedded: true,
+          );
+        }
+        return const CompetitiveEventStudyPacksScreen(embedded: true);
+      case _CourseMoreMode.officialDocuments:
+        return const CybersecurityOfficialDocumentsScreen(embedded: true);
+      case _CourseMoreMode.vocabulary:
+        return CybersecurityVocabularyScreen(
+          course: widget.course,
+          color: widget.color,
+          embedded: true,
+        );
+      case _CourseMoreMode.learnWithAi:
+        return BlocProvider(
+          create: (_) => ChatBloc(),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: const AiChatPanel(
+              compact: true,
+              threadId: 'resources_assistant',
+            ),
+          ),
+        );
+      case _CourseMoreMode.levels:
+        return const SizedBox.shrink();
     }
   }
 
@@ -1189,8 +1258,14 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
             ),
           ),
         ),
-        _buildProgressHeader(),
-        Expanded(child: _buildJourney(context)),
+        if (widget.activeMoreMode == _CourseMoreMode.levels) _buildProgressHeader(),
+        if (widget.activeMoreMode != _CourseMoreMode.levels)
+          _buildMoreModeHeader(isDark),
+        Expanded(
+          child: widget.activeMoreMode == _CourseMoreMode.levels
+              ? _buildJourney(context)
+              : _buildInlineMoreContent(context),
+        ),
       ],
     );
   }
@@ -1775,10 +1850,14 @@ class _PathConnector extends StatelessWidget {
 class CybersecurityModulesScreen extends StatelessWidget {
   final String course;
   final Color color;
+  final bool embedded;
 
-  const CybersecurityModulesScreen(
-      {required this.course, required this.color, Key? key})
-      : super(key: key);
+  const CybersecurityModulesScreen({
+    required this.course,
+    required this.color,
+    this.embedded = false,
+    Key? key,
+  }) : super(key: key);
 
   static const List<Map<String, String>> _modules = [
     {
@@ -1844,6 +1923,15 @@ class CybersecurityModulesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final list = ListView.separated(
+      padding: EdgeInsets.fromLTRB(embedded ? 0 : 16, embedded ? 0 : 8, embedded ? 0 : 16, 28),
+      itemCount: _modules.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) => _moduleCard(context, _modules[index]),
+    );
+
+    if (embedded) return list;
+
     return Scaffold(
       backgroundColor: const Color(0xFF07111F),
       body: Container(
@@ -1894,15 +1982,7 @@ class CybersecurityModulesScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-                  itemCount: _modules.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) =>
-                      _moduleCard(context, _modules[index]),
-                ),
-              ),
+              Expanded(child: list),
             ],
           ),
         ),
@@ -2665,11 +2745,13 @@ class _CybersecurityModuleOneThreeScreenState
 class CybersecurityVocabularyScreen extends StatefulWidget {
   final String course;
   final Color color;
+  final bool embedded;
 
   const CybersecurityVocabularyScreen({
     super.key,
     required this.course,
     required this.color,
+    this.embedded = false,
   });
 
   @override
@@ -3049,75 +3131,76 @@ class _CybersecurityVocabularyScreenState
     final terms = _visibleTerms;
     final currentTerm = terms.isEmpty ? null : terms[_currentIndex];
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF061726),
-      body: Container(
-        decoration: const BoxDecoration(gradient: appBackgroundGradient),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: Column(
+    final body = Padding(
+      padding: EdgeInsets.fromLTRB(
+        widget.embedded ? 0 : 16,
+        widget.embedded ? 0 : 12,
+        widget.embedded ? 0 : 16,
+        widget.embedded ? 0 : 16,
+      ),
+      child: Column(
+        children: [
+          if (!widget.embedded)
+            Row(
               children: [
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Vocabulary',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${widget.course} · Flashcards',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.68),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    PopupMenuButton<String>(
-                      color: const Color(0xFF0B1624),
-                      icon: const Icon(Icons.more_horiz, color: Colors.white),
-                      onSelected: _handleMoreAction,
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: 'reset',
-                          child: Text('Reset deck'),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Vocabulary',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
                         ),
-                        const PopupMenuDivider(),
-                        for (final difficulty in _difficultyOptions)
-                          PopupMenuItem(
-                            value: difficulty,
-                            child: Text('Show $difficulty'),
-                          ),
-                      ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${widget.course} · Flashcards',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.68),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  color: const Color(0xFF0B1624),
+                  icon: const Icon(Icons.more_horiz, color: Colors.white),
+                  onSelected: _handleMoreAction,
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'reset',
+                      child: Text('Reset deck'),
                     ),
+                    const PopupMenuDivider(),
+                    for (final difficulty in _difficultyOptions)
+                      PopupMenuItem(
+                        value: difficulty,
+                        child: Text('Show $difficulty'),
+                      ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: ListView(
-                    physics: const BouncingScrollPhysics(),
-                    children: [
+              ],
+            ),
+          if (!widget.embedded) const SizedBox(height: 12),
+          Expanded(
+            child: ListView(
+              physics: const BouncingScrollPhysics(),
+              children: [
                       Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
@@ -3386,10 +3469,17 @@ class _CybersecurityVocabularyScreenState
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-        ),
+        ],
+      ),
+    );
+
+    if (widget.embedded) return body;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF061726),
+      body: Container(
+        decoration: const BoxDecoration(gradient: appBackgroundGradient),
+        child: SafeArea(child: body),
       ),
     );
   }
@@ -3410,11 +3500,13 @@ class _CyberVocabularyTerm {
 class CybersecurityQuestionBankScreen extends StatefulWidget {
   final String course;
   final Color color;
+  final bool embedded;
 
   const CybersecurityQuestionBankScreen({
     super.key,
     required this.course,
     required this.color,
+    this.embedded = false,
   });
 
   @override
@@ -4261,77 +4353,78 @@ class _CybersecurityQuestionBankScreenState
   Widget build(BuildContext context) {
     final filteredQuestions = _filteredQuestions;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF061726),
-      body: Container(
-        decoration: const BoxDecoration(gradient: appBackgroundGradient),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: Column(
+    final body = Padding(
+      padding: EdgeInsets.fromLTRB(
+        widget.embedded ? 0 : 16,
+        widget.embedded ? 0 : 12,
+        widget.embedded ? 0 : 16,
+        widget.embedded ? 0 : 16,
+      ),
+      child: Column(
+        children: [
+          if (!widget.embedded)
+            Row(
               children: [
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                          color: Colors.white),
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Question Bank',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${widget.course} · Cybersecurity MCQs',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.68),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                      color: Colors.white),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Question Bank',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${widget.course} · Cybersecurity MCQs',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.68),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  color: const Color(0xFF0B1624),
+                  icon: const Icon(Icons.more_horiz, color: Colors.white),
+                  onSelected: (value) {
+                    if (value == 'resetFilters') {
+                      _resetFilters();
+                    } else if (value == 'resetProgress') {
+                      _resetProgress();
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: 'resetFilters',
+                      child: Text('Reset filters'),
                     ),
-                    PopupMenuButton<String>(
-                      color: const Color(0xFF0B1624),
-                      icon: const Icon(Icons.more_horiz, color: Colors.white),
-                      onSelected: (value) {
-                        if (value == 'resetFilters') {
-                          _resetFilters();
-                        } else if (value == 'resetProgress') {
-                          _resetProgress();
-                        }
-                      },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(
-                          value: 'resetFilters',
-                          child: Text('Reset filters'),
-                        ),
-                        PopupMenuItem(
-                          value: 'resetProgress',
-                          child: Text('Reset progress'),
-                        ),
-                      ],
+                    PopupMenuItem(
+                      value: 'resetProgress',
+                      child: Text('Reset progress'),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: ListView(
-                    physics: const BouncingScrollPhysics(),
-                    children: [
+              ],
+            ),
+          if (!widget.embedded) const SizedBox(height: 12),
+          Expanded(
+            child: ListView(
+              physics: const BouncingScrollPhysics(),
+              children: [
                       _buildOverviewStats(),
                       const SizedBox(height: 14),
                       Wrap(
@@ -4432,10 +4525,17 @@ class _CybersecurityQuestionBankScreenState
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-        ),
+        ],
+      ),
+    );
+
+    if (widget.embedded) return body;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF061726),
+      body: Container(
+        decoration: const BoxDecoration(gradient: appBackgroundGradient),
+        child: SafeArea(child: body),
       ),
     );
   }
@@ -8617,7 +8717,9 @@ class MobileAppDevGuidelinesScreen extends StatelessWidget {
 }
 
 class CybersecurityOfficialDocumentsScreen extends StatefulWidget {
-  const CybersecurityOfficialDocumentsScreen({super.key});
+  final bool embedded;
+
+  const CybersecurityOfficialDocumentsScreen({super.key, this.embedded = false});
 
   @override
   State<CybersecurityOfficialDocumentsScreen> createState() =>
@@ -8727,6 +8829,149 @@ class _CybersecurityOfficialDocumentsScreenState
   Widget build(BuildContext context) {
     const fblaBlue = Color(0xFF1D4E89);
 
+    final card = ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 560),
+      child: Material(
+        color: const Color(0xFF0B1624),
+        borderRadius: BorderRadius.circular(24),
+        clipBehavior: Clip.antiAlias,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  color: fblaGold.withOpacity(0.16),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: fblaGold.withOpacity(0.35)),
+                ),
+                child: const Icon(
+                  Icons.description_outlined,
+                  color: fblaGold,
+                  size: 34,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Cybersecurity Official Documents',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Tap a document card to open it or tap the info button for details.',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.72),
+                  fontSize: 13,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 18),
+              ..._documents.map((document) {
+                final selected = document == _selectedDocument;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: () {
+                      setState(() => _selectedDocument = document);
+                      _openDocument(document);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? fblaGold.withOpacity(0.10)
+                            : Colors.white.withOpacity(0.04),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: selected
+                              ? fblaGold.withOpacity(0.6)
+                              : Colors.white12,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: fblaGold.withOpacity(0.16),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Icon(document.icon,
+                                color: fblaGold, size: 26),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  document.title,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  document.subtitle,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.68),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => _showDocumentDetails(document),
+                            icon: const Icon(Icons.info_outline,
+                                color: Colors.white70),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 4),
+              Text(
+                'More documents can be added here later.',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.55),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (widget.embedded) {
+      return SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: card,
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -8741,145 +8986,7 @@ class _CybersecurityOfficialDocumentsScreenState
             alignment: Alignment.topCenter,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 560),
-                child: Material(
-                  color: const Color(0xFF0B1624),
-                  borderRadius: BorderRadius.circular(24),
-                  clipBehavior: Clip.antiAlias,
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(22),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: Colors.white12),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 70,
-                          height: 70,
-                          decoration: BoxDecoration(
-                            color: fblaGold.withOpacity(0.16),
-                            borderRadius: BorderRadius.circular(22),
-                            border:
-                                Border.all(color: fblaGold.withOpacity(0.35)),
-                          ),
-                          child: const Icon(
-                            Icons.description_outlined,
-                            color: fblaGold,
-                            size: 34,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Cybersecurity Official Documents',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Tap a document card to open it or tap the info button for details.',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.72),
-                            fontSize: 13,
-                            height: 1.35,
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        ..._documents.map((document) {
-                          final selected = document == _selectedDocument;
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(18),
-                              onTap: () {
-                                setState(() => _selectedDocument = document);
-                                _openDocument(document);
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: selected
-                                      ? fblaGold.withOpacity(0.10)
-                                      : Colors.white.withOpacity(0.04),
-                                  borderRadius: BorderRadius.circular(18),
-                                  border: Border.all(
-                                    color: selected
-                                        ? fblaGold.withOpacity(0.6)
-                                        : Colors.white12,
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 52,
-                                      height: 52,
-                                      decoration: BoxDecoration(
-                                        color: fblaGold.withOpacity(0.16),
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      child: Icon(document.icon,
-                                          color: fblaGold, size: 26),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            document.title,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            document.subtitle,
-                                            style: TextStyle(
-                                              color: Colors.white
-                                                  .withOpacity(0.68),
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    IconButton(
-                                      visualDensity: VisualDensity.compact,
-                                      onPressed: () =>
-                                          _showDocumentDetails(document),
-                                      icon: const Icon(Icons.info_outline,
-                                          color: Colors.white70),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        }),
-                        const SizedBox(height: 4),
-                        Text(
-                          'More documents can be added here later.',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.55),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              child: card,
             ),
           ),
         ),
@@ -8920,7 +9027,9 @@ class _OfficialDocumentEntry {
 }
 
 class CompetitiveEventStudyPacksScreen extends StatelessWidget {
-  const CompetitiveEventStudyPacksScreen({super.key});
+  final bool embedded;
+
+  const CompetitiveEventStudyPacksScreen({super.key, this.embedded = false});
 
   static const List<_StudyPackCategory> _packs = [
     _StudyPackCategory(
@@ -8998,7 +9107,13 @@ class CompetitiveEventStudyPacksScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const fblaBlue = Color(0xFF1D4E89);
+    final list = ListView.builder(
+      padding: EdgeInsets.fromLTRB(embedded ? 0 : 12, embedded ? 0 : 12, embedded ? 0 : 12, 24),
+      itemCount: _packs.length,
+      itemBuilder: (context, index) => _buildPackCard(_packs[index]),
+    );
+
+    if (embedded) return list;
 
     return Scaffold(
       backgroundColor: const Color(0xFF07111F),
@@ -9010,14 +9125,7 @@ class CompetitiveEventStudyPacksScreen extends StatelessWidget {
       ),
       body: Container(
         decoration: const BoxDecoration(gradient: appBackgroundGradient),
-        child: ListView.builder(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-          itemCount: _packs.length,
-          itemBuilder: (context, index) {
-            final pack = _packs[index];
-            return _buildPackCard(pack);
-          },
-        ),
+        child: list,
       ),
     );
   }
@@ -9151,12 +9259,10 @@ class _StudyPackResource {
 class _CourseMenuItem {
   final String label;
   final IconData icon;
-  final VoidCallback onTap;
 
   const _CourseMenuItem({
     required this.label,
     required this.icon,
-    required this.onTap,
   });
 }
 

@@ -10,6 +10,7 @@ import '../services/firebase_service.dart';
 import '../services/ml_kit_service.dart';
 import '../services/school_search_service.dart';
 import '../widgets/school_autocomplete_field.dart';
+import 'nlc_ready_screen.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -39,6 +40,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   String? _selectedState = 'UT';
   School? _selectedSchool;
+  List<String> _nlcEvents = const [];
 
   @override
   void initState() {
@@ -103,6 +105,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _selectedState =
             schoolState.isNotEmpty ? schoolState : _selectedState;
         _selectedSchool = loadedSchool;
+        _nlcEvents = (profileData['nlcEvents'] is List)
+            ? (profileData['nlcEvents'] as List)
+                .map((e) => e.toString())
+                .where((e) => e.isNotEmpty)
+                .toList()
+            : const [];
       });
     } catch (_) {}
   }
@@ -208,6 +216,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         'officerPosition': _positionController.text.trim(),
         'biography': _biographyController.text.trim(),
         'photoUrl': photoUrl,
+        'nlcEvents': _nlcEvents,
       });
 
       await app.setFirebaseUser(app.firebaseUser!);
@@ -246,6 +255,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         borderSide: BorderSide(color: fblaGold.withValues(alpha: 0.8), width: 2),
       ),
     );
+  }
+
+  Future<void> _editNlcEvents() async {
+    final picked = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => NlcEventPickerSheet(initial: _nlcEvents),
+    );
+    if (picked != null) {
+      setState(() => _nlcEvents = picked);
+    }
   }
 
   Widget _buildSectionCard({required String title, required List<Widget> children}) {
@@ -590,6 +611,35 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     style: const TextStyle(color: Colors.white),
                     maxLines: 4,
                     maxLength: 500,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _buildSectionCard(
+                title: 'My NLC Events',
+                children: [
+                  Text(
+                    _nlcEvents.isEmpty
+                        ? 'No events selected yet. Choose the competitions you are preparing for at NLC.'
+                        : _nlcEvents.join(' · '),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.75),
+                      fontSize: 14,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _editNlcEvents,
+                    icon: const Icon(Icons.tune_rounded, size: 18),
+                    label: Text(_nlcEvents.isEmpty
+                        ? 'Choose NLC Events'
+                        : 'Edit NLC Events (${_nlcEvents.length})'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: fblaGold,
+                      side: BorderSide(color: fblaGold.withValues(alpha: 0.5)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
                   ),
                 ],
               ),

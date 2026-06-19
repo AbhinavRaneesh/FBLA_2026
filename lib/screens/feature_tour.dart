@@ -45,14 +45,21 @@ const List<_TourStep> _steps = [
     accent: fblaGold,
     title: 'Welcome to FBLA',
     body:
-        'A quick 20-second tour of the five areas of your member app. You can replay it anytime from More → Help.',
+        'A quick tour of your member app. Replay anytime from More → Help.',
+  ),
+  _TourStep(
+    icon: Icons.emoji_events_rounded,
+    accent: fblaGold,
+    title: 'NLC Ready',
+    body:
+        'Your Competition Command Center: pick your NLC events, run Live Sim roleplay with an AI rubric judge, and earn F-Bucks for daily prep.',
   ),
   _TourStep(
     icon: Icons.home_rounded,
     accent: Color(0xFF2E6BC6),
     title: 'Home',
     body:
-        'Your dashboard: the NLC countdown, quick actions, upcoming events, and the latest announcements at a glance.',
+        'Your dashboard: NLC Ready prep, quick actions, upcoming events, and the latest announcements at a glance.',
   ),
   _TourStep(
     icon: Icons.calendar_month_rounded,

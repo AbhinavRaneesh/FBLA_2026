@@ -36,10 +36,12 @@ class GeminiRepo {
   /// Production path: Firebase Cloud Function (OpenRouter key in secrets).
   /// Dev fallback: direct OpenRouter when `OPENROUTER_API_KEY` is passed via --dart-define.
   static Future<String> chatTextGenerationRepo(
-    List<ChatMessageModel> previousMessages,
-  ) async {
+    List<ChatMessageModel> previousMessages, {
+    String? mode,
+  }) async {
     try {
-      final viaFirebase = await FirebaseAiRepo.tryChat(previousMessages);
+      final viaFirebase =
+          await FirebaseAiRepo.tryChat(previousMessages, mode: mode);
       if (viaFirebase != null) {
         return viaFirebase;
       }
@@ -60,12 +62,21 @@ class GeminiRepo {
       return 'Sign in to use the AI assistant on web, or configure the Firebase chat function.';
     }
 
-    return _chatDirectOpenRouter(previousMessages);
+    return _chatDirectOpenRouter(previousMessages, mode: mode);
+  }
+
+  /// Structured rubric judging for NLC Ready Live Sim.
+  static Future<String> rubricJudge(String prompt) async {
+    return chatTextGenerationRepo(
+      [ChatMessageModel.user(prompt)],
+      mode: 'rubric_judge',
+    );
   }
 
   static Future<String> _chatDirectOpenRouter(
-    List<ChatMessageModel> previousMessages,
-  ) async {
+    List<ChatMessageModel> previousMessages, {
+    String? mode,
+  }) async {
     final trimmed = previousMessages.length > _maxHistoryMessages
         ? previousMessages.sublist(
             previousMessages.length - _maxHistoryMessages,
