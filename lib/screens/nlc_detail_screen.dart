@@ -534,6 +534,7 @@ class _NlcDetailScreenState extends State<NlcDetailScreen> {
           isDark: isDark,
           primaryText: primaryText,
           secondaryText: secondaryText,
+          onTap: widget.onViewCompetitions,
         ),
         _buildActionCard(
           icon: Icons.calendar_view_week_outlined,
@@ -542,6 +543,7 @@ class _NlcDetailScreenState extends State<NlcDetailScreen> {
           isDark: isDark,
           primaryText: primaryText,
           secondaryText: secondaryText,
+          onTap: widget.onViewCompetitions,
         ),
         _buildActionCard(
           icon: Icons.school_outlined,
@@ -550,6 +552,7 @@ class _NlcDetailScreenState extends State<NlcDetailScreen> {
           isDark: isDark,
           primaryText: primaryText,
           secondaryText: secondaryText,
+          onTap: widget.onViewCompetitions,
         ),
         _buildActionCard(
           icon: Icons.workspace_premium_outlined,

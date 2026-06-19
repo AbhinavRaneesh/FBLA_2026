@@ -52,7 +52,7 @@ const List<_TourStep> _steps = [
     accent: fblaGold,
     title: 'NLC Ready',
     body:
-        'Your Competition Command Center: pick your NLC events, run Live Sim roleplay with an AI rubric judge, and earn F-Bucks for daily prep.',
+        'Your Competition Command Center: pick your NLC events, run Live Sim roleplay with an AI rubric judge, and earn Credits for daily prep.',
   ),
   _TourStep(
     icon: Icons.home_rounded,
@@ -87,7 +87,7 @@ const List<_TourStep> _steps = [
     accent: fblaGold,
     title: 'More & your profile',
     body:
-        'Find the AI Coach, member directory, and your profile — earn coins, keep streaks, and climb the career ranks.',
+        'Find the AI Coach, member directory, and your profile — earn Credits, keep streaks, and climb the career ranks.',
   ),
 ];
 

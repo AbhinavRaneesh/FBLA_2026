@@ -237,7 +237,7 @@ class RankScreen extends StatelessWidget {
               Image.asset(AppAssets.coins, width: 22, height: 22),
               const SizedBox(width: 8),
               Text(
-                '$coinBalance FBLA Coins',
+                '$coinBalance Credits',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -259,7 +259,7 @@ class RankScreen extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              '$coinsNeeded coins to reach ${nextTier.name}',
+              '$coinsNeeded Credits to reach ${nextTier.name}',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.9),
@@ -491,7 +491,7 @@ class RankScreen extends StatelessWidget {
                           Text(
                             tier.coinRequirement == 0
                                 ? 'Starting rank'
-                                : '${tier.coinRequirement}+ coins',
+                                : '${tier.coinRequirement}+ Credits',
                             style: TextStyle(
                               color: isUnlocked ? primaryText : mutedText,
                               fontSize: 12.5,

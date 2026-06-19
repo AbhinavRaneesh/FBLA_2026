@@ -6,7 +6,11 @@ import '../constants/app_assets.dart';
 
 /// Auto-advancing homepage image slideshow (4s per slide) with dot indicators.
 class HomeSlideshow extends StatefulWidget {
-  const HomeSlideshow({super.key});
+  /// Box aspect ratio (width / height). Defaults to the assets' native 3:2;
+  /// pass a wider ratio (e.g. 16/9) to render a shorter banner/strip.
+  final double aspectRatio;
+
+  const HomeSlideshow({super.key, this.aspectRatio = 3 / 2});
 
   @override
   State<HomeSlideshow> createState() => _HomeSlideshowState();
@@ -14,10 +18,6 @@ class HomeSlideshow extends StatefulWidget {
 
 class _HomeSlideshowState extends State<HomeSlideshow> {
   static const Duration _slideInterval = Duration(seconds: 4);
-
-  /// Slideshow assets are 1536×1024 (3:2). Required so PageView has bounded
-  /// height inside the home ListView.
-  static const double _aspectRatio = 3 / 2;
 
   /// Large virtual page count so slide 4 can animate forward into slide 1.
   static const int _loopLength = 10000;
@@ -82,7 +82,7 @@ class _HomeSlideshowState extends State<HomeSlideshow> {
     final width = MediaQuery.sizeOf(context).width;
 
     return AspectRatio(
-      aspectRatio: _aspectRatio,
+      aspectRatio: widget.aspectRatio,
       child: Stack(
         alignment: Alignment.bottomCenter,
         fit: StackFit.expand,

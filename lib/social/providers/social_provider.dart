@@ -33,6 +33,22 @@ class SocialProvider extends ChangeNotifier {
   bool _loading = true;
   String? _error;
   String _searchQuery = '';
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  // Async work (initialize, ranking, store I/O) can complete after the Social
+  // screen is popped and this provider is disposed. Swallow notifications in
+  // that window instead of throwing "used after being disposed".
+  @override
+  void notifyListeners() {
+    if (_disposed) return;
+    super.notifyListeners();
+  }
 
   UserPreferences get preferences => _preferences;
   List<FeedItem> get feedItems => _feedItems;

@@ -98,7 +98,7 @@ class _NlcReadyScreenState extends State<NlcReadyScreen> {
       if (awarded && mounted) {
         await context.read<AppState>().refreshUserProfile();
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Daily prep complete! +25 F-Bucks'),
+          content: Text('Daily prep complete! +25 Credits'),
           behavior: SnackBarBehavior.floating,
         ));
       }
@@ -384,7 +384,7 @@ class _NlcReadyScreenState extends State<NlcReadyScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                'All tasks done — +25 F-Bucks when claimed once today.',
+                'All tasks done — +25 Credits when claimed once today.',
                 style: TextStyle(
                   color: fblaGold.withValues(alpha: 0.9),
                   fontSize: 12,

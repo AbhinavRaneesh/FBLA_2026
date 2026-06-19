@@ -615,7 +615,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
           statTile(
             accent: fblaGold,
             icon: Image.asset(AppAssets.coins, width: 20, height: 20),
-            label: 'FBucks',
+            label: 'Credits',
             value: '$_points',
           ),
           Container(width: 1, height: 58, color: divider),
@@ -6817,7 +6817,7 @@ class _LevelStartPrompt extends StatelessWidget {
                         color: fblaGold, size: 18),
                     const SizedBox(width: 8),
                     Text(
-                      'Earn 50 FBucks',
+                      'Earn 50 Credits',
                       style: subtitleStyle,
                     ),
                   ],
@@ -7115,7 +7115,7 @@ class _CybersecurityFundamentalsLessonScreenState
               ),
               const SizedBox(height: 3),
               Text(
-                'Level 1 · Earn 50 FBucks',
+                'Level 1 · Earn 50 Credits',
                 style: TextStyle(
                   color: secondaryText,
                   fontSize: 12,

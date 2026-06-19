@@ -30,6 +30,8 @@ import 'screens/chatbot_screen.dart';
 import 'screens/find_members_screen.dart';
 import 'screens/document_library_screen.dart';
 import 'screens/faq_screen.dart';
+import 'screens/terms_conditions_screen.dart';
+import 'screens/chat_inbox_screen.dart';
 import 'screens/fbucks_leaderboard_screen.dart';
 import 'widgets/friend_picker_sheet.dart';
 import 'widgets/home_slideshow.dart';
@@ -120,6 +122,8 @@ class AppState extends ChangeNotifier {
   Set<String> participatingEventIds = {};
   bool hasSeenOnboarding;
   bool isDarkMode = true;
+  bool pushNotificationsEnabled = true;
+  bool emailNotificationsEnabled = true;
 
   /// Bumped when Home (or elsewhere) asks Events tab to switch filter/view.
   String eventsFilterRequest = 'all';
@@ -142,7 +146,11 @@ class AppState extends ChangeNotifier {
         competitions = sampleCompetitions,
         threads = sampleThreads,
         hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false,
-        isDarkMode = prefs.getBool('isDarkMode') ?? true {
+        isDarkMode = prefs.getBool('isDarkMode') ?? true,
+        pushNotificationsEnabled =
+            prefs.getBool('pushNotificationsEnabled') ?? true,
+        emailNotificationsEnabled =
+            prefs.getBool('emailNotificationsEnabled') ?? true {
     savedEventIds = prefs.getStringList('savedEvents')?.toSet() ?? {};
     participatingEventIds =
         prefs.getStringList('participatingEvents')?.toSet() ?? {};
@@ -687,6 +695,18 @@ class AppState extends ChangeNotifier {
 
   Future<void> toggleDarkMode() async {
     await setDarkMode(!isDarkMode);
+  }
+
+  Future<void> setPushNotificationsEnabled(bool value) async {
+    pushNotificationsEnabled = value;
+    await prefs.setBool('pushNotificationsEnabled', value);
+    notifyListeners();
+  }
+
+  Future<void> setEmailNotificationsEnabled(bool value) async {
+    emailNotificationsEnabled = value;
+    await prefs.setBool('emailNotificationsEnabled', value);
+    notifyListeners();
   }
 
   Future<void> setFirebaseUser(User user) async {
@@ -1961,18 +1981,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 onRefresh: _refreshHome,
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: EdgeInsets.zero,
+                  padding: listPadding,
                   children: [
-                    const HomeSlideshow(),
-                    Padding(
-                      padding: listPadding.copyWith(top: 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Transform.translate(
-                            offset: const Offset(0, -10),
-                            child: _buildNlcConferenceCard(isDark),
-                          ),
+                          _buildNlcConferenceCard(isDark),
                           SizedBox(height: sectionSpacing),
                           _buildStatsRow(app, nextEvents, featuredNews),
                           SizedBox(height: sectionSpacing),
@@ -1981,6 +1992,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           SizedBox(height: smallSpacing),
                           _buildQuickActions(),
+                          SizedBox(height: sectionSpacing),
+                          _buildSectionTitle(
+                            title: 'FBLA Spotlight',
+                          ),
+                          SizedBox(height: smallSpacing),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: const HomeSlideshow(aspectRatio: 16 / 9),
+                          ),
                           SizedBox(height: sectionSpacing),
                           _buildSectionTitle(
                             title: 'Upcoming Events',
@@ -2021,9 +2041,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           SizedBox(height: sectionSpacing),
                         ],
                       ),
-                    ),
-                  ],
-                ),
               ),
             ),
           ],
@@ -5750,7 +5767,7 @@ class CompetitionDetail extends StatelessWidget {
                 style: const TextStyle(
                     color: Colors.white, fontWeight: FontWeight.w600)),
           ),
-          Text('${entry.points} pts',
+          Text('${entry.points} Credits',
               style: const TextStyle(
                   color: fblaGold, fontWeight: FontWeight.w800)),
         ],
@@ -6997,7 +7014,7 @@ class ProfileScreen extends StatelessWidget {
           Expanded(
             child: _buildHeaderStat(
               value: '$coins',
-              label: 'FBLA Coins',
+              label: 'Credits',
               assetPath: AppAssets.coins,
               color: fblaGold,
               isDark: isDark,
@@ -7842,11 +7859,11 @@ class ProfileScreen extends StatelessWidget {
         const SizedBox(height: 12),
         _buildAchievementCard(
           title: 'Coin Collector',
-          description: 'Earn FBLA Coins by completing activities.',
+          description: 'Earn Credits by completing activities.',
           icon: Icons.savings_outlined,
           color: fblaGold,
           progress: (coinBalance / 250).clamp(0.0, 1.0).toDouble(),
-          progressLabel: '$coinBalance/250 coins',
+          progressLabel: '$coinBalance/250 Credits',
           isDark: isDark,
         ),
       ],
@@ -8107,7 +8124,7 @@ class ProfileScreen extends StatelessWidget {
             ),
             _buildQuickActionButton(
               context,
-              label: 'Redeem Coins',
+              label: 'Redeem Credits',
               icon: Icons.card_giftcard_outlined,
               color: const Color(0xFFF59E0B),
               isDark: isDark,
@@ -9507,6 +9524,12 @@ class MoreScreen extends StatelessWidget {
             accent: _MoreAccent.blue,
             title: 'Message Center',
             icon: Icons.mark_chat_unread_outlined,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ChatInboxScreen()),
+              );
+            },
           ),
           _buildMoreTile(
             context,
@@ -9522,41 +9545,8 @@ class MoreScreen extends StatelessWidget {
             },
           ),
           const SizedBox(height: 22),
-          _buildGroupHeader(context, 'Leadership & Growth',
-              Icons.emoji_events_outlined, _MoreAccent.gold),
-          _buildMoreTile(
-            context,
-            accent: _MoreAccent.gold,
-            title: 'BAA Progress Tracker',
-            icon: Icons.checklist_outlined,
-          ),
-          _buildMoreTile(
-            context,
-            accent: _MoreAccent.gold,
-            title: 'Scholarship Hub',
-            icon: Icons.school_outlined,
-          ),
-          _buildMoreTile(
-            context,
-            accent: _MoreAccent.gold,
-            title: 'Officer Corner',
-            icon: Icons.workspace_premium_outlined,
-          ),
-          const SizedBox(height: 22),
           _buildGroupHeader(context, 'Administration',
               Icons.admin_panel_settings_outlined, _MoreAccent.teal),
-          _buildMoreTile(
-            context,
-            accent: _MoreAccent.teal,
-            title: 'Attendance Tracker',
-            icon: Icons.qr_code_scanner_outlined,
-          ),
-          _buildMoreTile(
-            context,
-            accent: _MoreAccent.teal,
-            title: 'Dues & Payments',
-            icon: Icons.payments_outlined,
-          ),
           _buildMoreTile(
             context,
             accent: _MoreAccent.teal,
@@ -9744,7 +9734,7 @@ class MoreScreen extends StatelessWidget {
                               width: 16, height: 16),
                           const SizedBox(width: 6),
                           Text(
-                            '$points pts',
+                            '$points Credits',
                             style: const TextStyle(
                               color: fblaGold,
                               fontSize: 12.5,
@@ -9885,7 +9875,6 @@ class MoreScreen extends StatelessWidget {
 class _MoreAccent {
   const _MoreAccent._();
   static const Color blue = Color(0xFF2E6BC6);
-  static const Color gold = Color(0xFFCB8A14);
   static const Color teal = Color(0xFF1AA39A);
   static const Color violet = Color(0xFF6D5BD0);
   static const Color red = Color(0xFFD9534F);
@@ -10003,8 +9992,8 @@ class SettingsScreen extends StatelessWidget {
               'Receive notifications for events and updates',
               Icons.notifications_outlined,
               Switch(
-                value: true, // Default to enabled
-                onChanged: (value) {},
+                value: app.pushNotificationsEnabled,
+                onChanged: (value) => app.setPushNotificationsEnabled(value),
                 activeThumbColor: fblaGold,
                 activeTrackColor: fblaGold.withValues(alpha: 0.34),
               ),
@@ -10017,36 +10006,11 @@ class SettingsScreen extends StatelessWidget {
               'Receive email updates about events',
               Icons.email_outlined,
               Switch(
-                value: true, // Default to enabled
-                onChanged: (value) {},
+                value: app.emailNotificationsEnabled,
+                onChanged: (value) => app.setEmailNotificationsEnabled(value),
                 activeThumbColor: fblaGold,
                 activeTrackColor: fblaGold.withValues(alpha: 0.34),
               ),
-            ),
-
-            const SizedBox(height: 32),
-
-            // Privacy & Security Section
-            _buildSectionHeader(context, 'Privacy & Security',
-                Icons.security_outlined, fblaBlue),
-            const SizedBox(height: 16),
-
-            _buildSettingsCard(
-              context,
-              'Data Privacy',
-              'Manage your data and privacy settings',
-              Icons.privacy_tip_outlined,
-              Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
-              onTap: () {},
-            ),
-
-            _buildSettingsCard(
-              context,
-              'Account Security',
-              'Password and security settings',
-              Icons.lock_outline,
-              Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
-              onTap: () {},
             ),
 
             const SizedBox(height: 32),
@@ -10097,7 +10061,12 @@ class SettingsScreen extends StatelessWidget {
               'Get help or contact support',
               Icons.help_outline,
               Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FaqScreen()),
+                );
+              },
             ),
 
             _buildSettingsCard(
@@ -10106,7 +10075,14 @@ class SettingsScreen extends StatelessWidget {
               'Read our terms and conditions',
               Icons.description_outlined,
               Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const TermsConditionsScreen(),
+                  ),
+                );
+              },
             ),
 
             const SizedBox(height: 24),

@@ -461,7 +461,7 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
                     children: [
                       Expanded(
                         child: _buildStatChip(
-                          'F-Bucks',
+                          'Credits',
                           '$points',
                           Icons.monetization_on_outlined,
                           isDark,

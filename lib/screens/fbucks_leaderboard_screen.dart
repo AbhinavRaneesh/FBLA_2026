@@ -83,7 +83,7 @@ class _FbucksLeaderboardScreenState extends State<FbucksLeaderboardScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF07111F),
       appBar: AppBar(
-        title: const Text('F-Bucks Leaderboard'),
+        title: const Text('Credits Leaderboard'),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: Colors.white,
@@ -220,7 +220,7 @@ class _FbucksLeaderboardScreenState extends State<FbucksLeaderboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Chapter F-Bucks Rankings',
+                  'Chapter Credits Rankings',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 17,
@@ -229,7 +229,7 @@ class _FbucksLeaderboardScreenState extends State<FbucksLeaderboardScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '$memberCount members ranked by total F-Bucks.',
+                  '$memberCount members ranked by total Credits.',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.68),
                     fontSize: 13,
@@ -239,7 +239,7 @@ class _FbucksLeaderboardScreenState extends State<FbucksLeaderboardScreen> {
                 if (myRank > 0) ...[
                   const SizedBox(height: 8),
                   Text(
-                    'You are #$myRank with $myPoints F-Bucks',
+                    'You are #$myRank with $myPoints Credits',
                     style: const TextStyle(
                       color: fblaGold,
                       fontSize: 13,

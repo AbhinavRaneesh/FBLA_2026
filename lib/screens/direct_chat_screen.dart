@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../main.dart';
 import '../services/firebase_service.dart';
+import 'instagram_feed_screen.dart';
 
 class DirectChatScreen extends StatefulWidget {
   final String otherUserId;
@@ -578,16 +579,7 @@ class _PostShareContent extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    isReel ? 'Open the Social tab to watch this reel.' : 'Open the Social tab to view this post.',
-                  ),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
+            onPressed: () => InstagramFeedScreen.open(context),
             icon: const Icon(Icons.open_in_new_rounded, size: 18),
             label: Text(isReel ? 'View Reel' : 'View Post'),
             style: OutlinedButton.styleFrom(

@@ -260,18 +260,16 @@ Keep it under 180 words, encouraging but honest.''';
       final reply = await GeminiRepo.chatTextGenerationRepo(
           [ChatMessageModel.user(prompt)]);
       if (!mounted) return;
-      final lower = reply.toLowerCase();
-      final noKey =
-          lower.contains('no api key') || lower.contains('api key is set');
+      final unavailable = _isAiUnavailableReply(reply);
       setState(() {
         _loading = false;
-        if (noKey) {
+        if (unavailable) {
           _aiUnavailable = true;
         } else {
           _feedback = reply;
         }
       });
-      if (!noKey) {
+      if (!unavailable) {
         // Save this coaching session so the member can revisit the feedback.
         await PracticeHistoryStore.add(PracticeRecord(
           eventName: widget.eventName,
@@ -289,6 +287,22 @@ Keep it under 180 words, encouraging but honest.''';
         _aiUnavailable = true;
       });
     }
+  }
+
+  /// True when [reply] is one of GeminiRepo's failure/sign-in strings rather
+  /// than real coaching feedback — so we never show or save an error as advice.
+  static bool _isAiUnavailableReply(String reply) {
+    final lower = reply.toLowerCase();
+    const signatures = [
+      'ai assistant error',
+      'sign in to use the ai assistant',
+      'openrouter',
+      'temporarily busy',
+      'quota limit',
+      'no api key',
+      'api key is set',
+    ];
+    return signatures.any(lower.contains);
   }
 
   @override

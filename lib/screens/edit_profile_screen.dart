@@ -189,7 +189,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     try {
       final app = Provider.of<AppState>(context, listen: false);
-      if (app.firebaseUser == null) return;
+      if (app.firebaseUser == null) {
+        // Demo / offline session has no Firebase user — persist the name
+        // locally so the edit isn't a silent no-op.
+        await app.login(
+          app.userEmail,
+          _nameController.text.trim(),
+          role: app.signupRole,
+          grade: app.gradeLevel,
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile saved.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        Navigator.pop(context);
+        return;
+      }
 
       String? photoUrl = _currentImageUrl;
       if (_selectedImageBytes != null) {
@@ -221,8 +239,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       await app.setFirebaseUser(app.firebaseUser!);
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile saved.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       Navigator.pop(context);
     } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Could not save profile. Check your connection and try again.',
+          ),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -350,7 +384,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (_selectedImageBytes != null) {
       return MemoryImage(_selectedImageBytes!);
     }
-    if (_currentImageUrl != null) {
+    if (_currentImageUrl != null && _currentImageUrl!.isNotEmpty) {
       return NetworkImage(_currentImageUrl!);
     }
     return null;
@@ -399,6 +433,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           radius: 58,
                           backgroundColor: fblaGold.withValues(alpha: 0.2),
                           backgroundImage: avatarImage,
+                          onBackgroundImageError:
+                              avatarImage == null ? null : (_, __) {},
                           child: avatarImage == null
                               ? const Icon(
                                   Icons.person_rounded,
