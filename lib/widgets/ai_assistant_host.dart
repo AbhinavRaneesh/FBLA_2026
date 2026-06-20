@@ -8,7 +8,11 @@ import 'ai_chat_panel.dart';
 class AiAssistantHost extends StatefulWidget {
   final Widget child;
 
-  const AiAssistantHost({super.key, required this.child});
+  /// Whether the floating AI launcher is shown. Kept off content-heavy tabs
+  /// (Events/Social/More) so it only appears where the assistant adds value.
+  final bool showButton;
+
+  const AiAssistantHost({super.key, required this.child, this.showButton = true});
 
   @override
   State<AiAssistantHost> createState() => AiAssistantHostState();
@@ -120,7 +124,7 @@ class AiAssistantHostState extends State<AiAssistantHost>
             ),
           ),
         ],
-        if (!_open)
+        if (!_open && widget.showButton)
           Positioned(
             left: 16,
             bottom: bottomNavHeight + 12,
@@ -176,14 +180,24 @@ class _AiFab extends StatelessWidget {
 class AiAssistantScope extends StatelessWidget {
   final Widget child;
   final GlobalKey<AiAssistantHostState>? hostKey;
+  final bool showButton;
 
-  const AiAssistantScope({super.key, required this.child, this.hostKey});
+  const AiAssistantScope({
+    super.key,
+    required this.child,
+    this.hostKey,
+    this.showButton = true,
+  });
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => ChatBloc(),
-      child: AiAssistantHost(key: hostKey, child: child),
+      child: AiAssistantHost(
+        key: hostKey,
+        showButton: showButton,
+        child: child,
+      ),
     );
   }
 }

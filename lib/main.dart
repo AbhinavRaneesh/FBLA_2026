@@ -1624,6 +1624,9 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
       },
       child: AiAssistantScope(
         hostKey: _aiAssistantKey,
+        // Only surface the floating AI launcher on Home (0) and Resources (2);
+        // other tabs have their own actions or contextual AI Coach entries.
+        showButton: _index == 0 || _index == 2,
         child: Scaffold(
           body: Container(
             decoration: BoxDecoration(
@@ -1976,7 +1979,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 onRefresh: _refreshHome,
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: listPadding,
+                  // Extra bottom inset so the floating AI launcher never
+                  // covers the last card when scrolled to the end.
+                  padding: listPadding.copyWith(bottom: listPadding.bottom + 72),
                   children: [
                           _buildNlcConferenceCard(isDark),
                           SizedBox(height: sectionSpacing),
