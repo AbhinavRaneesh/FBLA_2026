@@ -321,7 +321,7 @@ class SocialMlService {
     switch (item.kind) {
       case FeedItemKind.blueWavePost:
       case FeedItemKind.blueWaveReel:
-        return item.blueWave?.author.name ?? 'BlueWave';
+        return item.blueWave?.author.name ?? 'FBLA Social';
       case FeedItemKind.instagramPost:
         return 'Instagram';
       case FeedItemKind.youtubeVideo:

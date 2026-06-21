@@ -17,6 +17,7 @@ import '../../main.dart'
 import '../../models/video_model.dart';
 import '../../screens/find_members_screen.dart';
 import '../../screens/instagram_feed_screen.dart';
+import '../../screens/linkedin_feed_screen.dart';
 import '../../screens/video_player_screen.dart';
 import '../models/social_models.dart';
 import '../providers/social_provider.dart';
@@ -47,11 +48,17 @@ class _SocialScreenState extends State<SocialScreen>
   bool _searchOpen = false;
   final _searchController = TextEditingController();
   bool _showSearchResults = false;
+  bool _showCreateFab = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) {
+        setState(() => _showCreateFab = _tabController.index == 0);
+      }
+    });
     _socialProvider = SocialProvider();
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
@@ -164,7 +171,7 @@ class _SocialScreenState extends State<SocialScreen>
                 icon: Icons.videocam_rounded,
                 color: BlueWaveTheme.primary,
                 title: 'Video Studio',
-                subtitle: 'Record, edit, and post to BlueWave or YouTube',
+                subtitle: 'Record, edit, and publish to FBLA or YouTube',
                 onTap: () {
                   Navigator.pop(ctx);
                   _openVideoStudio(context);
@@ -176,7 +183,7 @@ class _SocialScreenState extends State<SocialScreen>
                 icon: Icons.waves_rounded,
                 color: BlueWaveTheme.primary,
                 title: 'Text Post',
-                subtitle: 'Share a text update on BlueWave',
+                subtitle: 'Share a text update on FBLA Social',
                 onTap: () {
                   Navigator.pop(ctx);
                   Navigator.push(
@@ -253,12 +260,14 @@ class _SocialScreenState extends State<SocialScreen>
       value: _socialProvider,
       child: Scaffold(
         backgroundColor: isDark ? appBackgroundColor : fblaLightBackground,
-        floatingActionButton: FloatingActionButton(
-          onPressed: () => _showCreateOptions(context),
-          backgroundColor: BlueWaveTheme.primary,
-          foregroundColor: Colors.white,
-          child: const Icon(Icons.add_rounded),
-        ),
+        floatingActionButton: _showCreateFab
+            ? FloatingActionButton(
+                onPressed: () => _showCreateOptions(context),
+                backgroundColor: BlueWaveTheme.primary,
+                foregroundColor: Colors.white,
+                child: const Icon(Icons.add_rounded),
+              )
+            : null,
         body: Container(
           decoration: BoxDecoration(
             gradient: isDark ? appBackgroundGradient : null,
@@ -286,10 +295,6 @@ class _SocialScreenState extends State<SocialScreen>
                             ),
                             _DiscoverTab(
                               isDark: isDark,
-                              onUploadFromPhone: () => _openVideoStudio(
-                                context,
-                                launchMode: VideoStudioLaunchMode.gallery,
-                              ),
                               onOpenVideoStudio: () =>
                                   _openVideoStudio(context),
                               onTextPost: () => Navigator.push(
@@ -316,6 +321,7 @@ class _SocialScreenState extends State<SocialScreen>
                                 ),
                               ),
                               onOpenPlatform: _openPlatform,
+                              onConnectLinkedIn: () => _openLinkedIn(context),
                               onTapRecommended: (item) =>
                                   _openFeedItem(context, item, isDark),
                             ),
@@ -657,11 +663,21 @@ class _SocialScreenState extends State<SocialScreen>
 
   Future<void> _openPlatform(SocialPlatformLink platform) async {
     if (platform.inApp) {
-      InstagramFeedScreen.open(context);
-      return;
+      switch (platform.name) {
+        case 'Instagram':
+          InstagramFeedScreen.open(context);
+          return;
+        case 'LinkedIn':
+          LinkedInFeedScreen.open(context);
+          return;
+      }
     }
     final uri = Uri.parse(platform.url);
     await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  void _openLinkedIn(BuildContext context) {
+    LinkedInFeedScreen.open(context);
   }
 
   IconData _iconForPlatform(SocialPlatform platform) {
@@ -804,21 +820,21 @@ class _FeedTabState extends State<_FeedTab>
 
 class _DiscoverTab extends StatefulWidget {
   final bool isDark;
-  final VoidCallback onUploadFromPhone;
   final VoidCallback onOpenVideoStudio;
   final VoidCallback onTextPost;
   final VoidCallback onStartForum;
   final VoidCallback onOpenDiscord;
+  final VoidCallback onConnectLinkedIn;
   final Future<void> Function(SocialPlatformLink) onOpenPlatform;
   final void Function(FeedItem) onTapRecommended;
 
   const _DiscoverTab({
     required this.isDark,
-    required this.onUploadFromPhone,
     required this.onOpenVideoStudio,
     required this.onTextPost,
     required this.onStartForum,
     required this.onOpenDiscord,
+    required this.onConnectLinkedIn,
     required this.onOpenPlatform,
     required this.onTapRecommended,
   });
@@ -866,17 +882,17 @@ class _DiscoverTabState extends State<_DiscoverTab>
               children: [
                 _ActionCard(
                   isDark: isDark,
-                  icon: Icons.upload_file_rounded,
-                  color: BlueWaveTheme.primary,
-                  label: 'Upload Video',
-                  onTap: widget.onUploadFromPhone,
-                ),
-                _ActionCard(
-                  isDark: isDark,
                   icon: Icons.videocam_rounded,
                   color: BlueWaveTheme.primary,
                   label: 'Video Studio',
                   onTap: widget.onOpenVideoStudio,
+                ),
+                _ActionCard(
+                  isDark: isDark,
+                  icon: Icons.hub_rounded,
+                  color: const Color(0xFF5865F2),
+                  label: 'Discord',
+                  onTap: widget.onOpenDiscord,
                 ),
                 _ActionCard(
                   isDark: isDark,
@@ -897,10 +913,15 @@ class _DiscoverTabState extends State<_DiscoverTab>
 
             const SizedBox(height: 22),
 
-            // ── Discord ─────────────────────────────────────────────────────
-            _sectionLabel('Discord', primary),
+            // ── LinkedIn ──────────────────────────────────────────────────
+            _sectionLabel('LinkedIn', primary),
             const SizedBox(height: 10),
-            _DiscordCard(isDark: isDark, onOpenHub: widget.onOpenDiscord),
+            _ConnectLinkedInCard(
+              isDark: isDark,
+              primary: primary,
+              secondary: secondary,
+              onTap: widget.onConnectLinkedIn,
+            ),
 
             const SizedBox(height: 22),
 
@@ -939,6 +960,87 @@ class _DiscoverTabState extends State<_DiscoverTab>
         fontWeight: FontWeight.w900,
         fontSize: 15,
         letterSpacing: 0.1,
+      ),
+    );
+  }
+}
+
+class _ConnectLinkedInCard extends StatelessWidget {
+  final bool isDark;
+  final Color primary;
+  final Color secondary;
+  final VoidCallback onTap;
+
+  static const Color _linkedInBlue = Color(0xFF0A66C2);
+
+  const _ConnectLinkedInCard({
+    required this.isDark,
+    required this.primary,
+    required this.secondary,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark ? Colors.white12 : fblaLightBorder,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: _linkedInBlue.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.business_center_rounded,
+                  color: _linkedInBlue,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Connect to LinkedIn',
+                      style: TextStyle(
+                        color: primary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Follow FBLA and explore career updates in the app',
+                      style: TextStyle(
+                        color: secondary,
+                        fontSize: 12,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1042,78 +1144,6 @@ class _ActionCard extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _DiscordCard extends StatelessWidget {
-  final bool isDark;
-  final VoidCallback onOpenHub;
-
-  const _DiscordCard({required this.isDark, required this.onOpenHub});
-
-  @override
-  Widget build(BuildContext context) {
-    const blurple = Color(0xFF5865F2);
-    final primary = isDark ? Colors.white : fblaLightPrimaryText;
-    final secondary = isDark ? Colors.white60 : fblaLightSecondaryText;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        gradient: LinearGradient(
-          colors: isDark
-              ? [
-                  blurple.withValues(alpha: 0.25),
-                  Colors.white.withValues(alpha: 0.04),
-                ]
-              : [const Color(0xFFEBEDFF), Colors.white],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(color: blurple.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: blurple.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.hub_rounded, color: blurple, size: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Discord Bot Sync',
-                    style: TextStyle(
-                        color: primary,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          FilledButton(
-            onPressed: onOpenHub,
-            style: FilledButton.styleFrom(
-              backgroundColor: blurple,
-              foregroundColor: Colors.white,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-            ),
-            child: const Text('Open',
-                style: TextStyle(fontWeight: FontWeight.w800)),
-          ),
-        ],
       ),
     );
   }

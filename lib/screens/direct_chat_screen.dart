@@ -4,8 +4,8 @@ import 'package:provider/provider.dart';
 
 import '../main.dart';
 import '../services/firebase_service.dart';
+import '../utils/shared_post_launcher.dart';
 import '../widgets/app_snackbar.dart';
-import 'instagram_feed_screen.dart';
 
 class DirectChatScreen extends StatefulWidget {
   final String otherUserId;
@@ -526,9 +526,8 @@ class _PostShareContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final kind = (payload['postKind'] ?? 'post').toString();
     final text = (payload['postText'] ?? '').toString();
-    final isReel = kind == 'reel';
+    final presentation = SharedPostPresentation.fromPayload(payload);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -536,7 +535,7 @@ class _PostShareContent extends StatelessWidget {
         Row(
           children: [
             Icon(
-              isReel ? Icons.play_circle_outline_rounded : Icons.waves_rounded,
+              presentation.icon,
               color: fblaGold,
               size: 22,
             ),
@@ -544,8 +543,8 @@ class _PostShareContent extends StatelessWidget {
             Expanded(
               child: Text(
                 isMe
-                    ? 'You shared a ${isReel ? 'reel' : 'post'}'
-                    : '$senderName shared a ${isReel ? 'reel' : 'post'}',
+                    ? 'You shared a ${presentation.typeLabel}'
+                    : '$senderName shared a ${presentation.typeLabel}',
                 style: TextStyle(
                   color: isDark ? Colors.white70 : fblaLightSecondaryText,
                   fontSize: 12,
@@ -573,9 +572,9 @@ class _PostShareContent extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
-            onPressed: () => InstagramFeedScreen.open(context),
+            onPressed: () => openSharedPost(context, payload),
             icon: const Icon(Icons.open_in_new_rounded, size: 18),
-            label: Text(isReel ? 'View Reel' : 'View Post'),
+            label: Text(presentation.actionLabel),
             style: OutlinedButton.styleFrom(
               foregroundColor: fblaGold,
               side: BorderSide(color: fblaGold.withValues(alpha: 0.6)),

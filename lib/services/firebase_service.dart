@@ -1115,6 +1115,27 @@ class FirebaseService {
     }
   }
 
+  static Future<String?> uploadBlueWaveVideoCover(
+    String userId,
+    String postId,
+    Uint8List imageBytes,
+  ) async {
+    try {
+      await _ensureInitialized();
+      if (_auth.currentUser == null) return null;
+      final ref =
+          _storage.ref().child('bluewave_thumbnails/$userId/$postId.jpg');
+      await ref.putData(
+        imageBytes,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+      return await ref.getDownloadURL();
+    } catch (e) {
+      print('Upload video cover error: $e');
+      return null;
+    }
+  }
+
   static String _videoContentTypeForPath(String path) {
     final lower = path.toLowerCase();
     if (lower.endsWith('.mov')) return 'video/quicktime';

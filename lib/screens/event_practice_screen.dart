@@ -63,6 +63,7 @@ class EventPracticeScreen extends StatefulWidget {
 class _EventPracticeScreenState extends State<EventPracticeScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tab;
+  late final bool _showLiveSim;
 
   // Bumped whenever a practice session is saved, so the History tab reloads.
   final ValueNotifier<int> _historyVersion = ValueNotifier<int>(0);
@@ -70,10 +71,12 @@ class _EventPracticeScreenState extends State<EventPracticeScreen>
   @override
   void initState() {
     super.initState();
+    _showLiveSim = widget._isRoleplay;
+    final maxIndex = _showLiveSim ? 3 : 2;
     _tab = TabController(
-      length: 4,
+      length: _showLiveSim ? 4 : 3,
       vsync: this,
-      initialIndex: widget.initialTab.clamp(0, 3),
+      initialIndex: widget.initialTab.clamp(0, maxIndex),
     );
   }
 
@@ -141,13 +144,14 @@ class _EventPracticeScreenState extends State<EventPracticeScreen>
                         eventName: widget.eventName,
                         color: widget.color,
                         refresh: _historyVersion),
-                    _LiveSimTab(
-                        practice: _practice,
-                        eventName: widget.eventName,
-                        category: widget.category,
-                        color: widget.color,
-                        isRoleplay: widget._isRoleplay,
-                        onSaved: _onSessionSaved),
+                    if (_showLiveSim)
+                      _LiveSimTab(
+                          practice: _practice,
+                          eventName: widget.eventName,
+                          category: widget.category,
+                          color: widget.color,
+                          isRoleplay: widget._isRoleplay,
+                          onSaved: _onSessionSaved),
                   ],
                 ),
               ),
@@ -176,11 +180,12 @@ class _EventPracticeScreenState extends State<EventPracticeScreen>
         labelColor: Colors.white,
         unselectedLabelColor: Colors.grey.shade400,
         labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
-        tabs: const [
-          Tab(height: 42, child: Text('AI Coach')),
-          Tab(height: 42, child: Text('Record')),
-          Tab(height: 42, child: Text('History')),
-          Tab(height: 42, child: Text('Live Sim')),
+        tabs: [
+          const Tab(height: 42, child: Text('AI Coach')),
+          const Tab(height: 42, child: Text('Record')),
+          const Tab(height: 42, child: Text('History')),
+          if (_showLiveSim)
+            const Tab(height: 42, child: Text('Live Sim')),
         ],
       ),
     );
@@ -1300,7 +1305,7 @@ $answer
                 child: OutlinedButton.icon(
                   onPressed: _shareToBlueWave,
                   icon: const Icon(Icons.waves_rounded, size: 18),
-                  label: const Text('Share to BlueWave'),
+                  label: const Text('Share to FBLA'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: fblaGold,
                     side: BorderSide(color: fblaGold.withValues(alpha: 0.5)),

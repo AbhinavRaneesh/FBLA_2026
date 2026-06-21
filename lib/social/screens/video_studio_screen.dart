@@ -24,6 +24,7 @@ import '../../services/youtube_upload_service.dart';
 import '../../widgets/app_snackbar.dart';
 import '../models/social_models.dart';
 import '../providers/social_provider.dart';
+import '../services/video_cover_service.dart';
 import '../theme/bluewave_theme.dart';
 import 'local_video_player_screen.dart';
 
@@ -111,9 +112,15 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
       InputDecoration(
         labelText: label,
         hintText: hint,
+        labelStyle: TextStyle(
+          color: isDark ? Colors.white70 : fblaLightSecondaryText,
+        ),
+        hintStyle: TextStyle(
+          color: isDark ? Colors.white38 : fblaLightSecondaryText,
+        ),
         filled: true,
         fillColor: isDark
-            ? Colors.white.withValues(alpha: 0.05)
+            ? Colors.white.withValues(alpha: 0.08)
             : fblaLightBackground,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -135,6 +142,52 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
           ),
         ),
       );
+
+  Widget _studioTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required bool isDark,
+    required Color primary,
+    int maxLines = 1,
+  }) {
+    final accent = isDark ? fblaGold : fblaNavy;
+    return TextField(
+      controller: controller,
+      maxLines: maxLines,
+      style: TextStyle(color: primary, fontSize: 15, height: 1.35),
+      cursorColor: accent,
+      cursorWidth: 2.2,
+      cursorHeight: 22,
+      decoration: _fieldDecoration(label, hint, isDark),
+    );
+  }
+
+  ButtonStyle _studioActionButtonStyle({required bool filled}) {
+    if (filled) {
+      return ElevatedButton.styleFrom(
+        backgroundColor: BlueWaveTheme.primary,
+        foregroundColor: Colors.white,
+        disabledBackgroundColor: BlueWaveTheme.primary.withValues(alpha: 0.35),
+        disabledForegroundColor: Colors.white70,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+      );
+    }
+    return OutlinedButton.styleFrom(
+      foregroundColor: BlueWaveTheme.primary,
+      disabledForegroundColor: BlueWaveTheme.primary.withValues(alpha: 0.45),
+      side: BorderSide(
+        color: BlueWaveTheme.primary.withValues(alpha: 0.55),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+    );
+  }
 
   Future<void> _pickVideo(ImageSource source) async {
     setState(() {
@@ -196,7 +249,7 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
     final app = context.read<AppState>();
     final firebaseUser = app.firebaseUser;
     if (firebaseUser == null) {
-      _snack('Sign in to upload videos to BlueWave and YouTube.');
+      _snack('Sign in to upload videos to FBLA Social and YouTube.');
       return;
     }
 
@@ -209,7 +262,7 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
     setState(() {
       _busy = true;
       _uploadProgress = 0;
-      _busyLabel = 'Uploading video to BlueWave...';
+      _busyLabel = 'Uploading video to FBLA Social...';
     });
 
     try {
@@ -228,6 +281,26 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
         },
       );
 
+      if (videoUrl == null || videoUrl.isEmpty) {
+        throw Exception('Video upload did not return a URL.');
+      }
+
+      String? coverUrl;
+      final coverBytes =
+          await VideoCoverService.thumbnailBytesForFile(_videoFile!.path);
+      if (coverBytes != null) {
+        if (mounted) {
+          setState(() {
+            _busyLabel = 'Uploading cover image...';
+          });
+        }
+        coverUrl = await FirebaseService.uploadBlueWaveVideoCover(
+          userId,
+          postId,
+          coverBytes,
+        );
+      }
+
       final tags = _tagsController.text
           .split(',')
           .map((t) => t.trim())
@@ -245,6 +318,7 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
         ),
         text: title,
         videoUrl: videoUrl,
+        imageUrls: coverUrl != null ? [coverUrl] : const [],
         kind: BlueWavePostKind.video,
         createdAt: DateTime.now(),
         tags: tags,
@@ -267,7 +341,7 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
       await _previewController?.dispose();
       _previewController = null;
 
-      _snack('Video published to BlueWave!');
+      _snack('Video published to FBLA!');
       if (alsoYouTube) {
         await _uploadToYouTube(post, description: description);
       }
@@ -643,10 +717,21 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
             ),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               children: [
                 _heroBanner(isDark, primary, secondary),
                 const SizedBox(height: 14),
-                _createSection(isDark, primary, secondary),
+                Theme(
+                  data: Theme.of(context).copyWith(
+                    textSelectionTheme: TextSelectionThemeData(
+                      cursorColor: isDark ? fblaGold : fblaNavy,
+                      selectionColor:
+                          (isDark ? fblaGold : fblaNavy).withValues(alpha: 0.35),
+                      selectionHandleColor: isDark ? fblaGold : fblaNavy,
+                    ),
+                  ),
+                  child: _createSection(isDark, primary, secondary),
+                ),
                 const SizedBox(height: 24),
                 _myPostsSection(isDark, primary, secondary),
               ],
@@ -710,7 +795,7 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Upload from your phone to BlueWave, then share to YouTube when you are ready.',
+                  'Upload from your phone to FBLA Social, then share to YouTube when you are ready.',
                   style: TextStyle(color: secondary, fontSize: 13, height: 1.35),
                 ),
               ],
@@ -835,16 +920,7 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
                   onPressed: _busy ? null : () => _pickVideo(ImageSource.camera),
                   icon: const Icon(Icons.videocam_rounded, size: 20),
                   label: const Text('Record'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: BlueWaveTheme.primary,
-                    side: BorderSide(
-                      color: BlueWaveTheme.primary.withValues(alpha: 0.5),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
+                  style: _studioActionButtonStyle(filled: false),
                 ),
               ),
               const SizedBox(width: 10),
@@ -853,40 +929,35 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
                   onPressed: _busy ? null : () => _pickVideo(ImageSource.gallery),
                   icon: const Icon(Icons.photo_library_rounded, size: 20),
                   label: const Text('From Gallery'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: fblaBlue,
-                    side: BorderSide(color: fblaBlue.withValues(alpha: 0.5)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
+                  style: _studioActionButtonStyle(filled: false),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          TextField(
+          _studioTextField(
             controller: _titleController,
-            style: TextStyle(color: primary),
-            decoration: _fieldDecoration('Video title', 'My FBLA chapter update', isDark),
+            label: 'Video title',
+            hint: 'My FBLA chapter update',
+            isDark: isDark,
+            primary: primary,
           ),
           const SizedBox(height: 12),
-          TextField(
+          _studioTextField(
             controller: _descriptionController,
+            label: 'Description (optional)',
+            hint: 'Tell viewers what your video is about...',
+            isDark: isDark,
+            primary: primary,
             maxLines: 3,
-            style: TextStyle(color: primary),
-            decoration: _fieldDecoration(
-              'Description (optional)',
-              'Tell viewers what your video is about...',
-              isDark,
-            ),
           ),
           const SizedBox(height: 12),
-          TextField(
+          _studioTextField(
             controller: _tagsController,
-            style: TextStyle(color: primary),
-            decoration: _fieldDecoration('Tags', 'Competition, Leadership, NLC', isDark),
+            label: 'Tags',
+            hint: 'Competition, Leadership, NLC',
+            isDark: isDark,
+            primary: primary,
           ),
           if (_youtubeAccountEmail != null) ...[
             const SizedBox(height: 12),
@@ -951,7 +1022,7 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
               onPressed: _busy ? null : _publishToBlueWave,
               icon: const Icon(Icons.waves_rounded),
               label: const Text(
-                'Publish to BlueWave',
+                'Publish to FBLA',
                 style: TextStyle(fontWeight: FontWeight.w800),
               ),
               style: ElevatedButton.styleFrom(
@@ -1167,7 +1238,7 @@ class _MyVideoPostCard extends StatelessWidget {
                       runSpacing: 4,
                       children: [
                         _statusChip(
-                          'BlueWave',
+                          'FBLA Social',
                           BlueWaveTheme.primary,
                           Icons.waves_rounded,
                         ),

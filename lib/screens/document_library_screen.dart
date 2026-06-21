@@ -125,7 +125,12 @@ class _DocumentLibraryScreenState extends State<DocumentLibraryScreen> {
               child: documents.isEmpty
                   ? _buildEmptyState()
                   : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                      padding: EdgeInsets.fromLTRB(
+                        16,
+                        8,
+                        16,
+                        MediaQuery.paddingOf(context).bottom + 40,
+                      ),
                       itemCount: documents.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {

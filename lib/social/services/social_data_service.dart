@@ -81,7 +81,7 @@ class SocialDataService {
           isOfficer: true,
         ),
         text:
-            'Welcome to BlueWave! Share your competition prep, chapter wins, and leadership moments. Make a wave when something inspires you.',
+            'Welcome to FBLA Social! Share your competition prep, chapter wins, and leadership moments. Make a wave when something inspires you.',
         kind: BlueWavePostKind.announcement,
         createdAt: now.subtract(const Duration(hours: 3)),
         waveCount: 48,
@@ -365,6 +365,14 @@ class SocialDataService {
         color: Color(0xFFE1306C),
         url: 'https://www.instagram.com/fbla_national/',
         description: 'Photos, reels, and chapter highlights',
+        inApp: true,
+      ),
+      SocialPlatformLink(
+        name: 'LinkedIn',
+        icon: Icons.business_center_rounded,
+        color: Color(0xFF0A66C2),
+        url: 'https://www.linkedin.com/company/fbla-pbl/',
+        description: 'Career updates and professional FBLA news',
         inApp: true,
       ),
       SocialPlatformLink(

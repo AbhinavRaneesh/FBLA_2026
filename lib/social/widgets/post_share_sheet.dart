@@ -309,7 +309,7 @@ class SocialPostShare {
         }
         imageUrl ??= FirebaseService.discordSafeMediaUrl(post.videoUrl);
         return _DiscordPayload(
-          title: 'BlueWave: ${post.text}',
+          title: 'FBLA Social: ${post.text}',
           body: [
             if (post.tags.isNotEmpty) post.tags.join(' '),
             if (post.videoUrl != null) 'Watch in the FBLA app Social feed.',

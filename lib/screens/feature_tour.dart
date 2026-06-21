@@ -80,7 +80,7 @@ const List<_TourStep> _steps = [
     accent: Color(0xFF0EA5E9),
     title: 'Social',
     body:
-        'BlueWave, Instagram, YouTube, forums, and news — one personalized feed powered by your interests.',
+        'FBLA Social, Instagram, YouTube, forums, and news — one personalized feed powered by your interests.',
   ),
   _TourStep(
     icon: Icons.workspace_premium_rounded,

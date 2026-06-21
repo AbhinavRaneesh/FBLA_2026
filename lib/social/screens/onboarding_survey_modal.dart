@@ -91,7 +91,7 @@ class _OnboardingSurveyModalState extends State<OnboardingSurveyModal> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Your answers power BlueWave recommendations and feed ranking.',
+                'Your answers power FBLA Social recommendations and feed ranking.',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.72),
                   fontSize: 14,
@@ -177,7 +177,7 @@ class _OnboardingSurveyModalState extends State<OnboardingSurveyModal> {
           label: (e) {
             switch (e) {
               case PlatformPreference.blueWave:
-                return 'BlueWave (in-app)';
+                return 'FBLA Social (in-app)';
               case PlatformPreference.instagram:
                 return 'Instagram';
               case PlatformPreference.youtube:

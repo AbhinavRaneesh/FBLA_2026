@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -7,6 +9,7 @@ import '../../constants/app_assets.dart';
 import '../../main.dart' show fblaGold, fblaLightBorder, fblaLightPrimaryText, fblaLightSecondaryText, fblaNavy;
 import '../screens/local_video_player_screen.dart';
 import '../models/social_models.dart';
+import '../services/video_cover_service.dart';
 import '../theme/bluewave_theme.dart';
 
 class SocialSearchBar extends StatelessWidget {
@@ -43,7 +46,7 @@ class SocialSearchBar extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
         decoration: InputDecoration(
-          hintText: 'Search BlueWave, forums, news, members...',
+          hintText: 'Search FBLA Social, forums, news, members...',
           hintStyle: TextStyle(
             color: isDark ? Colors.white54 : fblaLightSecondaryText,
             fontSize: 14,
@@ -143,7 +146,7 @@ class BlueWaveHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'BlueWave',
+                  'FBLA Social',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 22,
@@ -266,7 +269,7 @@ class BlueWavePostCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           FeedPlatformBadge(
-            label: isReel ? 'BlueWave Reel' : _kindLabel(post.kind),
+            label: isReel ? 'FBLA Reel' : _kindLabel(post.kind),
             icon: isReel ? Icons.play_circle_outline : Icons.waves_rounded,
             color: BlueWaveTheme.primary,
             showNew: post.isRecommended,
@@ -328,7 +331,7 @@ class BlueWavePostCard extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          if (post.imageUrls.isNotEmpty) ...[
+          if (post.imageUrls.isNotEmpty && !post.hasVideo) ...[
             const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
@@ -355,17 +358,34 @@ class BlueWavePostCard extends StatelessWidget {
               },
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(14),
-                child: Container(
+                child: SizedBox(
                   height: 200,
                   width: double.infinity,
-                  color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.08),
                   child: Stack(
+                    fit: StackFit.expand,
                     alignment: Alignment.center,
                     children: [
+                      VideoCoverThumbnail(
+                        coverUrl: post.videoCoverUrl,
+                        videoUrl: post.videoUrl!,
+                        isDark: isDark,
+                      ),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.08),
+                              Colors.black.withValues(alpha: 0.42),
+                            ],
+                          ),
+                        ),
+                      ),
                       Icon(
                         Icons.play_circle_fill_rounded,
                         size: 56,
-                        color: BlueWaveTheme.primary.withValues(alpha: 0.9),
+                        color: BlueWaveTheme.primary.withValues(alpha: 0.95),
                       ),
                       if (post.isOnYouTube)
                         Positioned(
@@ -462,7 +482,7 @@ class BlueWavePostCard extends StatelessWidget {
       case BlueWavePostKind.video:
         return 'Video';
       default:
-        return 'BlueWave';
+        return 'FBLA Social';
     }
   }
 }
@@ -913,6 +933,99 @@ class SocialPlatformCard extends StatelessWidget {
   }
 }
 
+/// Cover image for uploaded social videos (network URL or generated frame).
+class VideoCoverThumbnail extends StatefulWidget {
+  final String? coverUrl;
+  final String videoUrl;
+  final bool isDark;
+
+  const VideoCoverThumbnail({
+    super.key,
+    this.coverUrl,
+    required this.videoUrl,
+    required this.isDark,
+  });
+
+  @override
+  State<VideoCoverThumbnail> createState() => _VideoCoverThumbnailState();
+}
+
+class _VideoCoverThumbnailState extends State<VideoCoverThumbnail> {
+  Uint8List? _generatedBytes;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final cover = widget.coverUrl;
+    if ((cover == null || cover.isEmpty) && widget.videoUrl.startsWith('http')) {
+      _loadGeneratedCover();
+    }
+  }
+
+  Future<void> _loadGeneratedCover() async {
+    setState(() => _loading = true);
+    final bytes = await VideoCoverService.thumbnailBytesForUrl(widget.videoUrl);
+    if (!mounted) return;
+    setState(() {
+      _generatedBytes = bytes;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cover = widget.coverUrl;
+    if (cover != null && cover.isNotEmpty) {
+      if (_isBundledAsset(cover)) {
+        return Image.asset(
+          _bundledAssetPath(cover),
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+        );
+      }
+      return CachedNetworkImage(
+        imageUrl: cover,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        placeholder: (_, __) => _fallback(showSpinner: true),
+        errorWidget: (_, __, ___) => _fallback(showSpinner: false),
+      );
+    }
+
+    if (_generatedBytes != null) {
+      return Image.memory(
+        _generatedBytes!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      );
+    }
+
+    return _fallback(showSpinner: _loading);
+  }
+
+  Widget _fallback({required bool showSpinner}) {
+    return Container(
+      color: Colors.black.withValues(alpha: widget.isDark ? 0.45 : 0.1),
+      child: showSpinner
+          ? Center(
+              child: SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: BlueWaveTheme.primary.withValues(alpha: 0.85),
+                ),
+              ),
+            )
+          : null,
+    );
+  }
+}
+
 /// Network or bundled asset image for social feed cards.
 bool _isBundledAsset(String url) {
   final path = Uri.tryParse(url)?.path ?? url;
@@ -1270,21 +1383,17 @@ class _RecommendedCardView {
         final hasVideo = post.hasVideo;
         final textOnly = !hasImages && !hasVideo;
         String? mediaUrl;
-        if (hasImages) {
-          mediaUrl = post.imageUrls.first;
-        } else if (hasVideo &&
-            post.videoUrl != null &&
-            !post.videoUrl!.contains('.mp4') &&
-            post.videoUrl!.startsWith('http')) {
-          // Non-direct video URLs may still work as preview in some cases.
+        if (hasImages || (hasVideo && post.videoCoverUrl != null)) {
+          mediaUrl = post.videoCoverUrl ?? post.imageUrls.first;
+        } else if (hasVideo && post.videoUrl != null && post.videoUrl!.startsWith('http')) {
           mediaUrl = post.videoUrl;
         }
         return _RecommendedCardView(
-          title: post.text.isNotEmpty ? post.text : 'BlueWave post',
+          title: post.text.isNotEmpty ? post.text : 'FBLA post',
           mediaUrl: mediaUrl,
           isVideo: hasVideo,
           showMedia: !textOnly,
-          platformLabel: 'BlueWave',
+          platformLabel: 'FBLA Social',
           platformIcon: Icons.waves_rounded,
           platformColor: BlueWaveTheme.primary,
         );
@@ -1354,7 +1463,7 @@ class SocialTabLoading extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Lottie.asset(
-        AppAssets.lottieLoading,
+        AppAssets.lottieSocialLoading,
         width: 180,
         height: 180,
         fit: BoxFit.contain,

@@ -66,7 +66,6 @@ class _SignupScreenState extends State<SignupScreen>
   static const List<String> _roleOptions = [
     'Student',
     'Advisor',
-    'Officer',
   ];
 
   String? _selectedRole;
@@ -933,8 +932,6 @@ class _SignupScreenState extends State<SignupScreen>
         return Icons.school_outlined;
       case 'Student':
         return Icons.person_outline;
-      case 'Officer':
-        return Icons.badge_outlined;
       default:
         return Icons.more_horiz;
     }

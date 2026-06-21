@@ -542,7 +542,6 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
     switch (selected) {
       case 'Course':
         _backToCourseLevels();
-        unawaited(_showCoursePanel());
         break;
       case 'Study Notes':
         if (!_isCybersecurityCourse(course)) {
@@ -798,56 +797,22 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                                     ),
                                   ),
                                 ),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 9, vertical: 5),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white10,
-                                        borderRadius:
-                                            BorderRadius.circular(999),
-                                        border:
-                                            Border.all(color: Colors.white12),
-                                      ),
-                                      child: Text(
-                                        '${_userCourses.length} added',
-                                        style: const TextStyle(
-                                          color: Colors.white70,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 11,
-                                        ),
-                                      ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 9, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white10,
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(color: Colors.white12),
+                                  ),
+                                  child: Text(
+                                    '${_userCourses.length} added',
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 11,
                                     ),
-                                    const SizedBox(width: 8),
-                                    GestureDetector(
-                                      onTap: () {
-                                        unawaited(addCourse());
-                                      },
-                                      child: Container(
-                                        width: 30,
-                                        height: 30,
-                                        decoration: BoxDecoration(
-                                          color: fblaGold,
-                                          shape: BoxShape.circle,
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: fblaGold.withValues(
-                                                  alpha: 0.28),
-                                              blurRadius: 10,
-                                              offset: const Offset(0, 4),
-                                            ),
-                                          ],
-                                        ),
-                                        child: const Icon(
-                                          Icons.add,
-                                          color: fblaNavy,
-                                          size: 20,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
                               ],
                             ),

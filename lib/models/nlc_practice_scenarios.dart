@@ -190,6 +190,5 @@ String? nlcCategoryForEvent(String eventName) {
 }
 
 bool nlcSupportsLiveSim(String eventName, String category) {
-  final lower = category.toLowerCase();
-  return lower.contains('roleplay') || lower.contains('presentation');
+  return category.toLowerCase().contains('roleplay');
 }

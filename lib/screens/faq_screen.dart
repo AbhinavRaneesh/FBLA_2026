@@ -148,7 +148,7 @@ class _FaqScreenState extends State<FaqScreen> {
     FaqItem(
       question: 'What is on the Social tab?',
       answer:
-          'The Social tab includes BlueWave posts, reels, chapter feeds, and links to official FBLA social channels.',
+          'The Social tab includes FBLA Social posts, reels, chapter feeds, and links to official FBLA social channels.',
       category: FaqCategory.social,
       icon: Icons.public_outlined,
     ),

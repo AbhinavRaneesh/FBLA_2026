@@ -113,7 +113,7 @@ class _BlueWaveComposeScreenState extends State<BlueWaveComposeScreen> {
         backgroundColor: fblaNavy,
         foregroundColor: Colors.white,
         title: const Text(
-          'Create BlueWave Post',
+          'Create FBLA Post',
           style: TextStyle(fontWeight: FontWeight.w900),
         ),
         actions: [
@@ -166,7 +166,7 @@ class _BlueWaveComposeScreenState extends State<BlueWaveComposeScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Posts appear on the BlueWave social feed.',
+                          'Posts appear on the FBLA Social feed.',
                           style: TextStyle(
                             color: isDark
                                 ? Colors.white.withValues(alpha: 0.68)
@@ -304,7 +304,7 @@ class _BlueWaveComposeScreenState extends State<BlueWaveComposeScreen> {
                 onPressed: _publish,
                 icon: const Icon(Icons.waves_rounded),
                 label: const Text(
-                  'Publish to BlueWave',
+                  'Publish to FBLA',
                   style: TextStyle(fontWeight: FontWeight.w800),
                 ),
                 style: ElevatedButton.styleFrom(

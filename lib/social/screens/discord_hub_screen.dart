@@ -320,7 +320,7 @@ class _DiscordHubScreenState extends State<DiscordHubScreen> {
     }
 
     if (post == null) {
-      _snack('No BlueWave posts to share yet. Create one in Video Studio.');
+      _snack('No FBLA Social posts to share yet. Create one from the Social tab.');
       return;
     }
 
@@ -331,7 +331,7 @@ class _DiscordHubScreenState extends State<DiscordHubScreen> {
     }
 
     await _queuePost(
-      title: 'BlueWave: ${post.text}',
+      title: 'FBLA Social: ${post.text}',
       body: [
         if (post.tags.isNotEmpty) post.tags.join(' '),
         if (post.videoUrl != null) 'Watch in the FBLA app Social feed.',
@@ -515,8 +515,8 @@ class _DiscordHubScreenState extends State<DiscordHubScreen> {
           _actionTile(
             icon: Icons.waves_rounded,
             color: BlueWaveTheme.primary,
-            title: 'BlueWave Highlight',
-            subtitle: 'Share a recent BlueWave post to #general',
+            title: 'FBLA Social Highlight',
+            subtitle: 'Share a recent FBLA Social post to #general',
             onTap: _posting ? null : _postBlueWaveHighlight,
           ),
           _actionTile(

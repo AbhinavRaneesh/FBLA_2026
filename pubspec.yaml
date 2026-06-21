@@ -52,6 +52,8 @@ dependencies:
   xml: ^6.5.0
   crypto: ^3.0.6
   video_player: ^2.10.1
+  video_thumbnail: ^0.5.3
+  audioplayers: ^6.1.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -113,6 +115,9 @@ flutter:
     - assets/LottieAnimations/
     - assets/character_animation/
     - assets/character_animation/cybersecurity_speaking_final.mp4
+    - assets/sounds/
+    - assets/sounds/typewriter_click.wav
+    - assets/sounds/typewriter_click_alt.wav
     - assets/Privacy & TC/
     - assets/San Antonio Pictures/
     - assets/USBE Schools Directory Export.csv

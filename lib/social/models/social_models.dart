@@ -272,6 +272,10 @@ class BlueWavePostData {
   bool get isOnYouTube =>
       youtubeVideoId != null && youtubeVideoId!.isNotEmpty;
 
+  /// Cover image for video posts (stored in [imageUrls] on upload).
+  String? get videoCoverUrl =>
+      imageUrls.isNotEmpty ? imageUrls.first : null;
+
   String? get youtubeWatchUrl => isOnYouTube
       ? 'https://www.youtube.com/watch?v=$youtubeVideoId'
       : null;

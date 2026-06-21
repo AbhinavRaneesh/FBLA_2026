@@ -17,6 +17,7 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'constants/app_assets.dart';
+import 'services/google_calendar_service.dart';
 import 'data/national_calendar_events.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
@@ -30,6 +31,7 @@ import 'screens/chatbot_screen.dart';
 import 'screens/find_members_screen.dart';
 import 'screens/document_library_screen.dart';
 import 'screens/faq_screen.dart';
+import 'screens/contact_us_screen.dart';
 import 'screens/terms_conditions_screen.dart';
 import 'screens/chat_inbox_screen.dart';
 import 'screens/fbucks_leaderboard_screen.dart';
@@ -1756,6 +1758,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  /// Set to true temporarily to preview the NLC "Ongoing" countdown state.
+  static const _previewNlcOngoing = false;
+
   final GlobalKey _updatesSectionKey = GlobalKey();
 
   Future<void> _refreshHome() async {
@@ -1988,12 +1993,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           _buildStatsRow(app, nextEvents, featuredNews),
                           SizedBox(height: sectionSpacing),
                           _buildSectionTitle(
-                            title: 'Quick Actions',
-                          ),
-                          SizedBox(height: smallSpacing),
-                          _buildQuickActions(),
-                          SizedBox(height: sectionSpacing),
-                          _buildSectionTitle(
                             title: 'FBLA Spotlight',
                           ),
                           SizedBox(height: smallSpacing),
@@ -2091,23 +2090,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const Spacer(),
-          _buildHeroCircleButton(
-            icon: Icons.chat_bubble_outline_rounded,
-            tooltip: 'AI Assistant',
-            onTap: _openChatbot,
-          ),
-          const SizedBox(width: 10),
-          _buildHeroCircleButton(
-            icon: Icons.notifications_none_rounded,
-            tooltip: 'Notifications',
-            onTap: () {
-              AppSnackBar.warning(
-                context,
-                'Notifications are coming soon.',
-              );
-            },
-          ),
-          const SizedBox(width: 10),
           _buildHeroProfileButton(app),
         ],
       ),
@@ -2325,7 +2307,85 @@ class _HomeScreenState extends State<HomeScreen> {
     return days < 0 ? 0 : days;
   }
 
+  bool _isNlcOngoing() {
+    if (_previewNlcOngoing) return true;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final nlcStart = DateTime(2026, 6, 29);
+    final nlcEnd = DateTime(2026, 7, 2);
+    return !today.isBefore(nlcStart) && !today.isAfter(nlcEnd);
+  }
+
+  bool _isNlcEnded() {
+    if (_previewNlcOngoing) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return today.isAfter(DateTime(2026, 7, 2));
+  }
+
   Widget _buildNlcCountdownBox(int daysUntilNlc, bool isDark) {
+    if (_isNlcOngoing()) {
+      return Container(
+        width: 112,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withValues(alpha: 0.10) : Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: isDark
+                ? fblaGold.withValues(alpha: 0.32)
+                : fblaGold.withValues(alpha: 0.55),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: fblaGold.withValues(alpha: isDark ? 0.18 : 0.16),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Text(
+          'Ongoing',
+          maxLines: 1,
+          softWrap: false,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: isDark ? fblaGold : fblaBlue,
+            fontSize: 15,
+            height: 1.15,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.2,
+          ),
+        ),
+      );
+    }
+
+    if (_isNlcEnded()) {
+      return Container(
+        width: 88,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withValues(alpha: 0.10) : Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: isDark
+                ? fblaGold.withValues(alpha: 0.32)
+                : fblaGold.withValues(alpha: 0.55),
+          ),
+        ),
+        child: Text(
+          'Ended',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: isDark ? Colors.white70 : fblaLightSecondaryText,
+            fontSize: 14,
+            height: 1.15,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      );
+    }
+
     final label = daysUntilNlc == 1 ? 'day to go' : 'days to go';
 
     return Container(
@@ -4559,6 +4619,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
 
   late DateTime _pickedDate;
   bool _includeTime = false;
+  bool _addToGoogleCalendar = true;
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
   List<Map<String, dynamic>> _friends = const [];
@@ -4826,6 +4887,23 @@ class _AddEventScreenState extends State<AddEventScreen> {
     }
 
     if (!mounted) return;
+
+    if (_addToGoogleCalendar) {
+      final added = await GoogleCalendarService.addEvent(
+        title: event.title,
+        start: event.start,
+        end: event.end,
+        description: event.description,
+        location: event.location,
+      );
+      if (!added && mounted) {
+        AppSnackBar.warning(
+          context,
+          'Event saved in the app. Could not open Google Calendar.',
+        );
+      }
+    }
+
     Navigator.pop(context, event);
   }
 
@@ -5202,6 +5280,40 @@ class _AddEventScreenState extends State<AddEventScreen> {
                         ),
                       ],
                     ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                  decoration: _panelDecoration(isDark),
+                  child: SwitchListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                    value: _addToGoogleCalendar,
+                    onChanged: (value) =>
+                        setState(() => _addToGoogleCalendar = value),
+                    activeThumbColor: fblaGold,
+                    title: Text(
+                      'Add to Google Calendar',
+                      style: TextStyle(
+                        color: isDark ? Colors.white : fblaLightPrimaryText,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Opens Google Calendar to save this event when created.',
+                      style: TextStyle(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.65)
+                            : fblaLightSecondaryText,
+                        fontSize: 12.5,
+                        height: 1.35,
+                      ),
+                    ),
+                    secondary: Icon(
+                      Icons.calendar_month_rounded,
+                      color: isDark ? fblaGold : fblaBlue,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -9563,6 +9675,18 @@ class MoreScreen extends StatelessWidget {
           _buildMoreTile(
             context,
             accent: _MoreAccent.violet,
+            title: 'Contact Us',
+            icon: Icons.mail_outline_rounded,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ContactUsScreen()),
+              );
+            },
+          ),
+          _buildMoreTile(
+            context,
+            accent: _MoreAccent.violet,
             title: 'Replay App Tour',
             icon: Icons.tips_and_updates_outlined,
             onTap: () async {
@@ -9928,17 +10052,20 @@ class ExtraDeveloperOptionsScreen extends StatelessWidget {
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
+  static const Color _generalAccent = _MoreAccent.blue;
+  static const Color _infoAccent = _MoreAccent.violet;
+
   @override
   Widget build(BuildContext context) {
     final app = Provider.of<AppState>(context);
-    final Color fblaBlue = const Color(0xFF1D4E89);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bottomSafe = MediaQuery.viewPaddingOf(context).bottom;
 
     return Scaffold(
-      backgroundColor: isDark ? appBackgroundColor : fblaLightBackground,
+      backgroundColor: isDark ? const Color(0xFF07111F) : fblaLightBackground,
       appBar: AppBar(
         title: const Text('Settings'),
-        backgroundColor: isDark ? Colors.transparent : fblaLightSurface,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: isDark ? Colors.white : fblaLightPrimaryText,
       ),
@@ -9948,105 +10075,66 @@ class SettingsScreen extends StatelessWidget {
           color: isDark ? null : fblaLightBackground,
         ),
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.fromLTRB(16, 8, 16, bottomSafe + 24),
           children: [
-            // General Settings Section
-            _buildSectionHeader(
-                context, 'General Settings', Icons.settings_outlined, fblaBlue),
-            const SizedBox(height: 16),
-
-            // Dark Mode Toggle
-            _buildSettingsCard(
+            _buildHeroCard(isDark),
+            const SizedBox(height: 22),
+            _buildGroupHeader(
               context,
-              'Dark Mode',
-              app.isDarkMode
-                  ? 'Turn off to use the professional FBLA light theme'
-                  : 'Turn on to return to the dark FBLA theme',
-              Icons.dark_mode_outlined,
-              Switch(
-                value: app.isDarkMode,
-                onChanged: (value) => app.setDarkMode(value),
-                activeThumbColor: fblaGold,
-                activeTrackColor: fblaGold.withValues(alpha: 0.34),
-              ),
+              'General Settings',
+              Icons.tune_rounded,
+              _generalAccent,
             ),
-
-            // Notifications Settings
-            _buildSettingsCard(
+            _buildToggleTile(
               context,
-              'Push Notifications',
-              'Receive notifications for events and updates',
-              Icons.notifications_outlined,
-              Switch(
-                value: app.pushNotificationsEnabled,
-                onChanged: (value) => app.setPushNotificationsEnabled(value),
-                activeThumbColor: fblaGold,
-                activeTrackColor: fblaGold.withValues(alpha: 0.34),
-              ),
+              title: 'Dark Mode',
+              subtitle: app.isDarkMode
+                  ? 'Switch to the professional FBLA light theme'
+                  : 'Switch to the classic FBLA dark theme',
+              icon: Icons.dark_mode_outlined,
+              accent: _generalAccent,
+              value: app.isDarkMode,
+              onChanged: app.setDarkMode,
             ),
-
-            // Email Notifications
-            _buildSettingsCard(
+            _buildToggleTile(
               context,
-              'Email Notifications',
-              'Receive email updates about events',
-              Icons.email_outlined,
-              Switch(
-                value: app.emailNotificationsEnabled,
-                onChanged: (value) => app.setEmailNotificationsEnabled(value),
-                activeThumbColor: fblaGold,
-                activeTrackColor: fblaGold.withValues(alpha: 0.34),
-              ),
+              title: 'Push Notifications',
+              subtitle: 'Alerts for events, messages, and chapter updates',
+              icon: Icons.notifications_outlined,
+              accent: _generalAccent,
+              value: app.pushNotificationsEnabled,
+              onChanged: app.setPushNotificationsEnabled,
             ),
-
-            const SizedBox(height: 32),
-
-            // App Information Section
-            _buildSectionHeader(
-                context, 'App Information', Icons.info_outline, fblaBlue),
-            const SizedBox(height: 16),
-
-            _buildSettingsCard(
+            _buildToggleTile(
               context,
-              'About FBLA App',
-              'Version 1.0.0 • Learn more about the app',
-              Icons.info_outlined,
-              Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
-              onTap: () {
-                showDialog(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    title: const Text('About FBLA Member App'),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Version: 1.0.0'),
-                        const SizedBox(height: 8),
-                        const Text(
-                            'The official FBLA Member App for staying connected with your chapter, events, and resources.'),
-                        const SizedBox(height: 8),
-                        const Text(
-                            'Built with Flutter for the best mobile experience.'),
-                      ],
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Close'),
-                      ),
-                    ],
-                  ),
-                );
-              },
+              title: 'Email Notifications',
+              subtitle: 'Email updates about events and announcements',
+              icon: Icons.email_outlined,
+              accent: _generalAccent,
+              value: app.emailNotificationsEnabled,
+              onChanged: app.setEmailNotificationsEnabled,
             ),
-
-            _buildSettingsCard(
+            const SizedBox(height: 22),
+            _buildGroupHeader(
               context,
-              'Help & Support',
-              'Get help or contact support',
-              Icons.help_outline,
-              Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
+              'App Information',
+              Icons.info_outline_rounded,
+              _infoAccent,
+            ),
+            _buildNavTile(
+              context,
+              title: 'About FBLA App',
+              subtitle: 'Version 1.0.0 • Learn more about the app',
+              icon: Icons.info_outlined,
+              accent: _infoAccent,
+              onTap: () => _showAboutDialog(context, isDark),
+            ),
+            _buildNavTile(
+              context,
+              title: 'Help & Support',
+              subtitle: 'Browse FAQs and get chapter support',
+              icon: Icons.help_outline,
+              accent: _infoAccent,
               onTap: () {
                 Navigator.push(
                   context,
@@ -10054,13 +10142,12 @@ class SettingsScreen extends StatelessWidget {
                 );
               },
             ),
-
-            _buildSettingsCard(
+            _buildNavTile(
               context,
-              'Terms of Service',
-              'Read our terms and conditions',
-              Icons.description_outlined,
-              Icon(Icons.arrow_forward_ios, color: fblaBlue, size: 16),
+              title: 'Terms of Service',
+              subtitle: 'Read our terms and conditions',
+              icon: Icons.description_outlined,
+              accent: _infoAccent,
               onTap: () {
                 Navigator.push(
                   context,
@@ -10070,97 +10157,174 @@ class SettingsScreen extends StatelessWidget {
                 );
               },
             ),
-
-            const SizedBox(height: 24),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSectionHeader(
-      BuildContext context, String title, IconData icon, Color fblaBlue) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: fblaBlue.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: fblaBlue, size: 20),
+  Widget _buildHeroCard(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0B1624) : fblaLightSurface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? Colors.white12 : fblaLightBorder,
         ),
-        const SizedBox(width: 12),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: isDark ? Colors.white : fblaLightPrimaryText,
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 14,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: fblaGold.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: fblaGold.withValues(alpha: 0.4)),
+            ),
+            child: const Icon(
+              Icons.settings_outlined,
+              color: fblaGold,
+              size: 28,
+            ),
           ),
-        ),
-      ],
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Customize your experience',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : fblaLightPrimaryText,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Manage theme, notifications, and app information.',
+                  style: TextStyle(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.68)
+                        : fblaLightSecondaryText,
+                    fontSize: 13,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildSettingsCard(
+  Widget _buildGroupHeader(
     BuildContext context,
     String title,
-    String subtitle,
     IconData icon,
-    Widget trailing, {
+    Color accent,
+  ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 2, bottom: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: accent, size: 16),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            title.toUpperCase(),
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+              color: isDark ? Colors.white.withValues(alpha: 0.85) : fblaBlue,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsTileShell({
+    required BuildContext context,
+    required Color accent,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Widget trailing,
     VoidCallback? onTap,
   }) {
-    final Color fblaBlue = const Color(0xFF1D4E89);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF0F0F0F) : fblaLightSurface;
-    final primaryText = isDark ? Colors.white : fblaLightPrimaryText;
-    final secondaryText = isDark ? Colors.white70 : fblaLightSecondaryText;
-    final borderColor =
-        isDark ? fblaBlue.withValues(alpha: 0.35) : fblaLightBorder;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.all(16),
+          borderRadius: BorderRadius.circular(18),
+          child: Ink(
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: cardColor,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: borderColor, width: 1.2),
-              boxShadow: isDark
-                  ? null
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 14,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : fblaBlue.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : fblaBlue.withValues(alpha: 0.16),
+              ),
             ),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: fblaBlue,
-                    borderRadius: BorderRadius.circular(12),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        accent,
+                        Color.lerp(accent, Colors.black, 0.22)!,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(13),
                     boxShadow: [
                       BoxShadow(
-                        color: fblaBlue.withValues(alpha: 0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                        color: accent.withValues(alpha: 0.32),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                  child: Icon(icon, color: Colors.white, size: 20),
+                  child: Icon(icon, color: Colors.white, size: 21),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -10168,22 +10332,21 @@ class SettingsScreen extends StatelessWidget {
                       Text(
                         title,
                         style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: primaryText,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : fblaLightPrimaryText,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       Text(
                         subtitle,
                         style: TextStyle(
-                          fontSize: 13,
-                          color: secondaryText,
+                          fontSize: 12.5,
+                          height: 1.3,
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.62)
+                              : fblaLightSecondaryText,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -10194,6 +10357,95 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildToggleTile(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color accent,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return _buildSettingsTileShell(
+      context: context,
+      accent: accent,
+      icon: icon,
+      title: title,
+      subtitle: subtitle,
+      onTap: () => onChanged(!value),
+      trailing: Switch.adaptive(
+        value: value,
+        onChanged: onChanged,
+        activeThumbColor: fblaGold,
+        activeTrackColor: fblaGold.withValues(alpha: 0.34),
+      ),
+    );
+  }
+
+  Widget _buildNavTile(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color accent,
+    required VoidCallback onTap,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return _buildSettingsTileShell(
+      context: context,
+      accent: accent,
+      icon: icon,
+      title: title,
+      subtitle: subtitle,
+      onTap: onTap,
+      trailing: Icon(
+        Icons.chevron_right_rounded,
+        color: isDark ? Colors.white38 : fblaBlue,
+      ),
+    );
+  }
+
+  void _showAboutDialog(BuildContext context, bool isDark) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF0B1624) : fblaLightSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(
+          'About FBLA Member App',
+          style: TextStyle(
+            color: isDark ? Colors.white : fblaLightPrimaryText,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        content: Text(
+          'Version 1.0.0\n\n'
+          'The official FBLA Member App for staying connected with your chapter, events, and resources.\n\n'
+          'Built with Flutter for the best mobile experience.',
+          style: TextStyle(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.72)
+                : fblaLightSecondaryText,
+            height: 1.45,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text(
+              'Close',
+              style: TextStyle(
+                color: fblaGold,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

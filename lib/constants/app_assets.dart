@@ -22,10 +22,16 @@ class AppAssets {
   static const String lottieAiMarketing =
       '${lottieDir}Ai-powered marketing tools abstract.json';
   static const String lottieLoading = '${lottieDir}loading.json';
+  static const String lottieSocialLoading =
+      '${lottieDir}Loading Lottie animation.json';
 
   static const String characterAnimationDir = 'assets/character_animation/';
   static const String cybersecurityIntroVideo =
       '${characterAnimationDir}cybersecurity_speaking_final.mp4';
+
+  static const String soundsDir = 'assets/sounds/';
+  static const String typewriterClick = '${soundsDir}typewriter_click.wav';
+  static const String typewriterClickAlt = '${soundsDir}typewriter_click_alt.wav';
 
   static const String privacyTcDir = 'assets/Privacy & TC/';
   static const String termsConditionsHtml =

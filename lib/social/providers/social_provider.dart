@@ -268,11 +268,11 @@ class SocialProvider extends ChangeNotifier {
     try {
       final result = await uploadService.uploadVideo(
         videoFile: videoFile,
-        title: post.text.isNotEmpty ? post.text : 'FBLA BlueWave Video',
+        title: post.text.isNotEmpty ? post.text : 'FBLA Social Video',
         description: [
           post.text,
           if (post.tags.isNotEmpty) post.tags.join(' '),
-          '#FBLA #BlueWave',
+          '#FBLA #FBLASocial',
         ].where((s) => s.isNotEmpty).join('\n\n'),
         privacyStatus: privacyStatus,
         uploadAsShort: uploadAsShort,
