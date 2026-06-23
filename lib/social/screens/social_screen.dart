@@ -158,7 +158,7 @@ class _SocialScreenState extends State<SocialScreen>
                 icon: Icons.upload_file_rounded,
                 color: BlueWaveTheme.primary,
                 title: 'Upload from Phone',
-                subtitle: 'Pick a video from your gallery',
+                subtitle: 'Pick a video from your device files',
                 onTap: () {
                   Navigator.pop(ctx);
                   _openVideoStudio(context,

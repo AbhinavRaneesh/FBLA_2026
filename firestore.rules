@@ -14,23 +14,24 @@ service cloud.firestore {
     }
 
     match /friend_requests/{requestId} {
-      allow read: if signedIn()
-        && (
-          resource.data.fromUserId == request.auth.uid
-          || resource.data.toUserId == request.auth.uid
-        );
+      allow get: if signedIn() && (
+        !exists(/databases/$(database)/documents/friend_requests/$(requestId))
+        || resource.data.fromUserId == request.auth.uid
+        || resource.data.toUserId == request.auth.uid
+      );
+      allow list: if signedIn() && (
+        resource.data.fromUserId == request.auth.uid
+        || resource.data.toUserId == request.auth.uid
+      );
       allow create: if signedIn()
         && request.resource.data.fromUserId == request.auth.uid
         && request.resource.data.toUserId is string
         && request.resource.data.fromUserId != request.resource.data.toUserId
         && request.resource.data.status == 'pending';
       allow update: if signedIn()
-        && request.resource.data.fromUserId == request.auth.uid
-        && request.resource.data.status == 'pending'
-        && (
-          resource.data.fromUserId == request.auth.uid
-          || resource.data.toUserId == request.auth.uid
-        );
+        && resource.data.status == 'pending'
+        && request.resource.data.status == 'accepted'
+        && resource.data.toUserId == request.auth.uid;
       allow delete: if signedIn()
         && (
           resource.data.fromUserId == request.auth.uid
@@ -39,11 +40,17 @@ service cloud.firestore {
     }
 
     match /friendships/{friendshipId} {
-      allow read: if signedIn()
+      allow get: if signedIn() && (
+        !exists(/databases/$(database)/documents/friendships/$(friendshipId))
+        || request.auth.uid in resource.data.userIds
+      );
+      allow list: if signedIn()
         && request.auth.uid in resource.data.userIds;
       allow create: if signedIn()
         && request.auth.uid in request.resource.data.userIds;
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if signedIn()
+        && request.auth.uid in resource.data.userIds;
     }
 
     match /events/{eventId} {

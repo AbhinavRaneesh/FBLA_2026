@@ -18,6 +18,7 @@ import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'constants/app_assets.dart';
 import 'services/google_calendar_service.dart';
+import 'services/accessibility_theme.dart';
 import 'data/national_calendar_events.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
@@ -27,6 +28,7 @@ import 'screens/nlc_detail_screen.dart';
 import 'screens/nlc_ready_screen.dart';
 import 'screens/firebase_auth_screen.dart';
 import 'screens/edit_profile_screen.dart';
+import 'screens/accessibility_settings_screen.dart';
 import 'screens/chatbot_screen.dart';
 import 'screens/find_members_screen.dart';
 import 'screens/document_library_screen.dart';
@@ -127,6 +129,12 @@ class AppState extends ChangeNotifier {
   bool isDarkMode = true;
   bool pushNotificationsEnabled = true;
   bool emailNotificationsEnabled = true;
+  double accessibilityTextScale = 1.0;
+  bool accessibilityBoldText = false;
+  bool accessibilityHighContrast = false;
+  bool accessibilityReduceMotion = false;
+  bool accessibilityReadAloudEnabled = false;
+  bool accessibilityLargeTapTargets = false;
 
   /// Bumped when Home (or elsewhere) asks Events tab to switch filter/view.
   String eventsFilterRequest = 'all';
@@ -153,7 +161,19 @@ class AppState extends ChangeNotifier {
         pushNotificationsEnabled =
             prefs.getBool('pushNotificationsEnabled') ?? true,
         emailNotificationsEnabled =
-            prefs.getBool('emailNotificationsEnabled') ?? true {
+            prefs.getBool('emailNotificationsEnabled') ?? true,
+        accessibilityTextScale =
+            prefs.getDouble('accessibility_text_scale') ?? 1.0,
+        accessibilityBoldText =
+            prefs.getBool('accessibility_bold_text') ?? false,
+        accessibilityHighContrast =
+            prefs.getBool('accessibility_high_contrast') ?? false,
+        accessibilityReduceMotion =
+            prefs.getBool('accessibility_reduce_motion') ?? false,
+        accessibilityReadAloudEnabled =
+            prefs.getBool('accessibility_read_aloud') ?? false,
+        accessibilityLargeTapTargets =
+            prefs.getBool('accessibility_large_taps') ?? false {
     savedEventIds = prefs.getStringList('savedEvents')?.toSet() ?? {};
     participatingEventIds =
         prefs.getStringList('participatingEvents')?.toSet() ?? {};
@@ -709,6 +729,42 @@ class AppState extends ChangeNotifier {
   Future<void> setEmailNotificationsEnabled(bool value) async {
     emailNotificationsEnabled = value;
     await prefs.setBool('emailNotificationsEnabled', value);
+    notifyListeners();
+  }
+
+  Future<void> setAccessibilityTextScale(double value) async {
+    accessibilityTextScale = value.clamp(0.85, 1.6);
+    await prefs.setDouble('accessibility_text_scale', accessibilityTextScale);
+    notifyListeners();
+  }
+
+  Future<void> setAccessibilityBoldText(bool value) async {
+    accessibilityBoldText = value;
+    await prefs.setBool('accessibility_bold_text', value);
+    notifyListeners();
+  }
+
+  Future<void> setAccessibilityHighContrast(bool value) async {
+    accessibilityHighContrast = value;
+    await prefs.setBool('accessibility_high_contrast', value);
+    notifyListeners();
+  }
+
+  Future<void> setAccessibilityReduceMotion(bool value) async {
+    accessibilityReduceMotion = value;
+    await prefs.setBool('accessibility_reduce_motion', value);
+    notifyListeners();
+  }
+
+  Future<void> setAccessibilityReadAloudEnabled(bool value) async {
+    accessibilityReadAloudEnabled = value;
+    await prefs.setBool('accessibility_read_aloud', value);
+    notifyListeners();
+  }
+
+  Future<void> setAccessibilityLargeTapTargets(bool value) async {
+    accessibilityLargeTapTargets = value;
+    await prefs.setBool('accessibility_large_taps', value);
     notifyListeners();
   }
 
@@ -1282,9 +1338,9 @@ class MyApp extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (_) => AppState(prefs: prefs),
       child: Consumer<AppState>(
-        builder: (context, app, child) => MaterialApp(
-          title: 'FBLA Member App',
-          theme: ThemeData(
+        builder: (context, app, child) {
+          final lightTheme = applyAccessibilityTheme(
+            ThemeData(
             brightness: Brightness.light,
             scaffoldBackgroundColor: fblaLightBackground,
             primaryColor: fblaNavy,
@@ -1382,7 +1438,11 @@ class MyApp extends StatelessWidget {
               margin: const EdgeInsets.symmetric(vertical: 8),
             ),
           ),
-          darkTheme: ThemeData(
+            app,
+          );
+
+          final darkTheme = applyAccessibilityTheme(
+            ThemeData(
             brightness: Brightness.dark,
             primaryColor: fblaNavy,
             colorScheme: ColorScheme.dark(
@@ -1414,8 +1474,29 @@ class MyApp extends StatelessWidget {
               color: Colors.grey.shade800,
             ),
           ),
+            app,
+          );
+
+          return MaterialApp(
+          title: 'FBLA Member App',
+          theme: lightTheme,
+          darkTheme: darkTheme,
           themeMode: app.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           debugShowCheckedModeBanner: false,
+          builder: (context, child) {
+            final mq = MediaQuery.of(context);
+            final combinedScale =
+                mq.textScaler.scale(1.0) * app.accessibilityTextScale;
+            return MediaQuery(
+              data: mq.copyWith(
+                textScaler: TextScaler.linear(combinedScale.clamp(0.8, 2.5)),
+                boldText: app.accessibilityBoldText || mq.boldText,
+                disableAnimations:
+                    app.accessibilityReduceMotion || mq.disableAnimations,
+              ),
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
           routes: {
             '/login': (_) => const LoginScreen(),
             '/signup': (_) => const SignupScreen(),
@@ -1424,7 +1505,8 @@ class MyApp extends StatelessWidget {
             '/home': (_) => RootScreen(),
           },
           home: AuthGate(),
-        ),
+        );
+        },
       ),
     );
   }
@@ -10114,6 +10196,21 @@ class SettingsScreen extends StatelessWidget {
               value: app.emailNotificationsEnabled,
               onChanged: app.setEmailNotificationsEnabled,
             ),
+            _buildNavTile(
+              context,
+              title: 'Accessibility',
+              subtitle: 'Text size, read aloud, contrast, and motion',
+              icon: Icons.accessibility_new_rounded,
+              accent: const Color(0xFF2E7D32),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AccessibilitySettingsScreen(),
+                  ),
+                );
+              },
+            ),
             const SizedBox(height: 22),
             _buildGroupHeader(
               context,
@@ -10213,7 +10310,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Manage theme, notifications, and app information.',
+                  'Manage theme, notifications, accessibility, and app information.',
                   style: TextStyle(
                     color: isDark
                         ? Colors.white.withValues(alpha: 0.68)

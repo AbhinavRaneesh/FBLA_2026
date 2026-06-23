@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -47,7 +48,6 @@ class VideoStudioScreen extends StatefulWidget {
 class _VideoStudioScreenState extends State<VideoStudioScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _tagsController = TextEditingController();
   final _picker = ImagePicker();
   final _youtubeUpload = YouTubeUploadService();
 
@@ -90,7 +90,6 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
-    _tagsController.dispose();
     _previewController?.dispose();
     super.dispose();
   }
@@ -194,31 +193,58 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
       _busy = true;
       _busyLabel = source == ImageSource.camera
           ? 'Opening camera...'
-          : 'Opening gallery...';
+          : 'Opening file picker...';
     });
     try {
-      final picked = await _picker.pickVideo(
-        source: source,
-        maxDuration: const Duration(minutes: 10),
+      if (source == ImageSource.camera) {
+        final picked = await _picker.pickVideo(
+          source: source,
+          maxDuration: const Duration(minutes: 10),
+        );
+        if (picked == null) {
+          if (mounted) setState(() => _busy = false);
+          return;
+        }
+        await _loadPickedVideo(File(picked.path));
+        return;
+      }
+
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const [
+          'mp4',
+          'mov',
+          'mkv',
+          'webm',
+          '3gp',
+          'avi',
+          'm4v',
+        ],
+        allowMultiple: false,
       );
-      if (picked == null) {
-        if (mounted) setState(() => _busy = false);
+      if (result == null || result.files.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _busy = false;
+            _busyLabel = null;
+          });
+        }
         return;
       }
-      await _previewController?.dispose();
-      final file = File(picked.path);
-      final controller = VideoPlayerController.file(file);
-      await controller.initialize();
-      if (!mounted) {
-        controller.dispose();
+
+      final path = result.files.single.path;
+      if (path == null || path.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _busy = false;
+            _busyLabel = null;
+          });
+        }
+        _snack('Could not access the selected video file.');
         return;
       }
-      setState(() {
-        _videoFile = file;
-        _previewController = controller;
-        _busy = false;
-        _busyLabel = null;
-      });
+
+      await _loadPickedVideo(File(path));
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -227,6 +253,31 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
       });
       _snack('Could not load video: $e');
     }
+  }
+
+  Future<void> _loadPickedVideo(File file) async {
+    await _previewController?.dispose();
+    final controller = VideoPlayerController.file(file);
+    await controller.initialize();
+    if (!mounted) {
+      controller.dispose();
+      return;
+    }
+    if (controller.value.duration > const Duration(minutes: 10)) {
+      controller.dispose();
+      setState(() {
+        _busy = false;
+        _busyLabel = null;
+      });
+      _snack('Please choose a video under 10 minutes.');
+      return;
+    }
+    setState(() {
+      _videoFile = file;
+      _previewController = controller;
+      _busy = false;
+      _busyLabel = null;
+    });
   }
 
   void _togglePreviewPlay() {
@@ -301,13 +352,6 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
         );
       }
 
-      final tags = _tagsController.text
-          .split(',')
-          .map((t) => t.trim())
-          .where((t) => t.isNotEmpty)
-          .map((t) => t.startsWith('#') ? t : '#$t')
-          .toList();
-
       final post = BlueWavePostData(
         id: postId,
         author: SocialAuthor(
@@ -321,7 +365,7 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
         imageUrls: coverUrl != null ? [coverUrl] : const [],
         kind: BlueWavePostKind.video,
         createdAt: DateTime.now(),
-        tags: tags,
+        tags: const [],
       );
 
       await social.addBlueWavePost(post);
@@ -336,7 +380,6 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
         _alsoUploadToYouTube = false;
         _titleController.clear();
         _descriptionController.clear();
-        _tagsController.clear();
       });
       await _previewController?.dispose();
       _previewController = null;
@@ -442,24 +485,28 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
 
         return StatefulBuilder(
           builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(ctx).viewInsets.bottom,
-              ),
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                decoration: BoxDecoration(
-                  color: surface,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(
-                    color: isDark ? Colors.white12 : fblaLightBorder,
+            final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+            final bottomSafe = MediaQuery.of(ctx).viewPadding.bottom;
+
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.only(bottom: bottomInset),
+                child: Container(
+                  margin: EdgeInsets.fromLTRB(12, 0, 12, 12 + bottomSafe),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                  decoration: BoxDecoration(
+                    color: surface,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: isDark ? Colors.white12 : fblaLightBorder,
+                    ),
                   ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                     Center(
                       child: Container(
                         width: 40,
@@ -619,7 +666,10 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
                         ),
                       ],
                     ),
-                  ],
+                    const SizedBox(height: 12),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             );
@@ -690,6 +740,35 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
 
   void _snack(String message) {
     AppSnackBar.show(context, message: message);
+  }
+
+  Future<void> _confirmClearPosts(
+      BuildContext context, SocialProvider social) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clear all posts?'),
+        content: const Text(
+          'This removes all your videos from View Your Posts.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final userId = context.read<AppState>().firebaseUser?.uid ?? 'guest';
+    await social.clearMyVideoPosts(userId);
+    if (!mounted) return;
+    _snack('Your video posts were cleared.');
   }
 
   @override
@@ -905,7 +984,7 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'MP4, MOV, and other gallery videos up to 10 min',
+                    'MP4, MOV, and other device videos up to 10 min',
                     style: TextStyle(color: secondary, fontSize: 12),
                   ),
                 ],
@@ -927,8 +1006,8 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: _busy ? null : () => _pickVideo(ImageSource.gallery),
-                  icon: const Icon(Icons.photo_library_rounded, size: 20),
-                  label: const Text('From Gallery'),
+                  icon: const Icon(Icons.folder_open_rounded, size: 20),
+                  label: const Text('From Files'),
                   style: _studioActionButtonStyle(filled: false),
                 ),
               ),
@@ -950,14 +1029,6 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
             isDark: isDark,
             primary: primary,
             maxLines: 3,
-          ),
-          const SizedBox(height: 12),
-          _studioTextField(
-            controller: _tagsController,
-            label: 'Tags',
-            hint: 'Competition, Leadership, NLC',
-            isDark: isDark,
-            primary: primary,
           ),
           if (_youtubeAccountEmail != null) ...[
             const SizedBox(height: 12),
@@ -1056,6 +1127,28 @@ class _VideoStudioScreenState extends State<VideoStudioScreen> {
                     fontSize: 16,
                   ),
                 ),
+                if (posts.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _busy
+                        ? null
+                        : () => _confirmClearPosts(context, social),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    child: Text(
+                      'Clear',
+                      style: TextStyle(
+                        color: secondary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
                 const Spacer(),
                 Text(
                   '${posts.length} video${posts.length == 1 ? '' : 's'}',

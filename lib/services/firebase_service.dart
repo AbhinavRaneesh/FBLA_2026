@@ -549,6 +549,26 @@ class FirebaseService {
     return statuses;
   }
 
+  static Future<void> _clearFriendRequestDocs(
+    String userId1,
+    String userId2,
+  ) async {
+    final refs = [
+      _firestore
+          .collection('friend_requests')
+          .doc(_friendRequestId(userId1, userId2)),
+      _firestore
+          .collection('friend_requests')
+          .doc(_friendRequestId(userId2, userId1)),
+    ];
+    for (final ref in refs) {
+      final doc = await ref.get();
+      if (doc.exists) {
+        await ref.delete();
+      }
+    }
+  }
+
   static Future<void> sendFriendRequest({
     required String fromUserId,
     required String toUserId,
@@ -574,14 +594,22 @@ class FirebaseService {
         .doc(_friendRequestId(toUserId, fromUserId));
 
     final outgoingDoc = await requestRef.get();
-    if (outgoingDoc.exists && outgoingDoc.data()?['status'] == 'pending') {
-      throw Exception('Friend request already sent.');
+    if (outgoingDoc.exists) {
+      final status = (outgoingDoc.data()?['status'] ?? '').toString();
+      if (status == 'pending') {
+        throw Exception('Friend request already sent.');
+      }
+      await requestRef.delete();
     }
 
     final incomingDoc = await reverseRef.get();
-    if (incomingDoc.exists && incomingDoc.data()?['status'] == 'pending') {
-      throw Exception(
-          'This member already sent you a request. Check the Requests tab.');
+    if (incomingDoc.exists) {
+      final status = (incomingDoc.data()?['status'] ?? '').toString();
+      if (status == 'pending') {
+        throw Exception(
+            'This member already sent you a request. Check the Requests tab.');
+      }
+      await reverseRef.delete();
     }
 
     try {
@@ -662,6 +690,37 @@ class FirebaseService {
 
   static Future<void> declineFriendRequest(String requestId) async {
     await _firestore.collection('friend_requests').doc(requestId).delete();
+  }
+
+  static Future<void> removeFriend({
+    required String currentUserId,
+    required String friendUserId,
+  }) async {
+    final authUid = _auth.currentUser?.uid;
+    if (authUid == null || authUid != currentUserId) {
+      throw Exception('You must be signed in to remove friends.');
+    }
+    if (currentUserId == friendUserId) {
+      throw Exception('Invalid friend.');
+    }
+    if (!await areFriends(currentUserId, friendUserId)) {
+      throw Exception('You are not friends with this member.');
+    }
+
+    try {
+      await _firestore
+          .collection('friendships')
+          .doc(_friendshipId(currentUserId, friendUserId))
+          .delete();
+      await _clearFriendRequestDocs(currentUserId, friendUserId);
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        throw Exception(
+          'Could not remove friend. Firestore rules may need to be deployed.',
+        );
+      }
+      rethrow;
+    }
   }
 
   static Future<List<Map<String, dynamic>>> getFriendsForUser(

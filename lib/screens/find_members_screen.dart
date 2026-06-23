@@ -7,7 +7,6 @@ import '../main.dart';
 import '../services/firebase_service.dart';
 import '../services/nlc_prep_service.dart';
 import '../widgets/app_snackbar.dart';
-import 'direct_chat_screen.dart';
 
 enum _MembersTab { directory, friends, requests }
 
@@ -337,6 +336,181 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
     }
   }
 
+  Future<void> _removeFriend(Map<String, dynamic> member) async {
+    final currentUserId = _currentUserId;
+    final friendId = (member['id'] ?? '').toString();
+    if (currentUserId == null) {
+      _showSnack('Sign in to manage friends.');
+      return;
+    }
+    if (friendId.isEmpty) {
+      _showSnack('This member account is missing an ID.');
+      return;
+    }
+
+    try {
+      await FirebaseService.removeFriend(
+        currentUserId: currentUserId,
+        friendUserId: friendId,
+      );
+      _showSnack(
+        'Removed ${_displayName(member)} from friends.',
+        type: AppSnackType.info,
+      );
+      await _loadData();
+    } catch (error) {
+      final raw = error.toString().replaceFirst('Exception: ', '');
+      final message = raw.contains('permission-denied') ||
+              raw.contains('Firestore rules')
+          ? 'Could not remove friend. Firestore rules may need to be deployed.'
+          : raw;
+      _showSnack(message, type: AppSnackType.error);
+    }
+  }
+
+  Future<void> _confirmRemoveFriend(Map<String, dynamic> member) async {
+    final name = _displayName(member);
+    final school = (member['school'] ?? '').toString().trim();
+    final chapter = (member['chapter'] ?? '').toString().trim();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = isDark ? const Color(0xFF0F1C31) : Colors.white;
+    final primaryText = isDark ? Colors.white : const Color(0xFF0A192F);
+    final secondaryText =
+        isDark ? Colors.white.withValues(alpha: 0.68) : const Color(0xFF475569);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      builder: (ctx) => Dialog(
+        backgroundColor: surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF5350).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFFEF5350).withValues(alpha: 0.35),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.person_remove_rounded,
+                  color: Color(0xFFEF5350),
+                  size: 28,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Remove friend?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: primaryText,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 10),
+              CircleAvatar(
+                radius: 26,
+                backgroundColor: _fblaBlue,
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                name,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: primaryText,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (school.isNotEmpty || chapter.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  [if (school.isNotEmpty) school, if (chapter.isNotEmpty) chapter]
+                      .join(' • '),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: secondaryText, fontSize: 13),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Text(
+                'They will be removed from your Friends list. You can send a new friend request anytime.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: secondaryText,
+                  fontSize: 13.5,
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: primaryText,
+                        side: BorderSide(
+                          color: isDark
+                              ? Colors.white24
+                              : const Color(0xFFD5DEE6),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      label: const Text('Remove'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFEF5350),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await _removeFriend(member);
+    }
+  }
+
   void _showSnack(String message, {AppSnackType? type}) {
     if (!mounted) return;
     AppSnackBar.show(context, message: message, type: type);
@@ -519,27 +693,24 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
                   Row(
                     children: [
                       if (isFriend && memberId.isNotEmpty)
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => DirectChatScreen(
-                                    otherUserId: memberId,
-                                    otherUserName: name,
-                                  ),
-                                ),
-                              );
-                            },
-                            icon: const Icon(Icons.chat_bubble_rounded),
-                            label: const Text('Chat'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: fblaGold,
-                              side: BorderSide(
-                                  color: fblaGold.withValues(alpha: 0.6)),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
+                        IconButton(
+                          tooltip: 'Remove friend',
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _confirmRemoveFriend(member);
+                          },
+                          icon: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF5350)
+                                  .withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.close_rounded,
+                              color: Color(0xFFEF5350),
+                              size: 22,
                             ),
                           ),
                         ),
@@ -1113,41 +1284,32 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
         ),
         trailing: showAddButton
             ? _buildAddFriendButton(member, relation, isDark)
-            : _buildChatAction(member),
+            : _buildRemoveFriendAction(member),
       ),
     );
   }
 
-  Widget _buildChatAction(Map<String, dynamic> member) {
-    final memberId = (member['id'] ?? '').toString();
-    final name = _displayName(member);
-    
+  Widget _buildRemoveFriendAction(Map<String, dynamic> member) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.check_circle, color: fblaGold),
+        const Icon(Icons.check_circle, color: fblaGold),
         const SizedBox(width: 8),
         IconButton(
-          tooltip: 'Chat',
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => DirectChatScreen(
-                  otherUserId: memberId,
-                  otherUserName: name,
-                ),
-              ),
-            );
-          },
+          tooltip: 'Remove friend',
+          onPressed: () => _confirmRemoveFriend(member),
           icon: Container(
             width: 34,
             height: 34,
             decoration: BoxDecoration(
-              color: fblaGold.withValues(alpha: 0.14),
+              color: const Color(0xFFEF5350).withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.chat_bubble_rounded, color: fblaGold, size: 18),
+            child: const Icon(
+              Icons.close_rounded,
+              color: Color(0xFFEF5350),
+              size: 18,
+            ),
           ),
         ),
       ],
@@ -1162,7 +1324,7 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
     if (relation == 'self') return null;
 
     if (relation == 'friends') {
-      return _buildChatAction(member);
+      return _buildRemoveFriendAction(member);
     }
 
     if (relation == 'outgoing') {

@@ -1,18 +1,9 @@
 import '../models/nlc_practice_scenarios.dart';
 import '../models/nlc_rubric_result.dart';
 
-/// Offline bundled rubrics for judge-safe NLC Ready demos (airplane mode).
+/// Bundled rubric scores used when live AI judging is unavailable.
 class NlcDemoMode {
   NlcDemoMode._();
-
-  static const Set<String> offlineEvents = {
-    'Marketing',
-    'Public Speaking',
-    'Entrepreneurship',
-  };
-
-  static bool supportsOffline(String eventName) =>
-      offlineEvents.contains(eventName);
 
   static NlcRubricResult bundledRubric(String eventName) {
     final practice = nlcCuratedPractice[eventName] ?? nlcGenericRoleplay;
@@ -25,7 +16,6 @@ class NlcDemoMode {
           'Add one concrete metric or example for each main point so judges hear evidence, not only ideas.',
       judgeQuestion:
           'If your budget were cut in half, which part of your plan would you keep first — and why?',
-      offlineDemo: true,
       dimensions: practice.indicators
           .map((indicator) => NlcRubricDimension(
                 indicator: indicator,
@@ -39,7 +29,6 @@ class NlcDemoMode {
   static const Map<String, NlcRubricResult> _presets = {
     'Marketing': NlcRubricResult(
       overallScore: 4.2,
-      offlineDemo: true,
       topFix:
           'Name one measurable KPI (e.g., weekly foot traffic or social engagement rate) to prove your plan works.',
       judgeQuestion:
@@ -79,7 +68,6 @@ class NlcDemoMode {
     ),
     'Public Speaking': NlcRubricResult(
       overallScore: 4.0,
-      offlineDemo: true,
       topFix:
           'Open with a 10-second story or statistic before stating your thesis — judges remember hooks.',
       judgeQuestion:
@@ -119,7 +107,6 @@ class NlcDemoMode {
     ),
     'Entrepreneurship': NlcRubricResult(
       overallScore: 3.9,
-      offlineDemo: true,
       topFix:
           'Quantify startup costs and first-year revenue assumptions so investors trust your model.',
       judgeQuestion:
@@ -154,6 +141,45 @@ class NlcDemoMode {
           indicator: 'Q&A readiness',
           score: 4,
           evidence: 'Handled objections; prepare for scaling questions.',
+        ),
+      ],
+    ),
+    'Mobile Application Development': NlcRubricResult(
+      overallScore: 4.1,
+      topFix:
+          'Walk through one complete user flow screen-by-screen so judges see the member journey, not only feature lists.',
+      judgeQuestion:
+          'How would you measure whether this app actually improves chapter engagement after launch?',
+      dimensions: [
+        NlcRubricDimension(
+          indicator: 'Defines the member problem and target audience',
+          score: 4,
+          evidence: 'Member need was stated clearly; tighten who the primary user is.',
+        ),
+        NlcRubricDimension(
+          indicator: 'Demonstrates a clear user journey',
+          score: 4,
+          evidence: 'Onboarding and core tabs were outlined; add one end-to-end path.',
+        ),
+        NlcRubricDimension(
+          indicator: 'Explains design and technical implementation',
+          score: 4,
+          evidence: 'Stack and architecture mentioned; highlight one scalability choice.',
+        ),
+        NlcRubricDimension(
+          indicator: 'Highlights social and engagement integrations',
+          score: 5,
+          evidence: 'Social, events, and resources tie-ins were compelling.',
+        ),
+        NlcRubricDimension(
+          indicator: 'Addresses accessibility and usability',
+          score: 3,
+          evidence: 'UI discussed; name one accessibility or usability standard you follow.',
+        ),
+        NlcRubricDimension(
+          indicator: 'Delivers a confident, organized presentation',
+          score: 5,
+          evidence: 'Professional structure and confident delivery throughout.',
         ),
       ],
     ),

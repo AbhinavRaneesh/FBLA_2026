@@ -307,7 +307,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
 
   void _openCoursePicker() => _showCoursePanel();
 
-  Future<void> _addCourse(
+  Future<bool> _addCourse(
     BuildContext navigatorContext, {
     VoidCallback? onCoursesChanged,
   }) async {
@@ -320,7 +320,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
       navigatorContext,
       MaterialPageRoute(builder: (_) => const CourseSelectionScreen()),
     );
-    if (!mounted || selected == null || selected.isEmpty) return;
+    if (!mounted || selected == null || selected.isEmpty) return false;
 
     setState(() {
       if (!_userCourses.contains(selected)) {
@@ -337,6 +337,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
         await appState.addUserCourse?.call(selected);
       } catch (_) {}
     }
+    return true;
   }
 
   @override
@@ -739,10 +740,13 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
           child: StatefulBuilder(
             builder: (context, setModalState) {
               Future<void> addCourse() async {
-                await _addCourse(
+                final added = await _addCourse(
                   dialogContext,
                   onCoursesChanged: () => setModalState(() {}),
                 );
+                if (added && dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
               }
 
               final panel = Align(
@@ -822,6 +826,9 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                               child: LayoutBuilder(
                                 builder: (context, constraints) {
+                                  const separator = 12.0;
+                                  final tileWidth =
+                                      (constraints.maxWidth - separator) / 2;
                                   return Padding(
                                     padding:
                                         const EdgeInsets.symmetric(vertical: 8),
@@ -829,7 +836,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         _AddCourseTile(
-                                          width: constraints.maxWidth,
+                                          width: tileWidth,
                                           onTap: () {
                                             unawaited(addCourse());
                                           },
@@ -1000,7 +1007,6 @@ class _CourseJourneyPanel extends StatefulWidget {
 }
 
 class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
-  int? _promptLevel;
   VideoPlayerController? _preloadedIntroVideoController;
   Future<void>? _preloadIntroVideoFuture;
 
@@ -1016,7 +1022,6 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
   void didUpdateWidget(covariant _CourseJourneyPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.course != widget.course) {
-      _promptLevel = null;
       _disposePreloadedIntroVideo();
     }
   }
@@ -1366,9 +1371,9 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
     final highestCompleted = min(rawHighestCompleted, 1);
 
     const desktopWidth = 112.0;
-    const desktopHeight = 98.0;
+    const desktopHeight = 104.0;
     const vSpacing = 148.0;
-    final totalHeight = vSpacing * count + 56;
+    final totalHeight = vSpacing * count + 64;
 
     return ScrollConfiguration(
       behavior: _NoGlowScrollBehavior(),
@@ -1422,22 +1427,6 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
                 horizontalShift: -12.0,
               ));
             }
-            if (_promptLevel == 1 && count >= 1) {
-              const promptWidth = 248.0;
-              final firstCenter = centers.first;
-              final promptLeft = (firstCenter.dx - promptWidth / 2)
-                  .clamp(8.0, width - promptWidth - 8);
-              children.add(
-                Positioned(
-                  left: promptLeft,
-                  top: firstCenter.dy + desktopHeight / 2 + 4,
-                  width: promptWidth,
-                  child: _LevelStartPrompt(
-                    onStart: () => _startLevelLesson(1),
-                  ),
-                ),
-              );
-            }
             return SizedBox(
               width: width,
               height: totalHeight,
@@ -1479,7 +1468,7 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
   List<Widget> _nodeWidgets(
       int i, Offset c, _CyberLevel level, int highestCompleted) {
     const desktopWidth = 112.0;
-    const desktopHeight = 98.0;
+    const desktopHeight = 104.0;
     final levelNum = i + 1;
     final isLevelTwoLocked = levelNum == 2;
     final isCompleted =
@@ -1493,9 +1482,6 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
             : isActive
                 ? _LevelStatus.active
                 : _LevelStatus.locked;
-    final showStartPrompt = _promptLevel == levelNum &&
-        levelNum == 1 &&
-        status != _LevelStatus.locked;
     return [
       Positioned(
         left: c.dx - desktopWidth / 2,
@@ -1507,25 +1493,24 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
           onTap: () => _handleLevelTap(levelNum, status),
         ),
       ),
-      if (!showStartPrompt)
-        Positioned(
-          left: c.dx - 78,
-          top: c.dy + desktopHeight / 2 + 6,
-          width: 156,
-          child: Text(
-            level.title,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color:
-                  status == _LevelStatus.locked ? Colors.white38 : Colors.white70,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              height: 1.15,
-            ),
+      Positioned(
+        left: c.dx - 78,
+        top: c.dy + desktopHeight / 2 + 6,
+        width: 156,
+        child: Text(
+          level.title,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color:
+                status == _LevelStatus.locked ? Colors.white38 : Colors.white70,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            height: 1.15,
           ),
         ),
+      ),
       if (isActive)
         Positioned(
           left: c.dx - 34,
@@ -1568,16 +1553,7 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
       return;
     }
     if (levelNum == 1) {
-      final nextPrompt = _promptLevel == levelNum ? null : levelNum;
-      setState(() {
-        _promptLevel = nextPrompt;
-      });
-      if (nextPrompt == levelNum) {
-        _preloadIntroVideo();
-      } else {
-        _disposePreloadedIntroVideo();
-      }
-      return;
+      _preloadIntroVideo();
     }
     await _startLevelLesson(levelNum);
   }
@@ -1597,10 +1573,6 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
         );
       }
     }
-
-    setState(() {
-      _promptLevel = null;
-    });
 
     final level = _cyberLevels[levelNum - 1];
     final questions = _questionsForTopic(level.topic);
@@ -1690,6 +1662,30 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
     void openPractice() => EventPracticeScreen.open(context,
         eventName: widget.course, category: category, color: widget.color);
 
+    final isPresentation = isPerformance && !isRoleplay;
+
+    void openLearnFundamentals() {
+      if (widget.course == 'Mobile Application Development') {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const MobileAppDevGuidelinesScreen(),
+          ),
+        );
+        return;
+      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => _EventFundamentalsPdfScreen(
+            title: '${widget.course} Fundamentals',
+            assetPath:
+                '${AppAssets.officialDocumentsDir}Mythbusters_Competitive_Events_Strategy_Guide.pdf',
+          ),
+        ),
+      );
+    }
+
     return ScrollConfiguration(
       behavior: _NoGlowScrollBehavior(),
       child: SingleChildScrollView(
@@ -1752,16 +1748,18 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
             ),
             const SizedBox(height: 16),
             _practiceTile(
-                Icons.auto_awesome_rounded,
-                'AI Coach',
-                'Get a scenario and judge-style feedback on your response.',
-                openPractice),
+                Icons.auto_awesome_rounded, 'AI Coach', openPractice),
             const SizedBox(height: 12),
-            _practiceTile(
-                Icons.videocam_rounded,
-                'Record & Self-Review',
-                'Film yourself and score against the judges’ rubric.',
-                openPractice),
+            if (isPresentation)
+              _practiceTile(Icons.menu_book_rounded, 'Learn Fundamentals',
+                  openLearnFundamentals)
+            else
+              _practiceTile(
+                  Icons.videocam_rounded,
+                  'Record & Self-Review',
+                  openPractice,
+                  subtitle:
+                      'Film yourself and score against the judges’ rubric.'),
             const SizedBox(height: 18),
             SizedBox(
               width: double.infinity,
@@ -1786,8 +1784,9 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
     );
   }
 
-  Widget _practiceTile(
-      IconData icon, String title, String subtitle, VoidCallback onTap) {
+  Widget _practiceTile(IconData icon, String title, VoidCallback onTap,
+      {String? subtitle}) {
+    final hasSubtitle = subtitle != null && subtitle.isNotEmpty;
     return Material(
       color: Colors.white.withValues(alpha: 0.04),
       borderRadius: BorderRadius.circular(16),
@@ -1817,16 +1816,18 @@ class _CourseJourneyPanelState extends State<_CourseJourneyPanel> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(title,
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: Colors.white,
-                            fontSize: 15,
+                            fontSize: hasSubtitle ? 15 : 18,
                             fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 2),
-                    Text(subtitle,
-                        style: const TextStyle(
-                            color: Colors.white60,
-                            fontSize: 12.5,
-                            height: 1.3)),
+                    if (hasSubtitle) ...[
+                      const SizedBox(height: 2),
+                      Text(subtitle!,
+                          style: const TextStyle(
+                              color: Colors.white60,
+                              fontSize: 12.5,
+                              height: 1.3)),
+                    ],
                   ],
                 ),
               ),
@@ -2789,7 +2790,7 @@ class _CybersecurityVocabularyScreenState
     _CyberVocabularyTerm(
       term: 'Virus',
       definition:
-          'A piece of code that is capable of copying itself and typically has a detrimental effect, such as corrupting the system or destroying data.',
+          'Malicious code that copies itself and can harm or corrupt a system.',
       difficulty: 'Easy',
     ),
     _CyberVocabularyTerm(
@@ -3019,92 +3020,100 @@ class _CybersecurityVocabularyScreenState
 
   Widget _buildCardSide(_CyberVocabularyTerm term, {required bool showBack}) {
     final difficultyColor = _difficultyColor(term.difficulty);
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: showBack
-              ? [
-                  difficultyColor.withValues(alpha: 0.28),
-                  const Color(0xFF0B1624),
-                ]
-              : [
-                  widget.color.withValues(alpha: 0.28),
-                  const Color(0xFF0B1624),
-                ],
-        ),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: (showBack ? difficultyColor : widget.color)
-              .withValues(alpha: 0.52),
-          width: 1.4,
-        ),
-        boxShadow: [
-          BoxShadow(
+    return SizedBox(
+      height: 280,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: showBack
+                ? [
+                    difficultyColor.withValues(alpha: 0.28),
+                    const Color(0xFF0B1624),
+                  ]
+                : [
+                    widget.color.withValues(alpha: 0.28),
+                    const Color(0xFF0B1624),
+                  ],
+          ),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
             color: (showBack ? difficultyColor : widget.color)
-                .withValues(alpha: 0.18),
-            blurRadius: 28,
-            offset: const Offset(0, 14),
+                .withValues(alpha: 0.52),
+            width: 1.4,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              _buildDifficultyBadge(term.difficulty),
-              const Spacer(),
-              Icon(
-                showBack ? Icons.auto_stories_outlined : Icons.style_outlined,
-                color: Colors.white70,
-                size: 20,
-              ),
-            ],
-          ),
-          const Spacer(),
-          Text(
-            showBack ? 'Definition' : 'Term',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.58),
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.2,
+          boxShadow: [
+            BoxShadow(
+              color: (showBack ? difficultyColor : widget.color)
+                  .withValues(alpha: 0.18),
+              blurRadius: 28,
+              offset: const Offset(0, 14),
             ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            showBack ? term.definition : term.term,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: showBack ? 22 : 30,
-              height: showBack ? 1.35 : 1.05,
-              fontWeight: FontWeight.w900,
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _buildDifficultyBadge(term.difficulty),
+                const Spacer(),
+                Icon(
+                  showBack ? Icons.auto_stories_outlined : Icons.style_outlined,
+                  color: Colors.white70,
+                  size: 20,
+                ),
+              ],
             ),
-          ),
-          const Spacer(),
-          Row(
-            children: [
-              Icon(
-                Icons.touch_app_outlined,
-                color: Colors.white.withValues(alpha: 0.62),
-                size: 18,
+            const SizedBox(height: 16),
+            Text(
+              showBack ? 'Definition' : 'Term',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.58),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
               ),
-              const SizedBox(width: 8),
-              Text(
-                showBack ? 'Tap to return to the term' : 'Tap to reveal',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.64),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Text(
+                  showBack ? term.definition : term.term,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: showBack ? 20 : 28,
+                    height: 1.35,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(
+                  Icons.touch_app_outlined,
+                  color: Colors.white.withValues(alpha: 0.62),
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  showBack ? 'Tap to return to the term' : 'Tap to reveal',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.64),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -6554,7 +6563,7 @@ class _LevelNodeState extends State<_LevelNode>
 
         return SizedBox(
           width: 112,
-          height: 98,
+          height: 104,
           child: Stack(
             clipBehavior: Clip.none,
             alignment: Alignment.topCenter,
@@ -6564,7 +6573,7 @@ class _LevelNodeState extends State<_LevelNode>
                 children: [
                   Container(
                     width: 108,
-                    padding: const EdgeInsets.fromLTRB(7, 7, 7, 5),
+                    padding: const EdgeInsets.fromLTRB(7, 6, 7, 4),
                     decoration: BoxDecoration(
                       color: bezelColor,
                       borderRadius: BorderRadius.circular(12),
@@ -6645,56 +6654,60 @@ class _LevelNodeState extends State<_LevelNode>
                                   ),
                                 ]
                                 else
-                                  Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        'LEVEL',
-                                        style: TextStyle(
-                                          color: isActive
-                                              ? fblaGold.withValues(alpha: 0.9)
-                                              : Colors.white
-                                                  .withValues(alpha: 0.72),
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 1.1,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        '${widget.level}',
-                                        style: TextStyle(
-                                          color: isActive
-                                              ? Colors.white
-                                              : isCompleted
-                                                  ? Colors.white
-                                                  : Colors.white
-                                                      .withValues(alpha: 0.9),
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.w900,
-                                          height: 1,
-                                        ),
-                                      ),
-                                      if (isCompleted)
-                                        Padding(
-                                          padding: const EdgeInsets.only(top: 2),
-                                          child: Icon(
-                                            Icons.check_circle_rounded,
-                                            color: Colors.white
-                                                .withValues(alpha: 0.92),
-                                            size: 14,
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          'LEVEL',
+                                          style: TextStyle(
+                                            color: isActive
+                                                ? fblaGold.withValues(alpha: 0.9)
+                                                : Colors.white
+                                                    .withValues(alpha: 0.72),
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: 1.1,
                                           ),
                                         ),
-                                    ],
+                                        const SizedBox(height: 1),
+                                        Text(
+                                          '${widget.level}',
+                                          style: TextStyle(
+                                            color: isActive
+                                                ? Colors.white
+                                                : isCompleted
+                                                    ? Colors.white
+                                                    : Colors.white
+                                                        .withValues(alpha: 0.9),
+                                            fontSize: 26,
+                                            fontWeight: FontWeight.w900,
+                                            height: 1,
+                                          ),
+                                        ),
+                                        if (isCompleted)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 1),
+                                            child: Icon(
+                                              Icons.check_circle_rounded,
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.92),
+                                              size: 13,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
                                   ),
                               ],
                             ),
                           ),
                         ),
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 4),
                         Container(
                           width: 18,
-                          height: 8,
+                          height: 7,
                           decoration: BoxDecoration(
                             color: bezelColor.withValues(alpha: 0.95),
                             borderRadius: BorderRadius.circular(2),
@@ -6756,144 +6769,6 @@ class _LevelNodeState extends State<_LevelNode>
       ),
     );
   }
-}
-
-class _LevelStartPrompt extends StatelessWidget {
-  final VoidCallback onStart;
-
-  const _LevelStartPrompt({
-    required this.onStart,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    const promptTopColor = Color(0xFF102A4E);
-    const promptBottomColor = Color(0xFF1D4E89);
-    final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w900,
-              height: 1.2,
-            ) ??
-        const TextStyle(
-          color: Colors.white,
-          fontSize: 15,
-          fontWeight: FontWeight.w900,
-          height: 1.2,
-        );
-    final subtitleStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withValues(alpha: 0.92),
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-            ) ??
-        TextStyle(
-          color: Colors.white.withValues(alpha: 0.92),
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-        );
-    const buttonTextStyle = TextStyle(
-      fontSize: 16,
-      fontWeight: FontWeight.w900,
-      letterSpacing: 0.2,
-      height: 1.1,
-    );
-
-    return Material(
-      color: Colors.transparent,
-      child: Column(
-        children: [
-          CustomPaint(
-            size: const Size(18, 10),
-            painter: const _PromptPointerPainter(promptTopColor),
-          ),
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [promptTopColor, promptBottomColor],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: promptBottomColor.withValues(alpha: 0.34),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-              border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Cybersecurity Fundamentals',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: titleStyle,
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    const Icon(Icons.savings_rounded,
-                        color: fblaGold, size: 18),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Earn 50 Credits',
-                      style: subtitleStyle,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    onPressed: onStart,
-                    style: ElevatedButton.styleFrom(
-                      elevation: 0,
-                      backgroundColor: fblaGold,
-                      foregroundColor: fblaNavy,
-                      disabledBackgroundColor:
-                          Colors.white.withValues(alpha: 0.35),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      textStyle: buttonTextStyle,
-                    ),
-                    child: const Text('Start lesson'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PromptPointerPainter extends CustomPainter {
-  final Color color;
-
-  const _PromptPointerPainter(this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = color;
-    final path = Path()
-      ..moveTo(size.width / 2, 0)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _PromptPointerPainter oldDelegate) =>
-      oldDelegate.color != color;
 }
 
 const _cyberJourneyLottieAsset = AppAssets.lottieCybersecurity;
@@ -8528,6 +8403,8 @@ class _CourseSelectionScreenState extends State<CourseSelectionScreen> {
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: ExpansionTile(
+                      key: ValueKey('$category-$queryLower'),
+                      initiallyExpanded: queryLower.isNotEmpty,
                       backgroundColor: Colors.transparent,
                       collapsedBackgroundColor: Colors.transparent,
                       shape: const Border(),
@@ -8643,18 +8520,26 @@ class _CourseSelectionScreenState extends State<CourseSelectionScreen> {
             if (_selected != null)
               SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(_selected),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: fblaGold,
-                      foregroundColor: fblaNavy,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(_selected),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: fblaGold,
+                        foregroundColor: fblaNavy,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
+                      child: const Text('Continue'),
                     ),
-                    child: const Text('Continue'),
                   ),
                 ),
               ),
@@ -8708,15 +8593,33 @@ class MobileAppDevGuidelinesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return _EventFundamentalsPdfScreen(
+      title: 'Mobile App Dev Guidelines',
+      assetPath: AppAssets.mobileAppDevPdf,
+    );
+  }
+}
+
+class _EventFundamentalsPdfScreen extends StatelessWidget {
+  final String title;
+  final String assetPath;
+
+  const _EventFundamentalsPdfScreen({
+    required this.title,
+    required this.assetPath,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     const fblaBlue = Color(0xFF1D4E89);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mobile App Dev Guidelines'),
+        title: Text(title),
         backgroundColor: fblaBlue,
         foregroundColor: Colors.white,
       ),
-      body: SfPdfViewer.asset(AppAssets.mobileAppDevPdf),
+      body: SfPdfViewer.asset(assetPath),
     );
   }
 }

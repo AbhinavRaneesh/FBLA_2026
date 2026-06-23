@@ -99,6 +99,24 @@ class SocialPreferencesStore {
         .toList();
   }
 
+  Future<void> clearVideoPostsForUser(String userId) async {
+    final all = await loadBlueWavePosts();
+    final updated = all
+        .where(
+          (p) =>
+              p.author.id != userId ||
+              (!p.hasVideo &&
+                  p.kind != BlueWavePostKind.video &&
+                  p.kind != BlueWavePostKind.reel),
+        )
+        .toList();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _postsKey,
+      updated.map((e) => jsonEncode(e.toJson())).toList(),
+    );
+  }
+
   Future<Set<String>> loadWavedPostIds() async {
     final prefs = await SharedPreferences.getInstance();
     return (prefs.getStringList(_wavedKey) ?? []).toSet();

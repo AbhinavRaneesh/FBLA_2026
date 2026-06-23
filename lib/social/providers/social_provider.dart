@@ -234,6 +234,22 @@ class SocialProvider extends ChangeNotifier {
     return _myVideoPosts;
   }
 
+  Future<void> clearMyVideoPosts(String userId) async {
+    final clearedIds = _myVideoPosts.map((p) => p.id).toSet();
+    await _store.clearVideoPostsForUser(userId);
+    _myVideoPosts = [];
+    if (clearedIds.isNotEmpty) {
+      _feedItems = _feedItems
+          .where(
+            (item) =>
+                !clearedIds.contains(item.id) &&
+                !clearedIds.contains(item.blueWave?.id),
+          )
+          .toList();
+    }
+    notifyListeners();
+  }
+
   Future<YouTubeUploadResult> uploadPostToYouTube({
     required BlueWavePostData post,
     required YouTubeUploadService uploadService,

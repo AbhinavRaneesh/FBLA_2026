@@ -33,7 +33,7 @@ class _NlcDetailScreenState extends State<NlcDetailScreen> {
   void initState() {
     super.initState();
     _pageController = PageController();
-    _carouselTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    _carouselTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       if (!mounted || !_pageController.hasClients) return;
       final next = (_pageIndex + 1) % _nlcImages.length;
       _pageController.animateToPage(

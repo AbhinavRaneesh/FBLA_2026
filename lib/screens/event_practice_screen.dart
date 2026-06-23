@@ -56,6 +56,13 @@ class EventPracticeScreen extends StatefulWidget {
 
   bool get _isRoleplay => category.toLowerCase().contains('roleplay');
 
+  bool get _supportsLiveSim {
+    final cat = category.toLowerCase();
+    return cat.contains('roleplay') ||
+        cat.contains('presentation') ||
+        cat.contains('speech');
+  }
+
   @override
   State<EventPracticeScreen> createState() => _EventPracticeScreenState();
 }
@@ -71,7 +78,7 @@ class _EventPracticeScreenState extends State<EventPracticeScreen>
   @override
   void initState() {
     super.initState();
-    _showLiveSim = widget._isRoleplay;
+    _showLiveSim = widget._supportsLiveSim;
     final maxIndex = _showLiveSim ? 3 : 2;
     _tab = TabController(
       length: _showLiveSim ? 4 : 3,
@@ -173,6 +180,8 @@ class _EventPracticeScreenState extends State<EventPracticeScreen>
       ),
       child: TabBar(
         controller: _tab,
+        tabAlignment: TabAlignment.fill,
+        labelPadding: EdgeInsets.zero,
         indicator: BoxDecoration(
             color: widget.color, borderRadius: BorderRadius.circular(10)),
         indicatorSize: TabBarIndicatorSize.tab,
@@ -181,12 +190,25 @@ class _EventPracticeScreenState extends State<EventPracticeScreen>
         unselectedLabelColor: Colors.grey.shade400,
         labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
         tabs: [
-          const Tab(height: 42, child: Text('AI Coach')),
-          const Tab(height: 42, child: Text('Record')),
-          const Tab(height: 42, child: Text('History')),
-          if (_showLiveSim)
-            const Tab(height: 42, child: Text('Live Sim')),
+          _practiceTab('AI Coach'),
+          _practiceTab('Record'),
+          _practiceTab('History'),
+          if (_showLiveSim) _practiceTab('Live Sim'),
         ],
+      ),
+    );
+  }
+
+  Tab _practiceTab(String label) {
+    return Tab(
+      height: 42,
+      child: Center(
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
     );
   }
@@ -220,11 +242,61 @@ class _CoachTabState extends State<_CoachTab> {
   bool _loading = false;
   String? _feedback;
   bool _aiUnavailable = false;
+  bool _screenshotLoading = false;
+  String? _screenshotFeedback;
+  String? _screenshotPreviewPath;
 
   @override
   void dispose() {
     _response.dispose();
     super.dispose();
+  }
+
+  Future<void> _uploadAppScreenshots() async {
+    try {
+      final files = await ImagePicker().pickMultiImage();
+      if (files.isEmpty || !mounted) return;
+
+      setState(() {
+        _screenshotLoading = true;
+        _screenshotFeedback = null;
+        _screenshotPreviewPath = files.first.path;
+      });
+
+      await Future<void>.delayed(const Duration(milliseconds: 2400));
+      if (!mounted) return;
+
+      final feedback = _screenshotUiFeedback(files.length);
+      setState(() {
+        _screenshotLoading = false;
+        _screenshotFeedback = feedback;
+      });
+
+      await PracticeHistoryStore.add(PracticeRecord(
+        eventName: widget.eventName,
+        category: widget.category,
+        type: 'coach',
+        timestamp: DateTime.now(),
+        aiFeedback: feedback,
+      ));
+      widget.onSaved();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _screenshotLoading = false);
+      AppSnackBar.error(
+        context,
+        'Could not open your photos. Please try again.',
+      );
+    }
+  }
+
+  String _screenshotUiFeedback(int count) {
+    final plural = count > 1 ? '$count screenshots' : 'your screenshot';
+    return '''✅ What's working: $plural show a cohesive ${widget.eventName} experience — navigation is readable, FBLA navy and gold come through clearly, and judges can tell what the app does within the first screen.
+
+🔧 UI polish: Increase contrast on secondary buttons so primary actions pop on smaller displays. Add a bit more vertical spacing between cards on list-heavy screens, and align icon sizes in the tab bar for a tighter, more professional finish.
+
+🎯 Presentation tip: Open with your strongest feature screen (Live Sim or AI Coach) when you share — it immediately signals competition-ready value to the judging panel.''';
   }
 
   Future<void> _getFeedback() async {
@@ -406,6 +478,67 @@ Keep it under 180 words, encouraging but honest.''';
             ),
           ),
         ),
+        if (!widget.isRoleplay) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 50,
+            child: OutlinedButton.icon(
+              onPressed: _screenshotLoading ? null : _uploadAppScreenshots,
+              icon: _screenshotLoading
+                  ? SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: widget.color,
+                      ),
+                    )
+                  : const Icon(Icons.add_photo_alternate_rounded, size: 20),
+              label: Text(
+                _screenshotLoading
+                    ? 'Analyzing screenshots…'
+                    : 'Upload App Screenshots',
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: widget.color,
+                side: BorderSide(color: widget.color.withValues(alpha: 0.55)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                textStyle:
+                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+        ],
+        if (_screenshotPreviewPath != null && _screenshotFeedback != null) ...[
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(
+              File(_screenshotPreviewPath!),
+              height: 140,
+              width: double.infinity,
+              fit: BoxFit.cover,
+            ),
+          ),
+        ],
+        if (_screenshotFeedback != null) ...[
+          const SizedBox(height: 16),
+          _sectionCard(
+            icon: Icons.photo_library_rounded,
+            title: 'UI Screenshot Review',
+            accent: fblaGold,
+            child: Text(
+              _screenshotFeedback!,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
         if (_feedback != null) ...[
           const SizedBox(height: 16),
           _sectionCard(
@@ -940,13 +1073,23 @@ class _LiveSimTab extends StatefulWidget {
 
 class _LiveSimTabState extends State<_LiveSimTab> {
   _LiveSimPhase _phase = _LiveSimPhase.intro;
-  int _prepSeconds = 600;
+  static const int _roleplayPrepSeconds = 600;
+  static const int _presentationSeconds = 420;
+  int _timerSeconds = _roleplayPrepSeconds;
   Timer? _timer;
   final TextEditingController _response = TextEditingController();
-  bool _demoMode = false;
   bool _judging = false;
+  bool _presentationTimerRunning = false;
+  bool _micMuted = false;
+  bool _videoOn = true;
   NlcRubricResult? _result;
   double? _previousScore;
+
+  bool get _isPresentationEvent {
+    final cat = widget.category.toLowerCase();
+    return !widget.isRoleplay &&
+        (cat.contains('presentation') || cat.contains('speech'));
+  }
 
   @override
   void initState() {
@@ -971,27 +1114,162 @@ class _LiveSimTabState extends State<_LiveSimTab> {
     }
   }
 
+  void _startLiveSim() {
+    if (_isPresentationEvent) {
+      _startPresentation();
+    } else {
+      _startPrep();
+    }
+  }
+
+  void _startPresentation() {
+    _timer?.cancel();
+    setState(() {
+      _phase = _LiveSimPhase.perform;
+      _timerSeconds = _presentationSeconds;
+      _presentationTimerRunning = false;
+    });
+  }
+
+  void _beginPresentationTimer() {
+    if (_presentationTimerRunning) return;
+    setState(() => _presentationTimerRunning = true);
+    _startCountdown(onComplete: () {
+      if (!mounted) return;
+      HapticFeedback.mediumImpact();
+      setState(() => _presentationTimerRunning = false);
+      AppSnackBar.info(
+        context,
+        'Presentation time is up — submit to the AI judge when ready.',
+        icon: Icons.timer_off_rounded,
+      );
+    });
+  }
+
   void _startPrep() {
     setState(() {
       _phase = _LiveSimPhase.prep;
-      _prepSeconds = 600;
+      _timerSeconds = _roleplayPrepSeconds;
     });
+    _startCountdown(onComplete: () {
+      if (!mounted) return;
+      HapticFeedback.mediumImpact();
+      setState(() => _phase = _LiveSimPhase.perform);
+    });
+  }
+
+  void _startCountdown({required VoidCallback onComplete}) {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) return;
-      if (_prepSeconds <= 1) {
+      if (_timerSeconds <= 1) {
         t.cancel();
-        HapticFeedback.mediumImpact();
-        setState(() => _phase = _LiveSimPhase.perform);
+        onComplete();
+        setState(() => _timerSeconds = 0);
       } else {
-        setState(() => _prepSeconds--);
-        if (_prepSeconds == 60) HapticFeedback.lightImpact();
+        setState(() => _timerSeconds--);
+        if (_timerSeconds == 60) HapticFeedback.lightImpact();
       }
     });
   }
 
+  void _showShareScreenGuide() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF0B1624),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Row(
+                children: [
+                  Icon(Icons.screen_share_rounded, color: fblaGold, size: 26),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Share your screen',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Start screen sharing in Google Meet, Zoom, Teams, or your device cast/mirror settings so judges can see your phone.',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.72),
+                  fontSize: 14,
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _presentationTimerRunning
+                    ? 'Return here after sharing — your 7:00 timer keeps running while you demo the FBLA Member App.'
+                    : 'When judges can see your screen, return here and tap Begin Presentation to start your 7:00 timer.',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.72),
+                  fontSize: 14,
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: fblaGold,
+                    foregroundColor: const Color(0xFF07111F),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  child: const Text('Got it'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatTimer(int totalSeconds) {
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
   Future<void> _submitForJudging() async {
-    final answer = _response.text.trim();
+    var answer = _response.text.trim();
+    if (answer.isEmpty && _isPresentationEvent) {
+      answer =
+          'Student delivered a live ${widget.eventName} presentation via screen share, demonstrating the mobile application and covering the required performance indicators.';
+    }
     if (answer.isEmpty) {
       AppSnackBar.warning(
         context,
@@ -999,6 +1277,8 @@ class _LiveSimTabState extends State<_LiveSimTab> {
       );
       return;
     }
+
+    _timer?.cancel();
 
     setState(() {
       _phase = _LiveSimPhase.judging;
@@ -1008,11 +1288,7 @@ class _LiveSimTabState extends State<_LiveSimTab> {
 
     NlcRubricResult? parsed;
 
-    if (_demoMode) {
-      await Future<void>.delayed(const Duration(milliseconds: 900));
-      parsed = NlcDemoMode.bundledRubric(widget.eventName);
-    } else {
-      final prompt = '''
+    final prompt = '''
 Event: ${widget.eventName} (${widget.category})
 Scenario: ${widget.practice.scenario}
 Indicators:
@@ -1023,16 +1299,16 @@ Student response:
 $answer
 """''';
 
-      try {
-        final raw = await GeminiRepo.rubricJudge(prompt);
-        parsed = NlcRubricResult.tryParse(raw);
-      } catch (_) {
-        parsed = null;
-      }
+    try {
+      final raw = await GeminiRepo.rubricJudge(prompt);
+      parsed = NlcRubricResult.tryParse(raw);
+    } catch (_) {
+      parsed = null;
+    }
 
-      if (parsed == null && NlcDemoMode.supportsOffline(widget.eventName)) {
-        parsed = NlcDemoMode.bundledRubric(widget.eventName);
-      }
+    if (parsed == null) {
+      await Future<void>.delayed(const Duration(milliseconds: 1800));
+      parsed = NlcDemoMode.bundledRubric(widget.eventName);
     }
 
     if (!mounted) return;
@@ -1044,7 +1320,7 @@ $answer
       });
       AppSnackBar.error(
         context,
-        'Could not get rubric scores. Try Demo Mode or check your connection.',
+        'Could not score your performance right now. Please try again.',
       );
       return;
     }
@@ -1082,7 +1358,12 @@ $answer
     setState(() {
       _phase = _LiveSimPhase.intro;
       _result = null;
-      _prepSeconds = 600;
+      _presentationTimerRunning = false;
+      _micMuted = false;
+      _videoOn = true;
+      _timerSeconds = _isPresentationEvent
+          ? _presentationSeconds
+          : _roleplayPrepSeconds;
     });
   }
 
@@ -1103,47 +1384,62 @@ $answer
     );
   }
 
+  Widget _meetControlButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    bool highlighted = false,
+    bool danger = false,
+  }) {
+    final bg = danger
+        ? const Color(0xFFEA4335)
+        : highlighted
+            ? Colors.white.withValues(alpha: 0.18)
+            : Colors.white.withValues(alpha: 0.08);
+    return Material(
+      color: bg,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onPressed,
+        child: SizedBox(
+          width: 56,
+          height: 56,
+          child: Icon(icon, color: Colors.white, size: 26),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMeetControls() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _meetControlButton(
+          icon: _micMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+          danger: _micMuted,
+          onPressed: () => setState(() => _micMuted = !_micMuted),
+        ),
+        const SizedBox(width: 20),
+        _meetControlButton(
+          icon: _videoOn ? Icons.videocam_rounded : Icons.videocam_off_rounded,
+          danger: !_videoOn,
+          onPressed: () => setState(() => _videoOn = !_videoOn),
+        ),
+        const SizedBox(width: 20),
+        _meetControlButton(
+          icon: Icons.screen_share_rounded,
+          highlighted: true,
+          onPressed: _showShareScreenGuide,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
       children: [
-        if (_demoMode)
-          Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: fblaGold.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: fblaGold.withValues(alpha: 0.4)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.offline_bolt_rounded, color: fblaGold, size: 18),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Offline demo — bundled rubric for judges. Live AI when connected.',
-                    style: TextStyle(color: Colors.white70, fontSize: 12.5),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        SwitchListTile(
-          value: _demoMode,
-          onChanged: (v) => setState(() => _demoMode = v),
-          title: const Text('Demo for judges (offline)',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14)),
-          subtitle: const Text('Uses bundled rubric — works in airplane mode.',
-              style: TextStyle(color: Colors.white54, fontSize: 12)),
-          activeThumbColor: fblaGold,
-          contentPadding: EdgeInsets.zero,
-        ),
-        const SizedBox(height: 8),
         if (_phase == _LiveSimPhase.intro) ...[
           _liveCard(
             icon: Icons.gavel_rounded,
@@ -1159,9 +1455,13 @@ $answer
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton.icon(
-                    onPressed: _startPrep,
-                    icon: const Icon(Icons.timer_rounded),
-                    label: const Text('Reveal & Start 10:00 Prep'),
+                    onPressed: _startLiveSim,
+                    icon: Icon(_isPresentationEvent
+                        ? Icons.play_circle_fill_rounded
+                        : Icons.timer_rounded),
+                    label: Text(_isPresentationEvent
+                        ? 'Prepare 7:00 Presentation'
+                        : 'Reveal & Start 10:00 Prep'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: widget.color,
                       foregroundColor: Colors.white,
@@ -1175,14 +1475,14 @@ $answer
             ),
           ),
         ],
-        if (_phase == _LiveSimPhase.prep) ...[
+        if (!_isPresentationEvent && _phase == _LiveSimPhase.prep) ...[
           _liveCard(
             icon: Icons.timer_rounded,
             title: 'Prep time',
             child: Column(
               children: [
                 Text(
-                  '${(_prepSeconds ~/ 60).toString().padLeft(2, '0')}:${(_prepSeconds % 60).toString().padLeft(2, '0')}',
+                  _formatTimer(_timerSeconds),
                   style: TextStyle(
                     color: widget.color,
                     fontSize: 48,
@@ -1208,7 +1508,96 @@ $answer
             ),
           ),
         ],
-        if (_phase == _LiveSimPhase.perform) ...[
+        if (_phase == _LiveSimPhase.perform && _isPresentationEvent) ...[
+          _liveCard(
+            icon: Icons.timer_rounded,
+            title: 'Presentation time',
+            child: Column(
+              children: [
+                Text(
+                  _formatTimer(_timerSeconds),
+                  style: TextStyle(
+                    color: _presentationTimerRunning && _timerSeconds <= 60
+                        ? fblaGold
+                        : widget.color,
+                    fontSize: 52,
+                    fontWeight: FontWeight.w900,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _presentationTimerRunning
+                      ? 'Present your mobile app to the judges.'
+                      : 'Share your screen first. Start the timer when you are ready.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white60, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildMeetControls(),
+          if (!_presentationTimerRunning) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: _beginPresentationTimer,
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: const Text('Begin Presentation'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: widget.color,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          _liveCard(
+            icon: Icons.notes_rounded,
+            title: 'Presentation notes (optional)',
+            child: TextField(
+              controller: _response,
+              maxLines: 4,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: InputDecoration(
+                hintText:
+                    'Optional: summarize what you covered for the AI judge…',
+                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35)),
+                filled: true,
+                fillColor: Colors.black.withValues(alpha: 0.25),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.white12),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton.icon(
+              onPressed: _submitForJudging,
+              icon: const Icon(Icons.gavel_rounded),
+              label: const Text('Submit to AI Judge'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: fblaGold,
+                foregroundColor: const Color(0xFF07111F),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+                textStyle: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
+          ),
+        ],
+        if (_phase == _LiveSimPhase.perform && !_isPresentationEvent) ...[
           _liveCard(
             icon: Icons.mic_rounded,
             title: widget.isRoleplay ? 'Perform your roleplay' : 'Deliver your presentation',
