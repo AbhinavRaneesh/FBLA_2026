@@ -1,0 +1,135 @@
+%% ═══════════════════════════════════════════════════════════════
+%% FBLA Member App — UML Part 2 of 4
+%% Region: Presentation Layer & State Management
+%% Binder: Page 2 — screens, AppState, BLoC, providers
+%% Paste into https://mermaid.live → export PNG for A4 print
+%% ═══════════════════════════════════════════════════════════════
+
+classDiagram
+    direction TB
+
+    class MyApp {
+        +build()
+    }
+
+    class AuthGate {
+        +build()
+    }
+
+    class RootScreen {
+        -int _index
+        -List~Widget~ _pages
+        +_selectTab(int)
+    }
+
+    class AppState {
+        +User firebaseUser
+        +FBLAUser userProfile
+        +List~Event~ events
+        +List~NewsItem~ news
+        +bool isDarkMode
+        +bool loggedIn
+        +notifyListeners()
+        +awardPoints()
+    }
+
+    class HomeScreen {
+        +onSelectRootTab
+        +onOpenAiAssistant
+    }
+
+    class EventsScreen {
+        +filter events
+        +RSVP()
+        +setReminder()
+    }
+
+    class ResourcesScreen {
+        +addCourse()
+        +selectCourse()
+        +levelProgress
+    }
+
+    class SocialScreen {
+        +Feed tab
+        +Discover tab
+    }
+
+    class MoreScreen {
+        +profile
+        +settings
+    }
+
+    class LoginScreen {
+        +signIn()
+        +navigateToSignup()
+    }
+
+    class EventPracticeScreen {
+        +AI Coach tab
+        +Live Sim tab
+        +History tab
+    }
+
+    class ChatBloc {
+        -String _threadId
+        +on SendMessageEvent
+        +on ClearChatEvent
+        +on LoadChatHistoryEvent
+    }
+
+    class ChatState {
+        <<abstract>>
+    }
+
+    class ChatLoaded {
+        +List~ChatMessageModel~ messages
+        +bool isLoading
+    }
+
+    class ChatInitial {
+    }
+
+    class ChatEvent {
+        <<abstract>>
+    }
+
+    class SendMessageEvent {
+        +String message
+        +String threadId
+    }
+
+    class PracticeRecord {
+        +String eventName
+        +String type
+    }
+
+    class SocialProvider {
+        +List~FeedItem~ feedItems
+        +initialize()
+        +publishVideo()
+        +toggleWave()
+        +notifyListeners()
+    }
+
+  %% Relationships
+    MyApp --> AuthGate : home
+    AuthGate --> RootScreen : if logged in
+    AuthGate --> LoginScreen : if guest
+    RootScreen *-- HomeScreen
+    RootScreen *-- EventsScreen
+    RootScreen *-- ResourcesScreen
+    RootScreen *-- SocialScreen
+    RootScreen *-- MoreScreen
+    MyApp --> AppState : Provider
+    HomeScreen ..> AppState : reads
+    EventsScreen ..> AppState : reads
+    ResourcesScreen ..> EventPracticeScreen : opens
+    ResourcesScreen ..> AppState : reads
+    SocialScreen ..> SocialProvider : reads
+    ChatBloc --|> ChatState : emits
+    ChatBloc --> ChatEvent : handles
+    ChatLoaded --|> ChatState
+    ChatInitial --|> ChatState
+    SendMessageEvent --|> ChatEvent
+    EventPracticeScreen ..> PracticeRecord : creates

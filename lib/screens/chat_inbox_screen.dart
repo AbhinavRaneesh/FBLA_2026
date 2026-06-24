@@ -9,6 +9,7 @@ import '../screens/find_members_screen.dart';
 import '../screens/group_chat_screen.dart';
 import '../services/firebase_service.dart';
 import '../widgets/friend_picker_sheet.dart';
+import '../widgets/member_avatar.dart';
 
 /// Google Chat–style inbox: friends, direct threads, and group chats.
 class ChatInboxScreen extends StatefulWidget {
@@ -25,12 +26,13 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
   @override
   void initState() {
     super.initState();
-    _loadFriends();
+    _refreshInbox();
   }
 
-  Future<void> _loadFriends() async {
+  Future<void> _refreshInbox() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) return;
+    await FirebaseService.pruneNonFriendDirectChats(userId);
     final friends = await FirebaseService.getFriendsForUser(userId);
     if (!mounted) return;
     setState(() => _friends = friends);
@@ -43,26 +45,6 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
     return name.isEmpty ? 'Member' : name;
   }
 
-  String _otherParticipantName(
-    Map<String, dynamic> conversation,
-    String currentUserId,
-  ) {
-    final participants =
-        (conversation['participants'] as List?)?.cast<String>() ?? const [];
-    final otherId = participants.firstWhere(
-      (id) => id != currentUserId,
-      orElse: () => '',
-    );
-    if (otherId.isEmpty) return 'Member';
-
-    final friend = _friends.cast<Map<String, dynamic>?>().firstWhere(
-          (f) => (f?['id'] ?? '').toString() == otherId,
-          orElse: () => null,
-        );
-    if (friend != null) return _friendName(friend);
-    return 'Member';
-  }
-
   String _otherParticipantId(
     Map<String, dynamic> conversation,
     String currentUserId,
@@ -73,6 +55,65 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
       (id) => id != currentUserId,
       orElse: () => '',
     );
+  }
+
+  String _friendPhoto(Map<String, dynamic> friend) {
+    return (friend['photoUrl'] ?? '').toString().trim();
+  }
+
+  Map<String, Map<String, dynamic>> _conversationsByFriendId(
+    List<Map<String, dynamic>> conversations,
+    String currentUserId,
+  ) {
+    final map = <String, Map<String, dynamic>>{};
+    final friendIds = _friends
+        .map((f) => (f['id'] ?? '').toString())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    for (final chat in conversations) {
+      final otherId = _otherParticipantId(chat, currentUserId);
+      if (otherId.isNotEmpty && friendIds.contains(otherId)) {
+        map[otherId] = chat;
+      }
+    }
+    return map;
+  }
+
+  List<Map<String, dynamic>> _sortedFriendsForChat(
+    Map<String, Map<String, dynamic>> convByFriendId,
+  ) {
+    final sorted = [..._friends];
+    sorted.sort((a, b) {
+      final aId = (a['id'] ?? '').toString();
+      final bId = (b['id'] ?? '').toString();
+      final aConv = convByFriendId[aId];
+      final bConv = convByFriendId[bId];
+      final aTs = aConv?['lastTimestamp'];
+      final bTs = bConv?['lastTimestamp'];
+      if (aTs is Timestamp && bTs is Timestamp) {
+        return bTs.compareTo(aTs);
+      }
+      if (aTs is Timestamp) return -1;
+      if (bTs is Timestamp) return 1;
+      return _friendName(a).toLowerCase().compareTo(_friendName(b).toLowerCase());
+    });
+    return sorted;
+  }
+
+  void _openDirectChat(Map<String, dynamic> friend) {
+    final friendId = (friend['id'] ?? '').toString();
+    final name = _friendName(friend);
+    final photo = _friendPhoto(friend);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DirectChatScreen(
+          otherUserId: friendId,
+          otherUserName: name,
+          otherUserPhotoUrl: photo.isEmpty ? null : photo,
+        ),
+      ),
+    ).then((_) => _refreshInbox());
   }
 
   Future<void> _startGroupChat() async {
@@ -121,16 +162,7 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
       allowMultiple: false,
     );
     if (picked == null || picked.isEmpty || !mounted) return;
-    final friend = picked.first;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => DirectChatScreen(
-          otherUserId: (friend['id'] ?? '').toString(),
-          otherUserName: _friendName(friend),
-        ),
-      ),
-    );
+    _openDirectChat(picked.first);
   }
 
   @override
@@ -205,51 +237,56 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
       return _emptyState(isDark, 'Sign in to view your messages.');
     }
 
+    if (_friends.isEmpty) {
+      return _emptyState(
+        isDark,
+        'No friends yet.\nAdd friends to start messaging.',
+      );
+    }
+
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: FirebaseService.getUserConversations(userId),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
           return const Center(child: CircularProgressIndicator(color: fblaGold));
         }
+
         final conversations = snapshot.data ?? [];
-        if (conversations.isEmpty) {
-          return _emptyState(
-            isDark,
-            'No conversations yet.\nTap New Chat to message a friend.',
-          );
-        }
+        final convByFriendId = _conversationsByFriendId(conversations, userId);
+        final sortedFriends = _sortedFriendsForChat(convByFriendId);
 
-        return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(14, 4, 14, 100),
-          itemCount: conversations.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemBuilder: (context, index) {
-            final chat = conversations[index];
-            final otherName = _otherParticipantName(chat, userId);
-            final otherId = _otherParticipantId(chat, userId);
-            final lastMessage = (chat['lastMessage'] ?? '').toString();
-            final ts = chat['lastTimestamp'];
-            final timeLabel = ts is Timestamp ? _formatTime(ts.toDate()) : '';
+        return RefreshIndicator(
+          color: fblaGold,
+          onRefresh: _refreshInbox,
+          child: ListView.separated(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(14, 4, 14, 100),
+            itemCount: sortedFriends.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final friend = sortedFriends[index];
+              final friendId = (friend['id'] ?? '').toString();
+              final name = _friendName(friend);
+              final photo = _friendPhoto(friend);
+              final chat = convByFriendId[friendId];
+              final lastMessage = chat != null
+                  ? (chat['lastMessage'] ?? '').toString()
+                  : 'No messages yet — tap to chat';
+              final ts = chat?['lastTimestamp'];
+              final timeLabel =
+                  ts is Timestamp ? _formatTime(ts.toDate()) : '';
 
-            return _ConversationTile(
-              isDark: isDark,
-              title: otherName,
-              subtitle: lastMessage,
-              time: timeLabel,
-              icon: Icons.chat_bubble_rounded,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => DirectChatScreen(
-                      otherUserId: otherId,
-                      otherUserName: otherName,
-                    ),
-                  ),
-                );
-              },
-            );
-          },
+              return _ConversationTile(
+                isDark: isDark,
+                title: name,
+                subtitle: lastMessage,
+                time: timeLabel,
+                photoUrl: photo.isEmpty ? null : photo,
+                onTap: () => _openDirectChat(friend),
+              );
+            },
+          ),
         );
       },
     );
@@ -263,33 +300,29 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(14, 4, 14, 100),
-      itemCount: _friends.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final friend = _friends[index];
-        final name = _friendName(friend);
-        final school = (friend['school'] ?? '').toString().trim();
-        return _ConversationTile(
-          isDark: isDark,
-          title: name,
-          subtitle: school.isEmpty ? 'FBLA Member' : school,
-          time: '',
-          icon: Icons.person_rounded,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => DirectChatScreen(
-                  otherUserId: (friend['id'] ?? '').toString(),
-                  otherUserName: name,
-                ),
-              ),
-            );
-          },
-        );
-      },
+    return RefreshIndicator(
+      color: fblaGold,
+      onRefresh: _refreshInbox,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(14, 4, 14, 100),
+        itemCount: _friends.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          final friend = _friends[index];
+          final name = _friendName(friend);
+          final school = (friend['school'] ?? '').toString().trim();
+          final photo = _friendPhoto(friend);
+          return _ConversationTile(
+            isDark: isDark,
+            title: name,
+            subtitle: school.isEmpty ? 'FBLA Member' : school,
+            time: '',
+            photoUrl: photo.isEmpty ? null : photo,
+            onTap: () => _openDirectChat(friend),
+          );
+        },
+      ),
     );
   }
 
@@ -333,7 +366,7 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
               title: name,
               subtitle: lastMessage,
               time: timeLabel,
-              icon: Icons.groups_rounded,
+              fallbackIcon: Icons.groups_rounded,
               onTap: () {
                 Navigator.push(
                   context,
@@ -443,7 +476,8 @@ class _ConversationTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final String time;
-  final IconData icon;
+  final String? photoUrl;
+  final IconData? fallbackIcon;
   final VoidCallback onTap;
 
   const _ConversationTile({
@@ -451,7 +485,8 @@ class _ConversationTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.time,
-    required this.icon,
+    this.photoUrl,
+    this.fallbackIcon,
     required this.onTap,
   });
 
@@ -473,15 +508,30 @@ class _ConversationTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: fblaBlue.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(14),
+              if (photoUrl != null && photoUrl!.isNotEmpty)
+                MemberAvatar(
+                  name: title,
+                  photoUrl: photoUrl,
+                  radius: 23,
+                  backgroundColor: fblaBlue,
+                )
+              else if (fallbackIcon != null)
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: fblaBlue.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(fallbackIcon, color: fblaBlue),
+                )
+              else
+                MemberAvatar(
+                  name: title,
+                  photoUrl: null,
+                  radius: 23,
+                  backgroundColor: fblaBlue,
                 ),
-                child: Icon(icon, color: fblaBlue),
-              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

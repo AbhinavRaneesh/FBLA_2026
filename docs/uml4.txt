@@ -1,0 +1,63 @@
+%% ═══════════════════════════════════════════════════════════════
+%% FBLA Member App — UML Part 4 of 4
+%% Region: Sequence Diagrams — Key User Interactions (condensed)
+%% Binder: Page 4 — copy ONE diagram block at a time into mermaid.live
+%% ═══════════════════════════════════════════════════════════════
+
+%% ── Diagram A: Authentication & Sign-Up ─────────────────────────
+
+sequenceDiagram
+    actor U as User
+    participant UI as Login / Signup
+    participant FS as FirebaseService
+    participant DB as Firebase Auth + Firestore
+
+    U->>UI: Enter credentials + profile
+    UI->>FS: validate then signUpWithEmail()
+    FS->>DB: createUser() + createUserProfile()
+    DB-->>FS: UserCredential + profile saved
+    FS-->>UI: success (or error to retry)
+    UI-->>U: Onboarding → Main Dashboard
+
+%% ── Diagram B: AI Coach Feedback ────────────────────────────────
+
+sequenceDiagram
+    actor U as User
+    participant UI as EventPracticeScreen
+    participant G as GeminiRepo
+    participant PH as PracticeHistoryStore
+
+    U->>UI: Enter response + Get AI Feedback
+    UI->>G: chatTextGeneration(prompt)
+    G-->>UI: coaching text (or demo fallback)
+    UI->>PH: add(PracticeRecord coach) + awardPoints()
+    UI-->>U: Show Coach Feedback card
+
+%% ── Diagram C: Live Sim & Rubric Judge ──────────────────────────
+
+sequenceDiagram
+    actor U as User
+    participant UI as EventPracticeScreen
+    participant G as GeminiRepo
+    participant PH as PracticeHistoryStore
+
+    U->>UI: Run timer + submit response
+    UI->>G: rubricJudge(scenario, response)
+    G-->>UI: NlcRubricResult scores
+    UI->>PH: add(PracticeRecord live_sim) + awardPoints(15)
+    UI-->>U: Show rubric results (saved to History)
+
+%% ── Diagram D: Friend Request Lifecycle ─────────────────────────
+
+sequenceDiagram
+    actor A as Member A
+    participant FS as FirebaseService
+    participant DB as Cloud Firestore
+    actor B as Member B
+
+    A->>FS: sendFriendRequest(A, B)
+    FS->>DB: write request (pending)
+    B->>FS: acceptFriendRequest()
+    FS->>DB: create friendship + mark accepted
+    A->>FS: removeFriend() then re-request
+    FS->>DB: delete friendship, clear stale, write fresh request

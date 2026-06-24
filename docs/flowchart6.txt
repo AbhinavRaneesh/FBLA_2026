@@ -1,0 +1,46 @@
+%% ═══════════════════════════════════════════════════════════════
+%% FBLA Member App — Flowchart Part 6 of 6
+%% Region: Social, Discover, Video Studio & Profile / Settings
+%% Binder: Page 6 — follows Part 2 (Social & Profile Tabs)
+%% Paste into https://mermaid.live → export PNG for A4 print
+%% ═══════════════════════════════════════════════════════════════
+
+flowchart TB
+    PrevSocial[← Part 2: Social Tab]:::connector --> SocialScreen[Social Screen]:::screen
+    PrevProfile[← Part 2: Profile Tab]:::connector --> ProfileScreen[Profile Screen]:::screen
+
+    SocialScreen --> SocialQ{Action?}:::decision
+
+    SocialQ -->|Feed| VideosTab[Videos & News Feed]:::screen
+    VideosTab --> FeedRank[Personalized Feed Ranking]:::screen
+    FeedRank --> PlayVideo[Play Video]:::screen
+
+    SocialQ -->|Discord| DiscordLink[Open Discord Link]:::external
+
+    SocialQ -->|Discover| Discover[Browse Member Profiles]:::screen
+    Discover --> SearchFilter[Search / Filter Members]:::screen
+    SearchFilter --> FriendReq[Send / Accept Friend Requests]:::screen
+    FriendReq --> PublicProfile[View Public Profile]:::screen
+    PublicProfile --> FirestoreUsers[(Firestore — users)]:::external
+    FriendReq --> DMs[Direct Messages & Group Chat]:::screen
+
+    SocialQ -->|Video Studio| VideoStudio[Record / Pick Video]:::screen
+    VideoStudio --> PublishFBLA[Publish to FBLA Social]:::screen
+    PublishFBLA --> YTQ{Upload to YouTube?}:::decision
+    YTQ -->|Yes| YouTubeAPI[YouTube Data API v3]:::external
+    YTQ -->|No| SocialDone[Done]:::success
+    YouTubeAPI --> SocialDone
+
+    ProfileScreen --> UserStats[User Stats, Credits & Rank]:::screen
+    ProfileScreen --> EditProfile[Edit Profile]:::screen
+    ProfileScreen --> Settings[App Settings]:::screen
+    Settings --> ThemeNotif[Theme & Notifications]:::screen
+    Settings --> Accessibility[Accessibility Options]:::screen
+    ProfileScreen --> Logout[Logout — Clear Session]:::screen
+    Logout --> ToAuth[→ Part 1: Welcome / Auth Screen]:::connector
+
+    classDef screen fill:#E8D5F5,stroke:#7B2CBF,stroke-width:2px,color:#1a1a1a
+    classDef decision fill:#FFD6E8,stroke:#C9184A,stroke-width:2px,color:#1a1a1a
+    classDef success fill:#D8F5D0,stroke:#2D6A4F,stroke-width:2px,color:#1a1a1a
+    classDef external fill:#D0E8FF,stroke:#1D4ED8,stroke-width:2px,color:#1a1a1a
+    classDef connector fill:#F0F0F0,stroke:#888888,stroke-width:2px,color:#444444

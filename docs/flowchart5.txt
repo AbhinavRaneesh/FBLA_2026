@@ -1,0 +1,31 @@
+%% ═══════════════════════════════════════════════════════════════
+%% FBLA Member App — Flowchart Part 5 of 6
+%% Region: Events, RSVP, Reminders & Google Calendar
+%% Binder: Page 5 — follows Part 2 (Events Tab)
+%% Paste into https://mermaid.live → export PNG for A4 print
+%% ═══════════════════════════════════════════════════════════════
+
+flowchart TB
+    PrevPart[← Part 2: Events Tab]:::connector --> EventsScreen[Events Screen]:::screen
+
+    EventsScreen --> FilterEvents[Filter — All / Chapter / State / National]:::screen
+    FilterEvents --> EventList[Upcoming FBLA Events List]:::screen
+
+    EventList --> EventDetail[Open Event Detail]:::screen
+    EventDetail --> RSVP[RSVP to Event]:::screen
+    EventDetail --> Reminder[Set Local Notification Reminder]:::screen
+    Reminder --> LocalStore[(Local Storage — SharedPreferences)]:::external
+
+    EventsScreen --> PersonalEvent[Add Personal Event]:::screen
+    PersonalEvent --> EventList
+
+    EventsScreen --> SavedEvents[Bookmark / Saved Events]:::screen
+
+    EventDetail --> GCalSync[Google Calendar Integration]:::external
+    GCalSync --> GCalPerm[Request Permission]:::screen
+    GCalPerm --> SyncEvents[Sync / Add to Google Calendar]:::screen
+    SyncEvents --> AppCalendar[View in App Calendar]:::screen
+
+    classDef screen fill:#E8D5F5,stroke:#7B2CBF,stroke-width:2px,color:#1a1a1a
+    classDef external fill:#D0E8FF,stroke:#1D4ED8,stroke-width:2px,color:#1a1a1a
+    classDef connector fill:#F0F0F0,stroke:#888888,stroke-width:2px,color:#444444

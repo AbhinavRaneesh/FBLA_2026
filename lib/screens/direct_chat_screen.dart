@@ -6,15 +6,18 @@ import '../main.dart';
 import '../services/firebase_service.dart';
 import '../utils/shared_post_launcher.dart';
 import '../widgets/app_snackbar.dart';
+import '../widgets/member_avatar.dart';
 
 class DirectChatScreen extends StatefulWidget {
   final String otherUserId;
   final String otherUserName;
+  final String? otherUserPhotoUrl;
 
   const DirectChatScreen({
     super.key,
     required this.otherUserId,
     required this.otherUserName,
+    this.otherUserPhotoUrl,
   });
 
   @override
@@ -75,19 +78,13 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            CircleAvatar(
-              backgroundColor: fblaGold,
+            MemberAvatar(
+              name: widget.otherUserName,
+              photoUrl: widget.otherUserPhotoUrl,
               radius: 16,
-              child: Text(
-                widget.otherUserName.isNotEmpty
-                    ? widget.otherUserName[0].toUpperCase()
-                    : '?',
-                style: const TextStyle(
-                  color: fblaNavy,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              backgroundColor: fblaGold,
+              foregroundColor: fblaNavy,
+              fontSize: 14,
             ),
             const SizedBox(width: 10),
             Expanded(

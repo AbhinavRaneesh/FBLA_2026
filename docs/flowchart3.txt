@@ -1,0 +1,62 @@
+%% ═══════════════════════════════════════════════════════════════
+%% FBLA Member App — Flowchart Part 3 of 6
+%% Region: Resources — Courses, Objective Test Levels, PDFs & AI Coach
+%% Binder: Page 3 — follows Part 2 (Resources Tab)
+%% Paste into https://mermaid.live → export PNG for A4 print
+%% ═══════════════════════════════════════════════════════════════
+
+flowchart TB
+    PrevPart[← Part 2: Resources Tab]:::connector --> ResScreen[Resources Screen]:::screen
+
+    ResScreen --> SelectCat[Select Category / Competitive Event]:::screen
+    SelectCat --> AddCourse[Add Course — search & pick event]:::screen
+    AddCourse --> CourseJourney[Course Journey]:::screen
+
+    CourseJourney --> CatQ{Event category?}:::decision
+
+  %% ── Objective Test Events (e.g. Cybersecurity) ─────────────────
+    CatQ -->|Objective Test| LevelMap[Level Map — progress & XP]:::screen
+    LevelMap --> ProgressBar[X of 8 levels — % complete]:::screen
+    LevelMap --> LevelNode[Tap level node]:::screen
+
+    LevelNode --> LevelStatusQ{Level status?}:::decision
+    LevelStatusQ -->|Locked| LockedMsg[Complete previous level to unlock]:::screen
+    LockedMsg --> LevelMap
+    LevelStatusQ -->|Active / Completed| StartLevel[Open level lesson]:::screen
+
+    StartLevel --> L1Q{Level 1?}:::decision
+    L1Q -->|Yes| FundLesson[Cybersecurity Fundamentals — intro video]:::screen
+    FundLesson --> QuizSession[Lesson Session — multiple-choice quiz]:::screen
+    L1Q -->|No| QuizSession
+
+    QuizSession --> ScoreResult[Show score — correct / total]:::screen
+    ScoreResult --> MarkComplete[Mark level complete + award XP]:::screen
+    MarkComplete --> LocalXP[(Local Storage — level progress)]:::external
+    MarkComplete --> LevelMap
+
+    LevelMap --> LevelTopics[Levels 1–8: Fundamentals → Threats → Security Tech → Practices → Network → Data Protection → Latest Features → Final Review]:::screen
+
+    CourseJourney --> MoreMenu[More — Study Notes, Question Bank, Vocab, Official Docs]:::screen
+    MoreMenu --> ViewPDF[View Guidelines / PDF]:::screen
+    ViewPDF --> PDFViewer[In-App PDF Viewer]:::screen
+    PDFViewer --> FirebaseStorage[(Firebase Storage)]:::external
+
+  %% ── Presentation & Roleplay Events ─────────────────────────────
+    CatQ -->|Presentation| PresPath[Presentation Event — AI Coach landing]:::screen
+    CatQ -->|Roleplay| RolePath[Roleplay Event — AI Coach landing]:::screen
+
+    PresPath --> LearnFund[Learn Fundamentals PDF]:::screen
+    LearnFund --> ViewPDF
+    PresPath --> CoachTab[AI Coach — text feedback]:::screen
+    CoachTab --> UploadSS[Upload App Screenshots]:::screen
+    UploadSS --> UIFeedback[UI Screenshot Review]:::screen
+
+    PresPath --> ToLiveSim[→ Part 4: Live Sim & AI Judge]:::connector
+    RolePath --> ToLiveSim
+
+    CatQ -->|Other Objective Test| ComingSoon[Lessons coming soon — try Cybersecurity]:::screen
+
+    classDef screen fill:#E8D5F5,stroke:#7B2CBF,stroke-width:2px,color:#1a1a1a
+    classDef decision fill:#FFD6E8,stroke:#C9184A,stroke-width:2px,color:#1a1a1a
+    classDef external fill:#D0E8FF,stroke:#1D4ED8,stroke-width:2px,color:#1a1a1a
+    classDef connector fill:#F0F0F0,stroke:#888888,stroke-width:2px,color:#444444

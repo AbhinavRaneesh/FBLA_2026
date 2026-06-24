@@ -713,6 +713,10 @@ class FirebaseService {
           .doc(_friendshipId(currentUserId, friendUserId))
           .delete();
       await _clearFriendRequestDocs(currentUserId, friendUserId);
+      await deleteDirectChatBetweenUsers(
+        userId1: currentUserId,
+        userId2: friendUserId,
+      );
     } on FirebaseException catch (e) {
       if (e.code == 'permission-denied') {
         throw Exception(
@@ -953,6 +957,61 @@ class FirebaseService {
   }
 
   // Direct Messaging Methods
+  static Future<void> deleteDirectChatBetweenUsers({
+    required String userId1,
+    required String userId2,
+  }) async {
+    final chatId = _chatId(userId1, userId2);
+    final messagesRef = _firestore
+        .collection('direct_messages')
+        .doc(chatId)
+        .collection('messages');
+
+    while (true) {
+      final snapshot = await messagesRef.limit(500).get();
+      if (snapshot.docs.isEmpty) break;
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
+
+    await _firestore.collection('direct_messages').doc(chatId).delete();
+  }
+
+  /// Removes DM threads with users who are no longer friends (legacy cleanup).
+  static Future<void> pruneNonFriendDirectChats(String userId) async {
+    final friends = await getFriendsForUser(userId);
+    final friendIds =
+        friends.map((f) => (f['id'] ?? '').toString()).where((id) => id.isNotEmpty).toSet();
+
+    final snapshot = await _firestore
+        .collection('direct_messages')
+        .where('participants', arrayContains: userId)
+        .get();
+
+    for (final doc in snapshot.docs) {
+      final participants =
+          List<String>.from(doc.data()['participants'] ?? const <String>[]);
+      final otherId = participants.firstWhere(
+        (id) => id != userId,
+        orElse: () => '',
+      );
+      if (otherId.isEmpty || !friendIds.contains(otherId)) {
+        final sorted = [...participants]..sort();
+        if (sorted.length == 2) {
+          await deleteDirectChatBetweenUsers(
+            userId1: sorted[0],
+            userId2: sorted[1],
+          );
+        } else {
+          await doc.reference.delete();
+        }
+      }
+    }
+  }
+
   static String _chatId(String userId1, String userId2) {
     final sorted = [userId1, userId2]..sort();
     return 'chat_${sorted[0]}_${sorted[1]}';

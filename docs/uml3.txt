@@ -1,0 +1,146 @@
+%% ═══════════════════════════════════════════════════════════════
+%% FBLA Member App — UML Part 3 of 4
+%% Region: Services Layer & External Integrations
+%% Binder: Page 3 — Firebase, AI, social, calendar, storage
+%% Paste into https://mermaid.live → export PNG for A4 print
+%% ═══════════════════════════════════════════════════════════════
+
+classDiagram
+    direction TB
+
+    class FirebaseService {
+        <<service>>
+        +signInWithEmail()
+        +signUpWithEmail()
+        +signInWithGoogle()
+        +createUserProfile()
+        +getUserProfile()
+        +getEvents()
+        +getNews()
+        +sendFriendRequest()
+        +acceptFriendRequest()
+        +removeFriend()
+        +awardPoints()
+    }
+
+    class GeminiRepo {
+        <<service>>
+        +chatTextGenerationRepo()
+        +chatTextGeneration()
+        +rubricJudge()
+    }
+
+    class PracticeHistoryStore {
+        <<service>>
+        +add(PracticeRecord)
+        +loadAll()
+        +forEvent(String)
+    }
+
+    class ChatHistoryStore {
+        <<service>>
+        +save(threadId, messages)
+        +load(threadId)
+    }
+
+    class SocialDataService {
+        <<service>>
+        +loadFeedItems()
+        +loadPreferences()
+        +savePost()
+    }
+
+    class SocialMlService {
+        <<service>>
+        +rankFeedItems()
+        +getRecommendedContent()
+    }
+
+    class SocialPreferencesStore {
+        <<service>>
+        +loadPreferences()
+        +saveVideoPost()
+        +clearVideoPostsForUser()
+    }
+
+    class YouTubeUploadService {
+        <<service>>
+        +uploadVideo()
+        +getAccessToken()
+    }
+
+    class GoogleCalendarService {
+        <<service>>
+        +addEventToCalendar()
+        +requestPermission()
+    }
+
+    class FirebaseAuth {
+        <<external>>
+    }
+
+    class CloudFirestore {
+        <<external>>
+    }
+
+    class FirebaseStorage {
+        <<external>>
+    }
+
+    class GeminiAPI {
+        <<external>>
+    }
+
+    class YouTubeDataAPI {
+        <<external>>
+    }
+
+    class GoogleCalendarAPI {
+        <<external>>
+    }
+
+    class SharedPreferences {
+        <<external>>
+    }
+
+    class AppState {
+        <<from Part 2>>
+    }
+
+    class ChatBloc {
+        <<from Part 2>>
+    }
+
+    class EventPracticeScreen {
+        <<from Part 2>>
+    }
+
+    class EventsScreen {
+        <<from Part 2>>
+    }
+
+    class SocialProvider {
+        <<from Part 2>>
+    }
+
+  %% App layer uses services
+    AppState ..> FirebaseService : uses
+    ChatBloc ..> GeminiRepo : uses
+    ChatBloc ..> ChatHistoryStore : uses
+    EventPracticeScreen ..> GeminiRepo : uses
+    EventPracticeScreen ..> PracticeHistoryStore : uses
+    SocialProvider ..> SocialDataService : uses
+    SocialProvider ..> SocialMlService : uses
+    SocialProvider ..> SocialPreferencesStore : uses
+    SocialProvider ..> YouTubeUploadService : uses
+    EventsScreen ..> GoogleCalendarService : uses
+
+  %% Services talk to external systems
+    FirebaseService --> FirebaseAuth
+    FirebaseService --> CloudFirestore
+    GeminiRepo --> GeminiAPI
+    YouTubeUploadService --> YouTubeDataAPI
+    GoogleCalendarService --> GoogleCalendarAPI
+    PracticeHistoryStore --> SharedPreferences
+    ChatHistoryStore --> SharedPreferences
+    SocialPreferencesStore --> SharedPreferences

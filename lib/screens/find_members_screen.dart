@@ -7,6 +7,7 @@ import '../main.dart';
 import '../services/firebase_service.dart';
 import '../services/nlc_prep_service.dart';
 import '../widgets/app_snackbar.dart';
+import '../widgets/member_avatar.dart';
 
 enum _MembersTab { directory, friends, requests }
 
@@ -86,6 +87,20 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
       final outgoing =
           await FirebaseService.getOutgoingFriendRequests(currentUserId);
 
+      final memberById = {
+        for (final member in members)
+          (member['id'] ?? '').toString(): member,
+      };
+      final enrichedIncoming = incoming.map((request) {
+        final fromId = (request['fromUserId'] ?? '').toString();
+        final fromMember = memberById[fromId];
+        if (fromMember == null) return request;
+        return {
+          ...request,
+          'fromUserPhotoUrl': (fromMember['photoUrl'] ?? '').toString(),
+        };
+      }).toList(growable: false);
+
       final memberIds = members
           .map((member) => (member['id'] ?? '').toString())
           .where((id) => id.isNotEmpty)
@@ -99,7 +114,7 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
       setState(() {
         _allMembers = members;
         _friends = friends;
-        _incomingRequests = incoming;
+        _incomingRequests = enrichedIncoming;
         _outgoingRequests = outgoing;
         _relationStatuses = statuses;
         _myNlcEvents = myEvents;
@@ -449,7 +464,7 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
               ],
               const SizedBox(height: 12),
               Text(
-                'They will be removed from your Friends list. You can send a new friend request anytime.',
+                'They will be removed from your Friends list and your chat history will be cleared. You can send a new friend request anytime.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: secondaryText,
@@ -1361,6 +1376,9 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
     required Color borderColor,
   }) {
     final name = (request['fromUserName'] ?? 'Member').toString();
+    final photoUrl = (request['fromUserPhotoUrl'] ?? request['photoUrl'] ?? '')
+        .toString()
+        .trim();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -1372,13 +1390,11 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
       ),
       child: Row(
         children: [
-          CircleAvatar(
+          MemberAvatar(
+            name: name,
+            photoUrl: photoUrl.isEmpty ? null : photoUrl,
+            radius: 22,
             backgroundColor: _fblaBlue,
-            child: Text(
-              name.isNotEmpty ? name[0].toUpperCase() : '?',
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold),
-            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1412,10 +1428,15 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: fblaLightSuccessBackground,
+                color: isDark
+                    ? fblaGold.withValues(alpha: 0.16)
+                    : fblaGold.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: fblaGold.withValues(alpha: isDark ? 0.55 : 0.4),
+                ),
               ),
-              child: Icon(Icons.check_rounded, color: fblaLightSuccessText),
+              child: const Icon(Icons.check_rounded, color: fblaGold, size: 22),
             ),
           ),
           IconButton(
@@ -1425,10 +1446,16 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: fblaLightDestructive.withValues(alpha: 0.12),
+                color: isDark
+                    ? const Color(0xFFEF5350).withValues(alpha: 0.16)
+                    : fblaLightDestructive.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: const Color(0xFFEF5350).withValues(alpha: 0.35),
+                ),
               ),
-              child: Icon(Icons.close_rounded, color: fblaLightDestructive),
+              child: const Icon(Icons.close_rounded,
+                  color: Color(0xFFEF5350), size: 22),
             ),
           ),
         ],

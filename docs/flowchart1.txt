@@ -1,0 +1,44 @@
+%% ═══════════════════════════════════════════════════════════════
+%% FBLA Member App — Flowchart Part 1 of 6
+%% Region: App Launch, Authentication & Onboarding
+%% Binder: Page 1 — next page continues at Main Dashboard (Part 2)
+%% Paste into https://mermaid.live → export PNG for A4 print
+%% ═══════════════════════════════════════════════════════════════
+
+flowchart TB
+    Start([User Starts App]):::success --> Splash[Splash Screen]:::screen
+    Splash --> AuthQ{Is User Authenticated?}:::decision
+
+    AuthQ -->|Yes| Dashboard[Main Dashboard]:::success
+    AuthQ -->|No| Welcome[Welcome / Auth Screen]:::screen
+
+    Welcome --> AuthChoice{Login or Sign Up?}:::decision
+    AuthChoice -->|Login| Login[Login]:::screen
+    AuthChoice -->|Sign Up| SignUp[Enter User Details]:::screen
+
+    Login --> LoginMethod{Auth Method?}:::decision
+    LoginMethod -->|Email / Password| EmailLogin[Email + Password]:::screen
+    LoginMethod -->|Google / Apple| OAuth[Google / Apple Sign-In]:::external
+
+    EmailLogin --> CredsQ{Credentials Valid?}:::decision
+    CredsQ -->|No| ErrorRetry[Error / Retry]:::screen
+    ErrorRetry --> Login
+    CredsQ -->|Yes| Dashboard
+    OAuth --> Dashboard
+
+    Login --> ForgotPW[Forgot Password?]:::screen
+    ForgotPW --> ResetEmail[Reset Email Sent]:::success
+
+    SignUp --> ValidateQ{Validation OK?}:::decision
+    ValidateQ -->|No| SignUp
+    ValidateQ -->|Yes| CreateAcct[Create Account in Firebase]:::external
+    CreateAcct --> Onboarding[Onboarding Flow]:::screen
+    Onboarding --> Dashboard
+
+    Dashboard --> NextPart[→ Part 2: Main Navigation Hub]:::connector
+
+    classDef screen fill:#E8D5F5,stroke:#7B2CBF,stroke-width:2px,color:#1a1a1a
+    classDef decision fill:#FFD6E8,stroke:#C9184A,stroke-width:2px,color:#1a1a1a
+    classDef success fill:#D8F5D0,stroke:#2D6A4F,stroke-width:2px,color:#1a1a1a
+    classDef external fill:#D0E8FF,stroke:#1D4ED8,stroke-width:2px,color:#1a1a1a
+    classDef connector fill:#F0F0F0,stroke:#888888,stroke-width:2px,color:#444444

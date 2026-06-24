@@ -1,0 +1,123 @@
+%% ═══════════════════════════════════════════════════════════════
+%% FBLA Member App — UML Part 1 of 4
+%% Region: Domain Model Class Diagram
+%% Binder: Page 1 — core data entities and relationships
+%% Paste into https://mermaid.live → export PNG for A4 print
+%% ═══════════════════════════════════════════════════════════════
+
+classDiagram
+    direction TB
+
+    class FBLAUser {
+        +String id
+        +String name
+        +String email
+        +String school
+        +String chapter
+        +int points
+        +int streak
+        +String rank
+        +List~String~ badges
+        +fromFirestore()
+        +toFirestore()
+    }
+
+    class Event {
+        +String id
+        +String title
+        +DateTime start
+        +DateTime end
+        +String location
+        +Map rsvps
+    }
+
+    class NewsItem {
+        +String id
+        +String title
+        +String body
+        +DateTime date
+    }
+
+    class FBLAEvent {
+        +String id
+        +String title
+        +String description
+        +DateTime startTime
+        +String type
+        +Map rsvps
+    }
+
+    class PracticeRecord {
+        +String eventName
+        +String category
+        +String type
+        +DateTime timestamp
+        +String aiFeedback
+        +double rubricOverall
+        +String rubricJson
+        +isCoach()
+        +isLiveSim()
+        +toJson()
+    }
+
+    class NlcRubricResult {
+        +double overall
+        +List~NlcRubricDimension~ dimensions
+        +fromJson()
+    }
+
+    class NlcRubricDimension {
+        +String name
+        +double score
+        +String feedback
+    }
+
+    class FBLARankTier {
+        +String name
+        +int minCredits
+        +IconData icon
+    }
+
+    class FBLARankSystem {
+        +tiers List~FBLARankTier~
+        +tierForCredits(int)
+        +progressToNext(int)
+    }
+
+    class FeedItem {
+        +String id
+        +String platform
+        +String title
+        +DateTime publishedAt
+        +Object data
+    }
+
+    class BlueWavePostData {
+        +String id
+        +String authorName
+        +String title
+        +String videoPath
+        +DateTime createdAt
+    }
+
+    class ChatMessageModel {
+        +String role
+        +String content
+        +DateTime timestamp
+        +user(text)
+        +assistant(text)
+    }
+
+    class FblaEventOption {
+        +String name
+        +String category
+        +String description
+    }
+
+    FBLAUser "1" --> "*" PracticeRecord : practices
+    FBLAUser "1" --> "1" FBLARankTier : current rank
+    FBLARankSystem "1" --> "*" FBLARankTier : defines
+    PracticeRecord "1" --> "0..1" NlcRubricResult : live_sim score
+    NlcRubricResult "1" *-- "*" NlcRubricDimension
+    FeedItem "1" --> "1" BlueWavePostData : may wrap
+    FBLAUser "1" --> "*" Event : RSVPs

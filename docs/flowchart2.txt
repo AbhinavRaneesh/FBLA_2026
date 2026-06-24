@@ -1,0 +1,32 @@
+%% ═══════════════════════════════════════════════════════════════
+%% FBLA Member App — Flowchart Part 2 of 6
+%% Region: Main Dashboard & Home Tab
+%% Binder: Page 2 — follows Part 1 (Dashboard); other tabs in Parts 3–6
+%% Paste into https://mermaid.live → export PNG for A4 print
+%% ═══════════════════════════════════════════════════════════════
+
+flowchart TB
+    PrevPart[← Part 1: Main Dashboard]:::connector --> Dashboard[Main Dashboard]:::success
+
+    Dashboard --> NavBar[Bottom Navigation Bar]:::screen
+    NavBar --> Home[Home Tab]:::screen
+    NavBar --> Resources[Resources Tab]:::screen
+    NavBar --> Events[Events Tab]:::screen
+    NavBar --> Social[Social Tab]:::screen
+    NavBar --> Profile[Profile Tab]:::screen
+
+    Home --> HomeScreen[Home Screen]:::screen
+    HomeScreen --> NLCCountdown[NLC Countdown]:::screen
+    HomeScreen --> Announcements[Announcements & News Preview]:::screen
+    HomeScreen --> UpcomingEvents[Upcoming Events Preview]:::screen
+    HomeScreen --> RecentActivity[Recent Activity]:::screen
+    RecentActivity --> RecentNote[Shows practice sessions from Part 4]:::connector
+
+    Resources --> ToRes[→ Part 3: Resources & AI Coach]:::connector
+    Events --> ToEvt[→ Part 5: Events & Calendar]:::connector
+    Social --> ToSoc[→ Part 6: Social & Discover]:::connector
+    Profile --> ToProf[→ Part 6: Profile & Settings]:::connector
+
+    classDef screen fill:#E8D5F5,stroke:#7B2CBF,stroke-width:2px,color:#1a1a1a
+    classDef success fill:#D8F5D0,stroke:#2D6A4F,stroke-width:2px,color:#1a1a1a
+    classDef connector fill:#F0F0F0,stroke:#888888,stroke-width:2px,color:#444444

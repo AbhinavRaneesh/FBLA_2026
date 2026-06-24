@@ -1,0 +1,39 @@
+%% ═══════════════════════════════════════════════════════════════
+%% FBLA Member App — Flowchart Part 4 of 6
+%% Region: Live Sim, AI Feedback Loop & Practice History
+%% Binder: Page 4 — follows Part 3 (Roleplay branch)
+%% Paste into https://mermaid.live → export PNG for A4 print
+%% ═══════════════════════════════════════════════════════════════
+
+flowchart TB
+    PrevPart[← Part 3: Roleplay / Live Sim]:::connector --> LiveSim[Live Sim]:::screen
+
+    LiveSim --> PrepPhase[Read Scenario & Prepare]:::screen
+    PrepPhase --> TimerQ{Event type?}:::decision
+
+    TimerQ -->|Presentation| Timer7[7:00 Presentation Timer]:::screen
+    TimerQ -->|Roleplay| Timer10[10:00 Prep → Perform]:::screen
+
+    Timer7 --> Controls[Mute / Video / Share Screen]:::screen
+    Timer7 --> SubmitJudge[Submit to AI Judge]:::screen
+    Timer10 --> SubmitJudge
+
+    SubmitJudge --> Gemini[Gemini AI Integration]:::external
+    Gemini --> AIPrompt[AI Generates Rubric Prompt]:::screen
+    AIPrompt --> UserInput[User Input — Text / Voice]:::screen
+    UserInput --> AIAnalyze[Gemini Analyzes Response]:::external
+    AIAnalyze --> Feedback[Provide Rubric Feedback]:::screen
+
+    Feedback --> SaveSession[Save Session Results]:::success
+    SaveSession --> Firestore[(Firestore)]:::external
+    SaveSession --> Credits[Award Credits & Rank Progress]:::screen
+    SaveSession -.->|shows in| RecentActivity[Home — Recent Activity — Part 2]:::connector
+
+    LiveSim --> HistoryTab[Practice History Tab]:::screen
+    HistoryTab --> ViewPast[View Past Coach / Live Sim Sessions]:::screen
+
+    classDef screen fill:#E8D5F5,stroke:#7B2CBF,stroke-width:2px,color:#1a1a1a
+    classDef decision fill:#FFD6E8,stroke:#C9184A,stroke-width:2px,color:#1a1a1a
+    classDef success fill:#D8F5D0,stroke:#2D6A4F,stroke-width:2px,color:#1a1a1a
+    classDef external fill:#D0E8FF,stroke:#1D4ED8,stroke-width:2px,color:#1a1a1a
+    classDef connector fill:#F0F0F0,stroke:#888888,stroke-width:2px,color:#444444

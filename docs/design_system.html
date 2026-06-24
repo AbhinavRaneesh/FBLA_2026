@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FBLA Member App — Color Palette & Branding</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --navy: #00274D;
+    --blue: #1D4E89;
+    --gold: #FDB913;
+    --bg: #EFF3F6;
+    --surface: #FFFFFF;
+    --text: #0A192F;
+    --text-secondary: #475569;
+    --border: #D5DEE6;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 48px 24px;
+  }
+
+  .page {
+    max-width: 900px;
+    margin: 0 auto;
+    background: var(--surface);
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0, 39, 77, 0.12);
+    border: 1px solid var(--border);
+  }
+
+  /* ── Header ─────────────────────────────────── */
+  .header {
+    background: linear-gradient(135deg, var(--navy) 0%, var(--blue) 100%);
+    color: #fff;
+    padding: 48px 48px 40px;
+    position: relative;
+  }
+  .header::after {
+    content: "";
+    position: absolute;
+    left: 48px; bottom: 28px;
+    width: 64px; height: 5px;
+    background: var(--gold);
+    border-radius: 4px;
+  }
+  .eyebrow {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 12px;
+  }
+  .header h1 {
+    font-size: 38px;
+    font-weight: 900;
+    letter-spacing: -0.5px;
+  }
+  .header p {
+    margin-top: 12px;
+    font-size: 16px;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.78);
+    max-width: 540px;
+  }
+
+  /* ── Sections ───────────────────────────────── */
+  .section { padding: 44px 48px; }
+  .section + .section { border-top: 1px solid var(--border); }
+
+  .section-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--blue);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title::before {
+    content: "";
+    width: 5px; height: 18px;
+    background: var(--gold);
+    border-radius: 3px;
+  }
+
+  /* ── Color grid ─────────────────────────────── */
+  .swatches {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 18px;
+  }
+  .swatch {
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    background: var(--surface);
+    transition: transform 0.15s ease;
+  }
+  .swatch:hover { transform: translateY(-3px); }
+  .swatch .chip {
+    height: 96px;
+    display: flex;
+    align-items: flex-end;
+    padding: 12px;
+  }
+  .swatch .role {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.85);
+    color: var(--navy);
+  }
+  .swatch .meta {
+    padding: 14px;
+  }
+  .swatch .name {
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .swatch .hex {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+  }
+
+  /* ── Typography ─────────────────────────────── */
+  .type-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 20px 0;
+    border-bottom: 1px dashed var(--border);
+    flex-wrap: wrap;
+  }
+  .type-row:last-child { border-bottom: none; }
+  .type-sample { color: var(--text); }
+  .type-h { font-size: 30px; font-weight: 700; letter-spacing: -0.4px; }
+  .type-b { font-size: 17px; font-weight: 400; }
+  .type-btn-sample {
+    display: inline-block;
+    background: var(--gold);
+    color: var(--navy);
+    font-weight: 600;
+    font-size: 15px;
+    padding: 12px 26px;
+    border-radius: 12px;
+  }
+  .type-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-align: right;
+    min-width: 180px;
+  }
+  .type-label span { display: block; font-weight: 400; font-size: 12px; color: var(--text-secondary); opacity: 0.8; }
+
+  /* ── Logo / usage row ───────────────────────── */
+  .usage {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  .usage-card {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .logo-badge {
+    width: 56px; height: 56px;
+    border-radius: 16px;
+    display: grid; place-items: center;
+    font-weight: 900;
+    font-size: 22px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--navy), var(--blue));
+  }
+  .logo-badge.gold { background: var(--gold); color: var(--navy); }
+  .usage-card h3 { font-size: 16px; font-weight: 700; }
+  .usage-card p { font-size: 13.5px; color: var(--text-secondary); }
+
+  .buttons-demo { display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn {
+    font-weight: 600; font-size: 14px;
+    padding: 11px 22px; border-radius: 12px;
+    border: none; cursor: default;
+  }
+  .btn-primary { background: var(--navy); color: #fff; }
+  .btn-accent { background: var(--gold); color: var(--navy); }
+  .btn-outline { background: transparent; color: var(--blue); border: 1.5px solid var(--blue); }
+
+  /* ── Sub-headings inside a section ───────────── */
+  .sub-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--navy);
+    margin: 30px 0 14px;
+  }
+  .sub-title:first-of-type { margin-top: 0; }
+  .sub-note { font-size: 13.5px; color: var(--text-secondary); margin-bottom: 18px; max-width: 620px; }
+
+  /* Clear-space / logo lockup */
+  .clearspace {
+    display: flex; align-items: center; gap: 26px; flex-wrap: wrap;
+    border: 1px solid var(--border); border-radius: 16px; padding: 24px;
+    background: var(--bg);
+  }
+  .clearspace .frame {
+    position: relative; padding: 28px; border-radius: 18px;
+    background: var(--surface); border: 1.5px dashed var(--border);
+  }
+  .clearspace .lockup { display: flex; align-items: center; gap: 14px; }
+  .clearspace .wordmark { font-weight: 900; font-size: 20px; color: var(--navy); letter-spacing: -0.3px; }
+  .clearspace .wordmark span { color: var(--gold); }
+  .clearspace ul { font-size: 13.5px; color: var(--text-secondary); padding-left: 18px; }
+  .clearspace li { margin-bottom: 6px; }
+
+  /* Do / Don't grid */
+  .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .do-card {
+    border-radius: 14px; padding: 18px 18px 20px; border: 1px solid var(--border);
+  }
+  .do-card.good { background: #F0FAF3; border-color: #BCE5C8; }
+  .do-card.bad { background: #FDF1F1; border-color: #F2C7C7; }
+  .do-head { font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .do-card.good .do-head { color: #15803D; }
+  .do-card.bad .do-head { color: #DC2626; }
+  .do-card ul { list-style: none; }
+  .do-card li { font-size: 13.5px; color: var(--text); padding: 5px 0 5px 22px; position: relative; }
+  .do-card.good li::before { content: "✓"; position: absolute; left: 0; color: #15803D; font-weight: 800; }
+  .do-card.bad li::before { content: "✕"; position: absolute; left: 0; color: #DC2626; font-weight: 800; }
+
+  /* Button spec table */
+  .spec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .spec {
+    border: 1px solid var(--border); border-radius: 14px; padding: 18px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .spec .btn { align-self: flex-start; }
+  .spec .spec-meta { font-size: 12.5px; color: var(--text-secondary); }
+  .spec .spec-meta b { color: var(--text); font-weight: 600; }
+
+  /* Icon chips */
+  .icon-row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .icon-chip {
+    width: 64px; height: 64px; border-radius: 16px; display: grid; place-items: center;
+    background: var(--bg); border: 1px solid var(--border); font-size: 26px;
+  }
+  .icon-chip.active { background: var(--navy); color: var(--gold); border-color: var(--navy); }
+
+  /* Voice & tone pills */
+  .pills { display: flex; gap: 10px; flex-wrap: wrap; }
+  .pill {
+    font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 30px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--navy);
+  }
+  .pill.accent { background: rgba(253,185,19,0.16); border-color: rgba(253,185,19,0.5); }
+
+  .footer {
+    padding: 24px 48px 40px;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    text-align: center;
+  }
+
+  @media (max-width: 620px) {
+    .usage { grid-template-columns: 1fr; }
+    .header h1 { font-size: 30px; }
+  }
+
+  @media print {
+    body { background: #fff; padding: 0; }
+    .page { box-shadow: none; border: none; border-radius: 0; }
+    .swatch:hover { transform: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <!-- Header -->
+    <header class="header">
+      <div class="eyebrow">FBLA Member App · Brand Guidelines</div>
+      <h1>Color Palette &amp; Branding</h1>
+      <p>The visual identity for the FBLA Member App — a clean, professional system built on FBLA's navy &amp; gold, designed for clarity, trust, and accessibility.</p>
+    </header>
+
+    <!-- Colors -->
+    <section class="section">
+      <div class="section-title">Color Palette</div>
+      <div class="swatches">
+        <div class="swatch">
+          <div class="chip" style="background:#00274D;"><span class="role">Primary</span></div>
+          <div class="meta"><div class="name">FBLA Navy</div><div class="hex">#00274D</div></div>
+        </div>
+        <div class="swatch">
+          <div class="chip" style="background:#1D4E89;"><span class="role">Secondary</span></div>
+          <div class="meta"><div class="name">FBLA Blue</div><div class="hex">#1D4E89</div></div>
+        </div>
+        <div class="swatch">
+          <div class="chip" style="background:#FDB913;"><span class="role">Accent</span></div>
+          <div class="meta"><div class="name">FBLA Gold</div><div class="hex">#FDB913</div></div>
+        </div>
+        <div class="swatch">
+          <div class="chip" style="background:#EFF3F6; border-bottom:1px solid var(--border);"><span class="role">Background</span></div>
+          <div class="meta"><div class="name">Light Mist</div><div class="hex">#EFF3F6</div></div>
+        </div>
+        <div class="swatch">
+          <div class="chip" style="background:#0A192F;"><span class="role">Text</span></div>
+          <div class="meta"><div class="name">Ink Navy</div><div class="hex">#0A192F</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Typography -->
+    <section class="section">
+      <div class="section-title">Typography — Inter</div>
+
+      <div class="type-row">
+        <div class="type-sample type-h">The quick brown fox</div>
+        <div class="type-label">Inter Bold<span>Headings · 700</span></div>
+      </div>
+
+      <div class="type-row">
+        <div class="type-sample type-b">The quick brown fox jumps over the lazy dog. Body copy stays highly legible at comfortable sizes.</div>
+        <div class="type-label">Inter Regular<span>Body · 400</span></div>
+      </div>
+
+      <div class="type-row">
+        <div class="type-sample"><span class="type-btn-sample">Get Started</span></div>
+        <div class="type-label">Inter SemiBold<span>Buttons · 600</span></div>
+      </div>
+    </section>
+
+    <!-- Usage -->
+    <section class="section">
+      <div class="section-title">Brand In Use</div>
+
+      <!-- Logo variants -->
+      <div class="sub-title">Logo Variants</div>
+      <p class="sub-note">The "F" mark anchors the brand. Use the navy gradient as the default; switch to the gold mark only on dark navy surfaces where contrast is needed.</p>
+      <div class="usage">
+        <div class="usage-card">
+          <div class="logo-badge">F</div>
+          <h3>App Icon — Navy</h3>
+          <p>Primary mark on a navy-to-blue gradient. Used for the launcher icon, splash screen, and login header. Minimum size 48&nbsp;px.</p>
+        </div>
+        <div class="usage-card">
+          <div class="logo-badge gold">F</div>
+          <h3>Accent Mark — Gold</h3>
+          <p>Gold variant reserved for dark backgrounds, badges, achievement icons, and active navigation states.</p>
+        </div>
+      </div>
+
+      <!-- Clear space -->
+      <div class="sub-title">Logo Lockup &amp; Clear Space</div>
+      <p class="sub-note">Always keep clear space around the logo equal to the height of the "F" mark. Never crowd it with text or other elements.</p>
+      <div class="clearspace">
+        <div class="frame">
+          <div class="lockup">
+            <div class="logo-badge" style="width:48px;height:48px;font-size:20px;border-radius:14px;">F</div>
+            <div class="wordmark">FBLA<span>·</span>Member</div>
+          </div>
+        </div>
+        <ul>
+          <li>Minimum clear space = height of the mark on all sides.</li>
+          <li>Minimum app-icon size: 48&nbsp;px (mobile launcher).</li>
+          <li>Corner radius: 22&nbsp;px on icon, 12–16&nbsp;px on UI cards.</li>
+          <li>Wordmark always set in Inter Black (900).</li>
+        </ul>
+      </div>
+
+      <!-- Do / Don't -->
+      <div class="sub-title">Color Do's &amp; Don'ts</div>
+      <div class="dos">
+        <div class="do-card good">
+          <div class="do-head">Do</div>
+          <ul>
+            <li>Use Navy for app bars, headers &amp; primary buttons.</li>
+            <li>Use Gold sparingly as an accent for CTAs &amp; highlights.</li>
+            <li>Keep body text Ink Navy on light backgrounds.</li>
+            <li>Maintain AA contrast (4.5:1) for all text.</li>
+          </ul>
+        </div>
+        <div class="do-card bad">
+          <div class="do-head">Don't</div>
+          <ul>
+            <li>Don't place gold text on a white background (low contrast).</li>
+            <li>Don't use gold as a large background fill.</li>
+            <li>Don't introduce off-brand colors for buttons.</li>
+            <li>Don't stretch, recolor, or rotate the logo mark.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Buttons with specs -->
+      <div class="sub-title">Buttons</div>
+      <div class="spec-grid">
+        <div class="spec">
+          <button class="btn btn-primary">Primary</button>
+          <div class="spec-meta"><b>Navy #00274D</b> · white text · main actions (Sign In, Save).</div>
+        </div>
+        <div class="spec">
+          <button class="btn btn-accent">Accent</button>
+          <div class="spec-meta"><b>Gold #FDB913</b> · navy text · key CTAs (Get Started, Continue).</div>
+        </div>
+        <div class="spec">
+          <button class="btn btn-outline">Secondary</button>
+          <div class="spec-meta"><b>Blue #1D4E89</b> outline · low-emphasis &amp; cancel actions.</div>
+        </div>
+      </div>
+      <p class="sub-note" style="margin-top:14px;">Shared specs — height 48–52&nbsp;px · corner radius 12–14&nbsp;px · label Inter SemiBold (600) · full-width on mobile forms.</p>
+
+      <!-- Iconography -->
+      <div class="sub-title">Iconography</div>
+      <p class="sub-note">Rounded Material icons. Inactive icons sit on the light surface; the active tab uses the navy chip with a gold glyph.</p>
+      <div class="icon-row">
+        <div class="icon-chip">🏠</div>
+        <div class="icon-chip">📅</div>
+        <div class="icon-chip active">📚</div>
+        <div class="icon-chip">💬</div>
+        <div class="icon-chip">👤</div>
+      </div>
+
+      <!-- Voice & tone -->
+      <div class="sub-title">Voice &amp; Tone</div>
+      <p class="sub-note">The app speaks to high-school FBLA members — encouraging, clear, and professional. Motivational without being gimmicky.</p>
+      <div class="pills">
+        <span class="pill accent">Encouraging</span>
+        <span class="pill">Professional</span>
+        <span class="pill">Clear</span>
+        <span class="pill accent">Confident</span>
+        <span class="pill">Concise</span>
+      </div>
+    </section>
+
+    <footer class="footer">
+      FBLA Member App · Mobile Application Development · Brand &amp; Design System
+    </footer>
+  </div>
+</body>
+</html>
