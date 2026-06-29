@@ -13,8 +13,7 @@ import '../../main.dart'
         fblaLightBorder,
         fblaLightPrimaryText,
         fblaLightSecondaryText,
-        fblaLightSurface,
-        fblaNavy;
+        fblaLightSurface;
 import '../../models/video_model.dart';
 import '../../screens/find_members_screen.dart';
 import '../../screens/instagram_feed_screen.dart';
@@ -586,7 +585,7 @@ class _SocialScreenState extends State<SocialScreen>
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   void _openFeedItem(BuildContext context, FeedItem item, bool isDark) {
-    context.read<SocialProvider>().trackView(item);
+    _socialProvider.trackView(item);
     switch (item.kind) {
       case FeedItemKind.instagramPost:
         InstagramFeedScreen.open(context);
