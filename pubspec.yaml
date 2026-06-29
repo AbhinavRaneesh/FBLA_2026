@@ -79,6 +79,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icons/
+    - assets/social_media_platforms/
     - assets/home_page_slideshow/1.png
     - assets/home_page_slideshow/2.png
     - assets/home_page_slideshow/3.png

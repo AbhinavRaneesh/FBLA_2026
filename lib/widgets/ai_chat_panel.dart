@@ -5,6 +5,7 @@ import '../ai/bloc/chat_bloc.dart';
 import '../ai/bloc/chat_event.dart';
 import '../ai/bloc/chat_state.dart';
 import '../ai/models/chat_message_model.dart';
+import '../ai/utils/assistant_fallbacks.dart';
 import 'markdown_chat_text.dart';
 
 const fblaNavy = Color(0xFF00274D);
@@ -98,7 +99,12 @@ class _AiChatPanelState extends State<AiChatPanel> {
               if (state is ChatLoaded) {
                 return _buildMessages(state.messages, state.isLoading);
               }
-              if (state is ChatError) return _buildError(state.message);
+              if (state is ChatError) {
+                if (AssistantFallbacks.isAppAssistantThread(widget.threadId)) {
+                  return _buildWelcome();
+                }
+                return _buildError(state.message);
+              }
               return _buildWelcome();
             },
           ),

@@ -7,6 +7,7 @@ import 'package:lottie/lottie.dart';
 
 import '../../constants/app_assets.dart';
 import '../../main.dart' show fblaGold, fblaLightBorder, fblaLightPrimaryText, fblaLightSecondaryText, fblaNavy;
+import '../../widgets/social_platform_logo.dart';
 import '../screens/local_video_player_screen.dart';
 import '../models/social_models.dart';
 import '../services/video_cover_service.dart';
@@ -177,6 +178,7 @@ class FeedPlatformBadge extends StatelessWidget {
   final IconData icon;
   final Color color;
   final bool showNew;
+  final String? logoAsset;
 
   const FeedPlatformBadge({
     super.key,
@@ -184,6 +186,7 @@ class FeedPlatformBadge extends StatelessWidget {
     required this.icon,
     required this.color,
     this.showNew = false,
+    this.logoAsset,
   });
 
   @override
@@ -200,7 +203,12 @@ class FeedPlatformBadge extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 14, color: color),
+              SocialPlatformLogo(
+                assetPath: logoAsset,
+                fallbackIcon: icon,
+                color: color,
+                size: 14,
+              ),
               const SizedBox(width: 5),
               Text(
                 label,
@@ -558,10 +566,11 @@ class InstagramPostCard extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-            child: const FeedPlatformBadge(
+            child: FeedPlatformBadge(
               label: 'Instagram',
               icon: Icons.camera_alt_rounded,
               color: Color(0xFFE1306C),
+              logoAsset: AppAssets.instagramLogo,
             ),
           ),
           ClipRRect(
@@ -638,10 +647,11 @@ class YouTubeVideoCard extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-            child: const FeedPlatformBadge(
+            child: FeedPlatformBadge(
               label: 'YouTube',
               icon: Icons.smart_display_rounded,
               color: Color(0xFFFF0000),
+              logoAsset: AppAssets.youtubeLogo,
             ),
           ),
           GestureDetector(
@@ -900,29 +910,26 @@ class SocialPlatformCard extends StatelessWidget {
                 color: platform.color.withValues(alpha: 0.16),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(platform.icon, color: platform.color, size: 20),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              platform.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: isDark ? Colors.white : fblaLightPrimaryText,
-                fontWeight: FontWeight.w900,
-                fontSize: 14,
+              child: SocialPlatformLogo(
+                platformName: platform.name,
+                fallbackIcon: platform.icon,
+                color: platform.color,
+                size: 20,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
             Expanded(
-              child: Text(
-                platform.description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: isDark ? Colors.white60 : fblaLightSecondaryText,
-                  fontSize: 11,
-                  height: 1.25,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  platform.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : fblaLightPrimaryText,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                  ),
                 ),
               ),
             ),
@@ -1198,6 +1205,7 @@ class _RecommendedDiscoverCard extends StatelessWidget {
                   isDark: isDark,
                   platformIcon: view.platformIcon,
                   platformColor: view.platformColor,
+                  logoAsset: view.logoAsset,
                 ),
               )
             else
@@ -1220,8 +1228,12 @@ class _RecommendedDiscoverCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(view.platformIcon,
-                        color: view.platformColor, size: 22),
+                    SocialPlatformLogo(
+                      assetPath: view.logoAsset,
+                      fallbackIcon: view.platformIcon,
+                      color: view.platformColor,
+                      size: 22,
+                    ),
                     const Spacer(),
                     Text(
                       view.platformLabel,
@@ -1288,6 +1300,7 @@ class _RecommendedMedia extends StatelessWidget {
   final bool isDark;
   final IconData platformIcon;
   final Color platformColor;
+  final String? logoAsset;
 
   const _RecommendedMedia({
     required this.mediaUrl,
@@ -1295,6 +1308,7 @@ class _RecommendedMedia extends StatelessWidget {
     required this.isDark,
     required this.platformIcon,
     required this.platformColor,
+    this.logoAsset,
   });
 
   @override
@@ -1316,7 +1330,12 @@ class _RecommendedMedia extends StatelessWidget {
                 end: Alignment.bottomRight,
               ),
             ),
-            child: Icon(platformIcon, color: platformColor, size: 36),
+            child: SocialPlatformLogo(
+              assetPath: logoAsset,
+              fallbackIcon: platformIcon,
+              color: platformColor,
+              size: 36,
+            ),
           ),
         if (isVideo)
           Center(
@@ -1363,6 +1382,7 @@ class _RecommendedCardView {
   final String platformLabel;
   final IconData platformIcon;
   final Color platformColor;
+  final String? logoAsset;
 
   const _RecommendedCardView({
     required this.title,
@@ -1372,6 +1392,7 @@ class _RecommendedCardView {
     required this.platformLabel,
     required this.platformIcon,
     required this.platformColor,
+    this.logoAsset,
   });
 
   static _RecommendedCardView from(FeedItem item) {
@@ -1406,6 +1427,7 @@ class _RecommendedCardView {
           platformLabel: 'Instagram',
           platformIcon: Icons.camera_alt_rounded,
           platformColor: const Color(0xFFE1306C),
+          logoAsset: AppAssets.instagramLogo,
         );
       case FeedItemKind.youtubeVideo:
         final video = item.youtube!;
@@ -1416,6 +1438,7 @@ class _RecommendedCardView {
           platformLabel: 'YouTube',
           platformIcon: Icons.smart_display_rounded,
           platformColor: const Color(0xFFFF0000),
+          logoAsset: AppAssets.youtubeLogo,
         );
       case FeedItemKind.forumThread:
         final thread = item.forum!;

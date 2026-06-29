@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../constants/app_assets.dart';
 import '../../main.dart'
     show
         AppState,
@@ -24,6 +25,7 @@ import '../providers/social_provider.dart';
 import '../theme/bluewave_theme.dart';
 import '../widgets/post_share_sheet.dart';
 import '../widgets/social_feed_widgets.dart';
+import '../../widgets/social_platform_logo.dart';
 import 'bluewave_compose_screen.dart';
 import 'discord_hub_screen.dart';
 import 'forum_screens.dart';
@@ -546,8 +548,9 @@ class _SocialScreenState extends State<SocialScreen>
                   color: BlueWaveTheme.primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(
-                  _iconForPlatform(result.platform),
+                child: SocialPlatformLogo(
+                  platformName: _platformLabel(result.platform),
+                  fallbackIcon: _iconForPlatform(result.platform),
                   color: BlueWaveTheme.primary,
                   size: 18,
                 ),
@@ -692,6 +695,17 @@ class _SocialScreenState extends State<SocialScreen>
         return Icons.forum_outlined;
       case SocialPlatform.news:
         return Icons.newspaper_rounded;
+    }
+  }
+
+  String? _platformLabel(SocialPlatform platform) {
+    switch (platform) {
+      case SocialPlatform.instagram:
+        return 'Instagram';
+      case SocialPlatform.youtube:
+        return 'YouTube';
+      default:
+        return null;
     }
   }
 }
@@ -1007,8 +1021,9 @@ class _ConnectLinkedInCard extends StatelessWidget {
                   color: _linkedInBlue.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
-                  Icons.business_center_rounded,
+                child: SocialPlatformLogo(
+                  assetPath: AppAssets.linkedinLogo,
+                  fallbackIcon: Icons.business_center_rounded,
                   color: _linkedInBlue,
                   size: 24,
                 ),

@@ -5,7 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart';
 import '../services/firebase_service.dart';
-import '../services/nlc_prep_service.dart';
+import '../services/member_directory_cache.dart';
 import '../widgets/app_snackbar.dart';
 import '../widgets/member_avatar.dart';
 
@@ -38,7 +38,12 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    final cached = MemberDirectoryCache.snapshotFor(_currentUserId);
+    if (cached != null) {
+      _applySnapshot(cached);
+      _isLoading = false;
+    }
+    _loadData(silent: cached != null);
   }
 
   @override
@@ -54,11 +59,22 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
     return app.resolvedDisplayName;
   }
 
-  Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-      _loadError = null;
-    });
+  void _applySnapshot(MemberDirectorySnapshot snapshot) {
+    _allMembers = snapshot.allMembers;
+    _friends = snapshot.friends;
+    _incomingRequests = snapshot.incomingRequests;
+    _outgoingRequests = snapshot.outgoingRequests;
+    _relationStatuses = snapshot.relationStatuses;
+    _myNlcEvents = snapshot.myNlcEvents;
+  }
+
+  Future<void> _loadData({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _isLoading = true;
+        _loadError = null;
+      });
+    }
 
     try {
       final currentUserId = _currentUserId;
@@ -76,49 +92,16 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
         return;
       }
 
-      final members = await FirebaseService.getUsers();
-      members.sort(_sortMembers);
-
-      final myEvents = await NlcPrepService.loadNlcEvents(currentUserId);
-
-      final friends = await FirebaseService.getFriendsForUser(currentUserId);
-      final incoming =
-          await FirebaseService.getIncomingFriendRequests(currentUserId);
-      final outgoing =
-          await FirebaseService.getOutgoingFriendRequests(currentUserId);
-
-      final memberById = {
-        for (final member in members)
-          (member['id'] ?? '').toString(): member,
-      };
-      final enrichedIncoming = incoming.map((request) {
-        final fromId = (request['fromUserId'] ?? '').toString();
-        final fromMember = memberById[fromId];
-        if (fromMember == null) return request;
-        return {
-          ...request,
-          'fromUserPhotoUrl': (fromMember['photoUrl'] ?? '').toString(),
-        };
-      }).toList(growable: false);
-
-      final memberIds = members
-          .map((member) => (member['id'] ?? '').toString())
-          .where((id) => id.isNotEmpty)
-          .toList(growable: false);
-      final statuses = await FirebaseService.getFriendRelationStatuses(
+      final snapshot = await MemberDirectoryCache.preload(
         currentUserId,
-        memberIds,
+        force: true,
       );
 
-      if (!mounted) return;
+      if (!mounted || snapshot == null) return;
       setState(() {
-        _allMembers = members;
-        _friends = friends;
-        _incomingRequests = enrichedIncoming;
-        _outgoingRequests = outgoing;
-        _relationStatuses = statuses;
-        _myNlcEvents = myEvents;
+        _applySnapshot(snapshot);
         _isLoading = false;
+        _loadError = null;
       });
     } catch (error) {
       if (!mounted) return;

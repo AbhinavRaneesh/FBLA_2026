@@ -60,4 +60,29 @@ class AppAssets {
     '${homeSlideshowDir}3.png',
     '${homeSlideshowDir}4.png',
   ];
+
+  static const String socialPlatformsDir = 'assets/social_media_platforms/';
+  static const String instagramLogo = '${socialPlatformsDir}instagram.png';
+  static const String linkedinLogo = '${socialPlatformsDir}linkedin.png';
+  static const String youtubeLogo = '${socialPlatformsDir}youtube.png';
+  static const String tiktokLogo = '${socialPlatformsDir}tiktok.png';
+  static const String xLogo = '${socialPlatformsDir}X.png';
+
+  static String? socialLogoForName(String name) {
+    switch (name.trim().toLowerCase()) {
+      case 'instagram':
+        return instagramLogo;
+      case 'linkedin':
+        return linkedinLogo;
+      case 'youtube':
+        return youtubeLogo;
+      case 'tiktok':
+        return tiktokLogo;
+      case 'x':
+      case 'twitter':
+        return xLogo;
+      default:
+        return null;
+    }
+  }
 }

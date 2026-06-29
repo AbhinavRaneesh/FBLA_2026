@@ -41,6 +41,7 @@ import 'widgets/friend_picker_sheet.dart';
 import 'widgets/home_slideshow.dart';
 import 'widgets/ai_assistant_host.dart';
 import 'widgets/app_snackbar.dart';
+import 'widgets/social_platform_logo.dart';
 import 'social/screens/social_screen.dart';
 import 'screens/instagram_feed_screen.dart';
 import 'screens/rank_screen.dart';
@@ -49,6 +50,7 @@ import 'models/fbla_rank.dart';
 import 'ai/bloc/chat_bloc.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'services/firebase_service.dart';
+import 'services/member_directory_cache.dart';
 import 'services/mongodb_service.dart';
 import 'models/fbla_models.dart';
 import 'models/video_model.dart';
@@ -205,6 +207,7 @@ class AppState extends ChangeNotifier {
         } else {
           userProfile = null;
           userChapter = null;
+          MemberDirectoryCache.invalidate();
         }
         notifyListeners();
       });
@@ -822,6 +825,7 @@ class AppState extends ChangeNotifier {
     } catch (e) {
       print('Error loading user profile: $e');
     }
+    unawaited(MemberDirectoryCache.preload(userId));
   }
 
   Future<void> refreshUserProfile() async {
@@ -1529,6 +1533,7 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
   AppState? _appState;
   bool _notificationsInitialized = false;
   bool _tourChecked = false;
+  bool _memberDirectoryPreloaded = false;
   String _eventsScheduleSignature = '';
 
   // Order: 0=Home, 1=Events, 2=Resources, 3=Social, 4=More
@@ -1581,6 +1586,14 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
     if (!_notificationsInitialized) {
       _notificationsInitialized = true;
       _initializeAndScheduleNotifications();
+    }
+
+    if (!_memberDirectoryPreloaded) {
+      _memberDirectoryPreloaded = true;
+      final uid = app.firebaseUser?.uid;
+      if (uid != null && uid.isNotEmpty) {
+        unawaited(MemberDirectoryCache.preload(uid));
+      }
     }
 
     // Show the first-run guided tour once, after the home screen is painted.
@@ -6203,6 +6216,7 @@ class _FeedsScreenState extends State<FeedsScreen>
         separatorBuilder: (_, __) => const SizedBox(width: 14),
         itemBuilder: (context, i) {
           final p = _platforms[i];
+          final hasLogo = AppAssets.socialLogoForName(p.name) != null;
           return GestureDetector(
             onTap: () => _openPlatform(p),
             child: Column(
@@ -6212,21 +6226,41 @@ class _FeedsScreenState extends State<FeedsScreen>
                   width: 58,
                   height: 58,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [p.color, p.color.withValues(alpha: 0.72)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    color: hasLogo ? Colors.white : null,
+                    gradient: hasLogo
+                        ? null
+                        : LinearGradient(
+                            colors: [
+                              p.color,
+                              p.color.withValues(alpha: 0.72),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
                     borderRadius: BorderRadius.circular(18),
+                    border: hasLogo
+                        ? Border.all(
+                            color: p.color.withValues(alpha: 0.2),
+                          )
+                        : null,
                     boxShadow: [
                       BoxShadow(
-                        color: p.color.withValues(alpha: 0.4),
+                        color: (hasLogo ? Colors.black : p.color)
+                            .withValues(alpha: hasLogo ? 0.12 : 0.4),
                         blurRadius: 12,
                         offset: const Offset(0, 5),
                       ),
                     ],
                   ),
-                  child: Icon(p.icon, color: Colors.white, size: 28),
+                  child: Padding(
+                    padding: EdgeInsets.all(hasLogo ? 10 : 0),
+                    child: SocialPlatformLogo(
+                      platformName: p.name,
+                      fallbackIcon: p.icon,
+                      color: Colors.white,
+                      size: hasLogo ? 32 : 28,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -8240,7 +8274,12 @@ class ProfileScreen extends StatelessWidget {
                   color: color.withValues(alpha: isDark ? 0.18 : 0.11),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(icon, color: color, size: 28),
+                child: SocialPlatformLogo(
+                  platformName: label,
+                  fallbackIcon: icon,
+                  color: color,
+                  size: 28,
+                ),
               ),
               const SizedBox(width: 12),
               Flexible(
