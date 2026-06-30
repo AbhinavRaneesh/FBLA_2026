@@ -8,6 +8,7 @@ import '../screens/direct_chat_screen.dart';
 import '../screens/find_members_screen.dart';
 import '../screens/group_chat_screen.dart';
 import '../services/firebase_service.dart';
+import '../services/member_directory_cache.dart';
 import '../widgets/friend_picker_sheet.dart';
 import '../widgets/member_avatar.dart';
 
@@ -22,20 +23,33 @@ class ChatInboxScreen extends StatefulWidget {
 class _ChatInboxScreenState extends State<ChatInboxScreen> {
   int _tabIndex = 0;
   List<Map<String, dynamic>> _friends = const [];
+  bool _loadingFriends = true;
 
   @override
   void initState() {
     super.initState();
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    final cached = MemberDirectoryCache.snapshotFor(userId);
+    if (cached != null) {
+      _friends = cached.friends;
+      _loadingFriends = false;
+    }
     _refreshInbox();
   }
 
   Future<void> _refreshInbox() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
-    if (userId == null) return;
+    if (userId == null) {
+      if (mounted) setState(() => _loadingFriends = false);
+      return;
+    }
     await FirebaseService.pruneNonFriendDirectChats(userId);
     final friends = await FirebaseService.getFriendsForUser(userId);
     if (!mounted) return;
-    setState(() => _friends = friends);
+    setState(() {
+      _friends = friends;
+      _loadingFriends = false;
+    });
   }
 
   String? get _currentUserId => FirebaseAuth.instance.currentUser?.uid;
@@ -238,6 +252,9 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
     }
 
     if (_friends.isEmpty) {
+      if (_loadingFriends) {
+        return const Center(child: CircularProgressIndicator(color: fblaGold));
+      }
       return _emptyState(
         isDark,
         'No friends yet.\nAdd friends to start messaging.',
@@ -294,6 +311,9 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
 
   Widget _buildFriendsTab(bool isDark, Color primary, Color secondary) {
     if (_friends.isEmpty) {
+      if (_loadingFriends) {
+        return const Center(child: CircularProgressIndicator(color: fblaGold));
+      }
       return _emptyState(
         isDark,
         'No friends yet.\nFind members and send friend requests.',

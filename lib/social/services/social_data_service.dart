@@ -96,7 +96,7 @@ class SocialDataService {
           role: 'Chapter VP',
         ),
         text:
-            'Just finished our cybersecurity practice set — 92% on the mock exam. Who else is competing in tech events this year?',
+            'Just finished our cybersecurity practice set with 92% on the mock exam. Who else is competing in tech events this year?',
         kind: BlueWavePostKind.standard,
         createdAt: now.subtract(const Duration(hours: 11)),
         waveCount: 31,
@@ -110,7 +110,7 @@ class SocialDataService {
           name: 'Taylor Brooks',
           role: 'Member',
         ),
-        text: 'Chapter community service day — 120 hours logged in one weekend!',
+        text: 'Chapter community service day: 120 hours logged in one weekend!',
         kind: BlueWavePostKind.memberHighlight,
         createdAt: now.subtract(const Duration(days: 1)),
         waveCount: 67,
@@ -168,7 +168,7 @@ class SocialDataService {
     return [
       ForumThreadData(
         id: 'forum_1',
-        title: 'NLC travel tips — flights & hotels',
+        title: 'NLC travel tips: flights & hotels',
         category: ForumCategory.events,
         author: const SocialAuthor(id: 'u1', name: 'Casey Nguyen', role: 'Member'),
         replyCount: 14,
