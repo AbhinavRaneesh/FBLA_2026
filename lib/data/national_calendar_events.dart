@@ -27,6 +27,44 @@ DateTime _lastDayOfMonth(int year, int month) =>
     DateTime(year, month + 1, 0, 23, 59);
 
 final nationalCalendarEventSeeds = <NationalCalendarEventSeed>[
+  // JUNE–JULY 2026 — NLC 2026 (San Antonio)
+  NationalCalendarEventSeed(
+    id: 'national_2026_nlc_day1',
+    title: 'NLC 2026 - Day 1',
+    start: _day(2026, 6, 29, 8),
+    end: _day(2026, 6, 29, 17),
+    location: 'San Antonio, TX',
+    description:
+        'FBLA National Leadership Conference opens in San Antonio. Competitions, workshops, and chapter activities begin.',
+  ),
+  NationalCalendarEventSeed(
+    id: 'national_2026_nlc_day2',
+    title: 'NLC 2026 - Day 2',
+    start: _day(2026, 6, 30, 8),
+    end: _day(2026, 6, 30, 17),
+    location: 'San Antonio, TX',
+    description:
+        'NLC Day 2 in San Antonio. Competitive events, exhibits, and leadership sessions continue.',
+  ),
+  NationalCalendarEventSeed(
+    id: 'national_2026_nlc_day3',
+    title: 'NLC 2026 - Day 3',
+    start: _day(2026, 7, 1, 8),
+    end: _day(2026, 7, 1, 17),
+    location: 'San Antonio, TX',
+    description:
+        'NLC Day 3 in San Antonio. Finals, workshops, and national programming.',
+  ),
+  NationalCalendarEventSeed(
+    id: 'national_2026_nlc_day4',
+    title: 'NLC 2026 - Day 4',
+    start: _day(2026, 7, 2, 8),
+    end: _day(2026, 7, 2, 17),
+    location: 'San Antonio, TX',
+    description:
+        'NLC Day 4 in San Antonio. Closing sessions, awards, and conference wrap-up.',
+  ),
+
   // AUGUST 2026
   NationalCalendarEventSeed(
     id: 'national_2026_membership_year_begins',

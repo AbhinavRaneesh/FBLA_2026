@@ -28,7 +28,6 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
   List<Map<String, dynamic>> _allMembers = const [];
   List<Map<String, dynamic>> _friends = const [];
   List<Map<String, dynamic>> _incomingRequests = const [];
-  List<Map<String, dynamic>> _outgoingRequests = const [];
   Map<String, String> _relationStatuses = const {};
   bool _isLoading = true;
   String? _loadError;
@@ -63,7 +62,6 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
     _allMembers = snapshot.allMembers;
     _friends = snapshot.friends;
     _incomingRequests = snapshot.incomingRequests;
-    _outgoingRequests = snapshot.outgoingRequests;
     _relationStatuses = snapshot.relationStatuses;
     _myNlcEvents = snapshot.myNlcEvents;
   }
@@ -84,7 +82,6 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
           _allMembers = const [];
           _friends = const [];
           _incomingRequests = const [];
-          _outgoingRequests = const [];
           _relationStatuses = const {};
           _loadError = null;
           _isLoading = false;
@@ -1131,7 +1128,7 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
             ),
         ];
       case _MembersTab.requests:
-        if (_incomingRequests.isEmpty && _outgoingRequests.isEmpty) {
+        if (_incomingRequests.isEmpty) {
           return [
             _buildEmptyCard(
               isDark: isDark,
@@ -1141,30 +1138,8 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
         }
 
         return [
-          if (_incomingRequests.isNotEmpty) ...[
-            Text(
-              'Incoming Requests',
-              style: TextStyle(
-                color: primaryText,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 10),
-            ..._incomingRequests.map(
-              (request) => _buildIncomingRequestCard(
-                request,
-                isDark: isDark,
-                primaryText: primaryText,
-                secondaryText: secondaryText,
-                surfaceColor: surfaceColor,
-                borderColor: borderColor,
-              ),
-            ),
-            const SizedBox(height: 18),
-          ],
           Text(
-            'Outgoing Requests',
+            'Incoming Requests',
             style: TextStyle(
               color: primaryText,
               fontSize: 16,
@@ -1172,22 +1147,16 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          if (_outgoingRequests.isEmpty)
-            _buildEmptyCard(
+          ..._incomingRequests.map(
+            (request) => _buildIncomingRequestCard(
+              request,
               isDark: isDark,
-              message: 'No outgoing friend requests right now.',
-            )
-          else
-            ..._outgoingRequests.map(
-              (request) => _buildOutgoingRequestCard(
-                request,
-                isDark: isDark,
-                primaryText: primaryText,
-                secondaryText: secondaryText,
-                surfaceColor: surfaceColor,
-                borderColor: borderColor,
-              ),
+              primaryText: primaryText,
+              secondaryText: secondaryText,
+              surfaceColor: surfaceColor,
+              borderColor: borderColor,
             ),
+          ),
         ];
     }
   }
@@ -1325,11 +1294,6 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
       return _buildRemoveFriendAction(member);
     }
 
-    if (relation == 'outgoing') {
-      return Icon(Icons.schedule_rounded,
-          color: isDark ? Colors.white54 : fblaLightDisabledText);
-    }
-
     if (relation == 'incoming') {
       return Icon(Icons.inbox_rounded, color: fblaGold);
     }
@@ -1441,66 +1405,6 @@ class _FindMembersScreenState extends State<FindMembersScreen> {
                   color: Color(0xFFEF5350), size: 22),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOutgoingRequestCard(
-    Map<String, dynamic> request, {
-    required bool isDark,
-    required Color primaryText,
-    required Color secondaryText,
-    required Color surfaceColor,
-    required Color borderColor,
-  }) {
-    final name = (request['toUserName'] ?? 'Member').toString();
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderColor),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: _fblaBlue,
-            child: Text(
-              name.isNotEmpty ? name[0].toUpperCase() : '?',
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Outgoing request',
-                  style: TextStyle(
-                    color: secondaryText,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  name,
-                  style: TextStyle(
-                    color: primaryText,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(Icons.schedule_rounded,
-              color: isDark ? Colors.white54 : fblaLightDisabledText),
         ],
       ),
     );

@@ -516,15 +516,6 @@ class FirebaseService {
       }
     }
 
-    final outgoingSnapshot = await _firestore
-        .collection('friend_requests')
-        .where('fromUserId', isEqualTo: currentUserId)
-        .where('status', isEqualTo: 'pending')
-        .get();
-    final outgoingIds = outgoingSnapshot.docs
-        .map((doc) => (doc.data()['toUserId'] ?? '').toString())
-        .toSet();
-
     final incomingSnapshot = await _firestore
         .collection('friend_requests')
         .where('toUserId', isEqualTo: currentUserId)
@@ -539,8 +530,6 @@ class FirebaseService {
         statuses[otherUserId] = 'self';
       } else if (friendIds.contains(otherUserId)) {
         statuses[otherUserId] = 'friends';
-      } else if (outgoingIds.contains(otherUserId)) {
-        statuses[otherUserId] = 'outgoing';
       } else if (incomingIds.contains(otherUserId)) {
         statuses[otherUserId] = 'incoming';
       }
